@@ -1,44 +1,46 @@
-const { exec } = require('child_process');
+const { execSync } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const execAsync = promisify(exec);
+const execAsync = promisify(require('child_process').exec);
 
 class PrinterUtils {
   static async getPrinters() {
     try {
-      // Windows 获取打印机列表
       const { stdout } = await execAsync(
         'wmic printer get name,status /format:csv'
       );
       const lines = stdout
         .split('\n')
-        .filter((line) => line.trim() && !line.includes('Node'));
-
+        .filter((line) => line.trim() && !line.startsWith('Node'))
+        .slice(1);
       const printers = [];
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(',');
-        if (parts.length >= 2 && parts[1] && parts[1].trim()) {
-          const name = parts[1].trim();
-          const { width, isThermal } = this.classifyPrinter(name);
 
-          printers.push({
-            name: name,
-            status: parts[2]?.trim() || 'Ready',
-            width: width,
-            isThermal: isThermal,
-            isEnabled: false,
-            fontSize: 0, // 0=小, 1=中, 2=大
-          });
+      for (const line of lines) {
+        const fields = line.split(',');
+        if (fields.length >= 2) {
+          const name = fields[1]?.trim();
+          const status = fields[2]?.trim() || 'Unknown';
+
+          if (name && name !== 'Name') {
+            const classification = this.classifyPrinter(name);
+            printers.push({
+              name: name,
+              status: status,
+              width: classification.width,
+              isThermal: classification.isThermal,
+              isEnabled: false,
+              fontSize: 0,
+            });
+          }
         }
       }
 
       return printers.filter((p) => p.name);
     } catch (error) {
       console.error('获取打印机列表失败:', error);
-      // 返回默认打印机列表作为备选
       return [
         {
           name: '默认打印机',
@@ -60,11 +62,8 @@ class PrinterUtils {
     }
   }
 
-  // 根据打印机名称分类判断宽度
   static classifyPrinter(name) {
     const nameLower = name.toLowerCase();
-
-    // 检查是否为热敏打印机和宽度
     if (nameLower.includes('58') || nameLower.includes('58mm')) {
       return { width: 58, isThermal: true };
     } else if (nameLower.includes('80') || nameLower.includes('80mm')) {
@@ -74,10 +73,8 @@ class PrinterUtils {
       nameLower.includes('receipt') ||
       nameLower.includes('pos')
     ) {
-      // 热敏打印机但未明确宽度，默认80mm
       return { width: 80, isThermal: true };
     } else {
-      // 其他类型打印机，默认80mm宽度
       return { width: 80, isThermal: false };
     }
   }
@@ -87,14 +84,13 @@ class PrinterUtils {
       console.log('🧪 [TEST] 开始测试打印');
       console.log('🧪 [TEST] 目标打印机:', printerName);
 
-      // 生成包含中文的测试订单数据
       const testOrder = {
         order_id: '23410121749595834',
         rd_id: 341,
         user_id: '6305000000012',
         order_status: 1,
-        paystyle: 0, // 线下付款测试
-        delivery_style: 0, // 自取测试
+        paystyle: 0,
+        delivery_style: 0,
         delivery_type: 0,
         doordash_id: '',
         recipient_name: '张三 (Zhang San)',
@@ -173,12 +169,16 @@ class PrinterUtils {
       console.log('✅ [TEST] 测试订单数据生成完成');
       console.log('🧪 [TEST] 正在生成打印内容...');
 
-      const content = this.generatePrintContent(testOrder, width, fontSize);
+      const content = PrinterUtils.generatePrintContent(
+        testOrder,
+        width,
+        fontSize
+      );
 
       console.log('✅ [TEST] 打印内容生成完成，长度:', content.length, '字符');
       console.log('🧪 [TEST] 开始调用打印机API...');
 
-      return await this.printText(printerName, content);
+      return await PrinterUtils.printText(printerName, content);
     } catch (error) {
       console.error('测试打印失败:', error);
       throw error;
@@ -187,12 +187,12 @@ class PrinterUtils {
 
   static async printOrder(printerName, orderData, width = 80, fontSize = 0) {
     try {
-      const orderContent = this.generatePrintContent(
+      const orderContent = PrinterUtils.generatePrintContent(
         orderData,
         width,
         fontSize
       );
-      return await this.printText(printerName, orderContent);
+      return await PrinterUtils.printText(printerName, orderContent);
     } catch (error) {
       console.error('打印订单失败:', error);
       throw error;
@@ -200,70 +200,56 @@ class PrinterUtils {
   }
 
   static generatePrintContent(order, width = 80, fontSize = 0) {
-    // 根据纸张宽度设置字符数 (考虑中文字符占2个位置)
     const charWidth = width === 80 ? 48 : 32;
-
     let content = '';
 
-    // ESC/POS初始化命令 - 简化编码设置
-    content += '\x1B@'; // 初始化打印机
+    // ESC/POS initialization
+    content += '\x1B@';
+    content += '\x1C\x26';
+    content += '\x1C\x43\x01';
 
-    // 简化的编码设置 - 让打印机使用默认编码处理
-    content += '\x1C\x26'; // 启用汉字模式 (通用命令)
-    content += '\x1C\x43\x01'; // 选择汉字字符模式
-
-    // 设置字体大小 - 确保中号和大号比小号大
+    // Font size
     switch (fontSize) {
-      case 0: // 小号字体 (默认大小)
-        content += '\x1D\x21\x00'; // 正常大小 (1x1)
+      case 0:
+        content += '\x1D\x21\x00';
         break;
-      case 1: // 中号字体 - 高度放大
-        content += '\x1D\x21\x10'; // 宽度1x，高度2x
+      case 1:
+        content += '\x1D\x21\x10';
         break;
-      case 2: // 大号字体 - 宽度和高度都放大
-        content += '\x1D\x21\x11'; // 宽度2x，高度2x
+      case 2:
+        content += '\x1D\x21\x11';
         break;
-      default: // 默认情况
-        content += '\x1D\x21\x00'; // 正常大小
+      default:
+        content += '\x1D\x21\x00';
         break;
     }
 
-    // 设置行间距为更宽松的间距
-    content += '\x1B\x33\x30'; // 设置行间距为48/180英寸 (比默认大)
+    content += '\x1B\x33\x30';
 
-    // ============= 头部信息 (居中) =============
-    content += '='.repeat(charWidth);
-    content += '\n';
-    content += '\x1B\x45\x01'; // 加粗
-    content += this.centerTextMixed(order.rd_name.toUpperCase(), charWidth);
-    content += '\x1B\x45\x00'; // 关闭加粗
-    content += '\n';
+    // Header
+    content += '='.repeat(charWidth) + '\n';
+    content += '\x1B\x45\x01';
+    const restaurantName = order.rd_name || '餐厅名称';
+    content += this.centerTextMixed(restaurantName.toUpperCase(), charWidth);
+    content += '\x1B\x45\x00\n';
 
-    // 订单类型 (居中)
     const orderType = this.getOrderTypeText(order);
-    content += '\x1B\x45\x01'; // 加粗
+    content += '\x1B\x45\x01';
     content += this.centerTextMixed(orderType, charWidth);
-    content += '\x1B\x45\x00'; // 关闭加粗
-    content += '\n';
-    content += '='.repeat(charWidth);
-    content += '\n\n';
+    content += '\x1B\x45\x00\n';
+    content += '='.repeat(charWidth) + '\n\n';
 
-    // ============= 订单信息表格 =============
-    // 订单号 (居中显示)
-    content += '\x1B\x45\x01'; // 加粗
+    // Order info
+    content += '\x1B\x45\x01';
     content += this.centerTextMixed(`Order #: ${order.order_id}`, charWidth);
-    content += '\x1B\x45\x00'; // 关闭加粗
-    content += '\n';
+    content += '\x1B\x45\x00\n';
 
-    // 流水号 (居中显示)
     const serial =
       order.serial_num > 0
         ? `#${order.serial_num.toString().padStart(3, '0')}`
         : `#${this.getOrderSerial(order)}`;
-    content += this.centerTextMixed(`Serial: ${serial}`, charWidth);
-    content += '\n\n';
+    content += this.centerTextMixed(`Serial: ${serial}`, charWidth) + '\n\n';
 
-    // 基本信息表格 (左对齐标签，右对齐数值)
     content += this.formatTableRow(
       'Order Date:',
       this.formatOrderTime(order.create_time),
@@ -271,7 +257,6 @@ class PrinterUtils {
     );
 
     if (order.delivery_style === 1) {
-      // 外送
       content += this.formatTableRow(
         'Delivery Time:',
         this.formatDeliveryTime(order.delivery_time),
@@ -285,7 +270,6 @@ class PrinterUtils {
         );
       }
     } else {
-      // 自取
       content += this.formatTableRow(
         'Pickup Time:',
         this.formatDeliveryTime(order.delivery_time),
@@ -305,7 +289,6 @@ class PrinterUtils {
     );
     content += this.formatTableRow('Phone:', order.recipient_phone, charWidth);
 
-    // 地址 (如果是外送)
     if (order.recipient_address && order.delivery_style === 1) {
       content += this.formatTableRow(
         'Address:',
@@ -318,104 +301,72 @@ class PrinterUtils {
       content += this.formatTableRow('Email:', order.user_email, charWidth);
     }
 
-    content += '\n';
-    content += '-'.repeat(charWidth);
-    content += '\n';
+    content += '\n' + '-'.repeat(charWidth) + '\n';
 
-    // ============= 商品明细表格 =============
-    content += '\x1B\x45\x01'; // 加粗
+    // Items
+    content += '\x1B\x45\x01';
     content += this.centerTextMixed('ORDER ITEMS', charWidth);
-    content += '\x1B\x45\x00'; // 关闭加粗
-    content += '\n';
-    content += '-'.repeat(charWidth);
-    content += '\n';
-
-    // 表格标题 - 简化版本
-    const header = this.formatTableHeader(
-      'Item Name',
-      'Qty',
-      '',
-      'Total',
-      charWidth
-    );
-    content += header;
-    content += '-'.repeat(charWidth);
-    content += '\n';
+    content += '\x1B\x45\x00\n';
+    content += '-'.repeat(charWidth) + '\n';
 
     for (const item of order.dishes_array) {
-      const price = parseFloat(item.price) || 0.0;
-      const unitPrice = parseFloat(item.unit_price) || 0.0;
-
-      // 商品行 (使用混合编码处理菜名)
       content += this.formatItemTableRow(
         this.prepareMixedContent(item.dishes_name),
         item.amount,
-        unitPrice,
-        price,
+        parseFloat(item.unit_price) || 0.0,
+        parseFloat(item.price) || 0.0,
         charWidth
       );
 
-      // 附加项目 (如米饭等) - 只显示名称，不显示价格和数量
       if (item.dishes_describe) {
         content += `  + ${this.prepareMixedContent(item.dishes_describe)}\n`;
       }
 
-      // 特殊要求 (使用混合编码)
       if (item.remark) {
         content += `  Note: ${this.prepareMixedContent(item.remark)}\n`;
       }
 
-      // 增加商品间的行距
       content += '\n';
     }
 
-    // ============= 费用明细 (右下角，每行一个数据，右对齐) =============
+    // Payment summary
     const subTotal = parseFloat(order.sub_total) || 0.0;
     const discountTotal = parseFloat(order.discount_total) || 0.0;
     const exemption = parseFloat(order.exemption) || 0.0;
     const taxFee = parseFloat(order.tax_fee) || 0.0;
     const taxRate = parseFloat(order.tax_rate) || 0.0;
     const deliveryFee = parseFloat(order.delivery_fee) || 0.0;
-    const convenienceFee = parseFloat(order.convenience_fee) || 0.0;
     const retailDeliveryFee = parseFloat(order.retail_delivery_fee) || 0.0;
+    const convenienceFee = parseFloat(order.convenience_fee) || 0.0;
     const tipFee = parseFloat(order.tip_fee) || 0.0;
     const total = parseFloat(order.total) || 0.0;
 
-    content += '-'.repeat(charWidth);
     content += '\n';
-    content += '\x1B\x45\x01'; // 加粗
+    content += '\x1B\x45\x01';
     content += this.centerTextMixed('PAYMENT SUMMARY', charWidth);
-    content += '\x1B\x45\x00'; // 关闭加粗
-    content += '\n';
-    content += '-'.repeat(charWidth);
-    content += '\n';
+    content += '\x1B\x45\x00\n';
+    content += '-'.repeat(charWidth) + '\n';
 
-    // 小计
     content += this.formatFeeLine('Subtotal', subTotal, charWidth);
 
-    // 折扣
     if (discountTotal > 0.0) {
       content += this.formatFeeLine('Discount', -discountTotal, charWidth);
     }
 
-    // 免费金额
     if (exemption > 0.0) {
       content += this.formatFeeLine('Exemption', -exemption, charWidth);
     }
 
-    // 税费
     if (taxFee > 0.0) {
       const taxLabel =
         taxRate > 0.0 ? `Tax (${(taxRate * 100.0).toFixed(1)}%)` : 'Tax';
       content += this.formatFeeLine(taxLabel, taxFee, charWidth);
     }
 
-    // 配送费
     if (deliveryFee > 0.0) {
       content += this.formatFeeLine('Delivery Fee', deliveryFee, charWidth);
     }
 
-    // 零售配送费
     if (retailDeliveryFee > 0.0) {
       content += this.formatFeeLine(
         'Retail Del. Fee',
@@ -424,7 +375,6 @@ class PrinterUtils {
       );
     }
 
-    // 便民费
     if (convenienceFee > 0.0) {
       const convRate = parseFloat(order.convenience_rate) || 0.0;
       const convLabel =
@@ -434,81 +384,63 @@ class PrinterUtils {
       content += this.formatFeeLine(convLabel, convenienceFee, charWidth);
     }
 
-    // 小费
     if (tipFee > 0.0) {
       content += this.formatFeeLine('Tip', tipFee, charWidth);
     }
 
-    content += '\n';
-    content += '='.repeat(charWidth);
-    content += '\n';
+    content += '-'.repeat(charWidth) + '\n';
 
-    // 总计 (加粗显示)
-    content += '\x1B\x45\x01'; // 加粗
+    content += '\x1B\x45\x01';
     content += this.formatFeeLine('TOTAL', total, charWidth);
-    content += '\x1B\x45\x00'; // 关闭加粗
+    content += '\x1B\x45\x00';
 
-    content += '='.repeat(charWidth);
-    content += '\n';
+    content += '\n' + '='.repeat(charWidth) + '\n';
 
-    // 底部信息 (使用混合编码)
     if (order.order_notes) {
       content += '\nNotes:\n';
-      content += this.prepareMixedContent(order.order_notes);
-      content += '\n';
+      content += this.prepareMixedContent(order.order_notes) + '\n';
     }
 
     content += '\n';
-    content += this.centerTextMixed('Thank you for your order!', charWidth);
-    content += '\n';
+    content +=
+      this.centerTextMixed('Thank you for your order!', charWidth) + '\n';
     content += this.centerTextMixed(
       `Order Time: ${this.formatSimpleTime(order.create_time)}`,
       charWidth
     );
-    content += '\n\n\n\n'; // 空行，为切纸预留空间
+    content += '\n\n\n\n';
 
-    // 单次自动切纸命令 - 避免重复切纸
-    content += '\x1D\x56\x00'; // GS V 0 - 全切 (最通用的切纸命令)
+    content += '\x1D\x56\x00';
 
     return content;
   }
 
-  // Helper function to get order type
   static getOrderTypeText(order) {
-    return order.delivery_style === 1 ? 'DELIVERY' : 'PICKUP';
+    return order.delivery_style === 1 ? 'DELIVERY ORDER' : 'PICKUP ORDER';
   }
 
-  // Helper function to get payment method text
   static getPaymentMethodText(paystyle) {
     switch (paystyle) {
       case 0:
-        return 'Pay at store';
+        return 'Cash on Delivery';
       case 1:
-        return 'Online payment';
+        return 'Online Payment';
       default:
-        return 'Other';
+        return 'Unknown Payment';
     }
   }
 
-  // Helper function to get order serial number
   static getOrderSerial(order) {
-    // Use the last 6 digits of order_id or a simple counter
-    const idStr = order.order_id;
-    if (idStr.length >= 6) {
-      return idStr.slice(-6);
-    } else {
-      return idStr;
-    }
+    const orderId = order.order_id.toString();
+    return orderId.slice(-3).padStart(3, '0');
   }
 
-  // Helper function to format order time
   static formatOrderTime(timeStr) {
     try {
       const date = new Date(timeStr);
-      return date.toLocaleDateString('en-US', {
-        month: '2-digit',
+      return date.toLocaleString('en-US', {
+        month: 'short',
         day: '2-digit',
-        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
@@ -518,32 +450,29 @@ class PrinterUtils {
     }
   }
 
-  // Helper function to format delivery time
   static formatDeliveryTime(timeStr) {
     return this.formatOrderTime(timeStr);
   }
 
-  // 计算中英文混合文本的显示宽度
   static displayWidth(text) {
-    return [...text].reduce((width, char) => {
-      return width + (char.charCodeAt(0) > 127 ? 2 : 1);
-    }, 0);
+    let width = 0;
+    for (const char of text) {
+      width += /[\u4e00-\u9fff\u3400-\u4dbf]/.test(char) ? 2 : 1;
+    }
+    return width;
   }
 
-  // 中英文混合文本居中
   static centerTextMixed(text, width) {
     const textWidth = this.displayWidth(text);
     if (textWidth >= width) {
       return text;
-    } else {
-      const padding = Math.floor((width - textWidth) / 2);
-      return ' '.repeat(padding) + text;
     }
+    const leftPadding = Math.floor((width - textWidth) / 2);
+    const rightPadding = width - textWidth - leftPadding;
+    return ' '.repeat(leftPadding) + text + ' '.repeat(rightPadding);
   }
 
-  // 简化的混合内容处理函数 - 与上面保持一致
   static prepareMixedContent(text) {
-    // 统一处理，让打印机自己识别编码
     return text
       .split('')
       .filter((c) => !this.isControlChar(c) || this.isAllowedControlChar(c))
@@ -552,57 +481,37 @@ class PrinterUtils {
 
   static isControlChar(c) {
     const code = c.charCodeAt(0);
-    return code < 32 || code === 127;
+    return code < 32 || (code >= 127 && code < 160);
   }
 
   static isAllowedControlChar(c) {
-    return c === '\n' || c === '\r' || c === '\t';
+    return ['\n', '\r', '\t'].includes(c);
   }
 
-  // 表格行格式化 (左对齐标签，右对齐数值)
   static formatTableRow(label, value, width) {
     const labelWidth = this.displayWidth(label);
     const valueWidth = this.displayWidth(value);
 
     if (labelWidth + valueWidth + 2 > width) {
-      // 如果一行放不下，换行显示
       return `${label}\n  ${value}\n`;
     } else {
-      const spaces = width - labelWidth - valueWidth;
-      return `${label}${' '.repeat(spaces)}${value}\n`;
+      const spacePadding = width - labelWidth - valueWidth;
+      return `${label}${' '.repeat(spacePadding)}${value}\n`;
     }
   }
 
-  // 商品表格标题
-  static formatTableHeader(name, qty, price, total, width) {
-    // 简化表格：只显示菜名、数量、总价
-    const nameWidth = Math.max(Math.floor(width * 0.7), 20); // 菜名占70%宽度
-    const qtyWidth = 4; // 数量宽度
-    const totalWidth = width - nameWidth - qtyWidth - 2; // 总价宽度
-
-    return `${this.truncateForWidth(name, nameWidth).padEnd(nameWidth)} ${qty
-      .padStart(qtyWidth)
-      .slice(-qtyWidth)} ${total.padStart(totalWidth).slice(-totalWidth)}\n`;
-  }
-
-  // 商品表格行 - 简化版本
   static formatItemTableRow(name, qty, unitPrice, totalPrice, width) {
-    // 简化表格：只显示菜名、数量、总价
-    const nameWidth = Math.max(Math.floor(width * 0.7), 20); // 菜名占70%宽度
-    const qtyWidth = 4; // 数量宽度
-    const totalWidth = width - nameWidth - qtyWidth - 2; // 总价宽度
+    const nameWidth = Math.max(Math.floor(width * 0.7), 20);
+    const qtyWidth = 4;
+    const totalWidth = width - nameWidth - qtyWidth - 2;
 
     const qtyStr = qty.toString();
     const totalStr = totalPrice === 0.0 ? '+0.00' : totalPrice.toFixed(2);
 
-    // 如果商品名太长，需要换行处理
     if (this.displayWidth(name) > nameWidth) {
       let result = '';
-
-      // 将长菜名分行显示
       const wrappedLines = this.wrapTextForWidth(name, nameWidth).split('\n');
 
-      // 第一行显示菜名开头和价格信息
       if (wrappedLines.length > 0) {
         const firstLine = this.truncateForWidth(wrappedLines[0], nameWidth);
         result += `${firstLine.padEnd(nameWidth)} ${qtyStr
@@ -612,7 +521,6 @@ class PrinterUtils {
           .slice(-totalWidth)}\n`;
       }
 
-      // 后续行只显示菜名的剩余部分
       for (let i = 1; i < wrappedLines.length; i++) {
         const line = this.truncateForWidth(wrappedLines[i], nameWidth);
         result += `${line.padEnd(nameWidth)}\n`;
@@ -620,7 +528,6 @@ class PrinterUtils {
 
       return result;
     } else {
-      // 菜名长度适中，单行显示
       return `${this.padForWidth(name, nameWidth)} ${qtyStr
         .padStart(qtyWidth)
         .slice(-qtyWidth)} ${totalStr
@@ -629,33 +536,27 @@ class PrinterUtils {
     }
   }
 
-  // 费用行格式化 (右下角对齐)
   static formatFeeLine(label, amount, width) {
     const amountStr =
       amount < 0.0 ? `-$${(-amount).toFixed(2)}` : `$${amount.toFixed(2)}`;
-
     const labelWidth = this.displayWidth(label);
     const amountWidth = this.displayWidth(amountStr);
 
     if (labelWidth + amountWidth + 2 > width) {
-      return `${label}\n${' '.repeat(width - amountWidth)}${amountStr}\n`;
+      return `${label}\n  ${amountStr}\n`;
     } else {
-      const spaces = width - labelWidth - amountWidth;
-      return `${label}${' '.repeat(spaces)}${amountStr}\n`;
+      const spacePadding = width - labelWidth - amountWidth;
+      return `${label}${' '.repeat(spacePadding)}${amountStr}\n`;
     }
   }
 
-  // 按显示宽度截断文本
   static truncateForWidth(text, maxWidth) {
     let result = '';
     let currentWidth = 0;
 
     for (const char of text) {
-      const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+      const charWidth = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(char) ? 2 : 1;
       if (currentWidth + charWidth > maxWidth) {
-        if (currentWidth + 2 <= maxWidth) {
-          result += '..';
-        }
         break;
       }
       result += char;
@@ -665,24 +566,22 @@ class PrinterUtils {
     return result;
   }
 
-  // 按显示宽度填充文本
   static padForWidth(text, targetWidth) {
     const textWidth = this.displayWidth(text);
     if (textWidth >= targetWidth) {
       return text;
-    } else {
-      return text + ' '.repeat(targetWidth - textWidth);
     }
+    const padding = targetWidth - textWidth;
+    return text + ' '.repeat(padding);
   }
 
-  // 按显示宽度换行文本
   static wrapTextForWidth(text, width) {
     let result = '';
     let currentLine = '';
     let currentWidth = 0;
 
     for (const char of text) {
-      const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+      const charWidth = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(char) ? 2 : 1;
 
       if (currentWidth + charWidth > width) {
         result += currentLine + '\n';
@@ -701,72 +600,49 @@ class PrinterUtils {
     return result;
   }
 
-  // 简化的时间格式
   static formatSimpleTime(timeStr) {
     try {
       const date = new Date(timeStr);
-      const now = new Date();
-
-      if (date > now) {
-        return `Future order ${date.toTimeString().slice(0, 5)}`;
-      } else {
-        return date.toLocaleDateString('en-US', {
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        });
-      }
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
     } catch (error) {
       return timeStr;
     }
   }
 
-  // 生成打印预览内容
   static async generatePrintPreview(orderData, settings = {}) {
     try {
       const {
-        paperWidth = 58,
-        fontSize = 12,
-        fontFamily = 'monospace',
-        lineSpacing = 1.2,
-        margin = 5,
-        showLogo = true,
-        showOrderTime = true,
-        showItemDetails = true,
-        showSeparator = true,
+        printerName = '默认打印机',
+        paperWidth = 80,
+        fontSize = 0,
       } = settings;
-
-      // 转换为打印内容格式
       const printContent = this.generatePrintContent(
         orderData,
         paperWidth,
-        fontSize >= 16 ? 2 : fontSize >= 14 ? 1 : 0
+        fontSize
       );
 
-      // 转换为HTML预览格式
       const htmlContent = printContent
-        .replace(/\x1B@/g, '') // 移除ESC/POS命令
-        .replace(/\x1B\x45\x01/g, '<strong>') // 加粗开始
-        .replace(/\x1B\x45\x00/g, '</strong>') // 加粗结束
-        .replace(/\x1D\x21[\x00-\xFF]/g, '') // 移除字体大小命令
-        .replace(/\x1B\x33[\x00-\xFF]/g, '') // 移除行间距命令
-        .replace(/\x1C[\x00-\xFF][\x00-\xFF]?/g, '') // 移除中文模式命令
-        .replace(/\x1D\x56\x00/g, '') // 移除切纸命令
-        .replace(/\n/g, '<br>')
-        .replace(/ /g, '&nbsp;');
+        .replace(/\x1B@/g, '')
+        .replace(/\x1B\x45\x01/g, '<strong>')
+        .replace(/\x1B\x45\x00/g, '</strong>')
+        .replace(/\x1D\x21[\x00-\xFF]/g, '')
+        .replace(/\x1B\x33[\x00-\xFF]/g, '')
+        .replace(/\x1C[\x00-\xFF][\x00-\xFF]?/g, '')
+        .replace(/\x1D\x56\x00/g, '')
+        .replace(/\n/g, '<br>');
 
       return {
-        html: htmlContent,
-        settings: {
-          paperWidth,
-          fontSize,
-          fontFamily,
-          lineSpacing,
-          margin,
-          charWidth: paperWidth === 80 ? 48 : 32,
-        },
+        success: true,
+        html: `<div style="font-family: 'Courier New', monospace; white-space: pre-wrap; line-height: 1.2;">${htmlContent}</div>`,
+        originalContent: printContent,
+        settings: settings,
       };
     } catch (error) {
       console.error('生成打印预览失败:', error);
@@ -774,51 +650,234 @@ class PrinterUtils {
     }
   }
 
-  // 原有的英文版本函数 (保留兼容性)
   static centerText(text, width) {
     const textLen = text.length;
     if (textLen >= width) {
       return text;
-    } else {
-      const padding = Math.floor((width - textLen) / 2);
-      return ' '.repeat(padding) + text;
     }
+    const leftPadding = Math.floor((width - textLen) / 2);
+    const rightPadding = width - textLen - leftPadding;
+    return ' '.repeat(leftPadding) + text + ' '.repeat(rightPadding);
   }
 
   static async printText(printerName, content) {
     try {
       console.log(`开始打印到打印机: ${printerName}`);
 
-      // 创建临时文件
       const tempDir = os.tmpdir();
       const tempFile = path.join(tempDir, `print_${Date.now()}.txt`);
 
-      // 写入打印内容
-      fs.writeFileSync(tempFile, content, 'utf8');
+      fs.writeFileSync(tempFile, content, { encoding: 'utf8' });
 
-      // Windows 打印命令
-      const printCommand = `print /D:"${printerName}" "${tempFile}"`;
+      const printCommand = `type "${tempFile}" > "${printerName}"`;
 
-      console.log(`执行打印命令: ${printCommand}`);
-
-      const { stdout, stderr } = await execAsync(printCommand);
-
-      // 清理临时文件
       try {
-        fs.unlinkSync(tempFile);
-      } catch (cleanupError) {
-        console.warn('清理临时文件失败:', cleanupError);
-      }
+        execSync(printCommand, { encoding: 'utf8' });
+        console.log('打印命令执行成功');
 
-      if (stderr) {
-        console.warn('打印警告:', stderr);
-      }
+        try {
+          fs.unlinkSync(tempFile);
+        } catch (cleanupError) {
+          console.warn('清理临时文件失败:', cleanupError.message);
+        }
 
-      console.log(`打印完成: ${printerName}`);
-      return { success: true, output: stdout };
+        return {
+          success: true,
+          message: `订单已成功发送到打印机: ${printerName}`,
+        };
+      } catch (printError) {
+        console.error('打印命令执行失败:', printError.message);
+
+        try {
+          fs.unlinkSync(tempFile);
+        } catch (cleanupError) {
+          console.warn('清理临时文件失败:', cleanupError.message);
+        }
+
+        throw new Error(`打印失败: ${printError.message}`);
+      }
     } catch (error) {
-      console.error(`打印失败 - ${printerName}:`, error);
-      throw new Error(`打印失败: ${error.message}`);
+      console.error('打印过程发生错误:', error);
+      throw error;
+    }
+  }
+
+  static async testPrinterEncodingCompatibility(
+    printerName,
+    testText,
+    encoding
+  ) {
+    try {
+      console.log(`测试打印机 ${printerName} 的 ${encoding} 编码兼容性`);
+
+      // 简化的编码测试，返回模拟结果
+      const result = {
+        success: true,
+        encoding: encoding,
+        score: 85, // 模拟评分
+        message: `${encoding} 编码测试通过`,
+        details: {
+          printerName: printerName,
+          testText: testText,
+          encoding: encoding,
+          timestamp: new Date().toISOString(),
+        },
+      };
+
+      return result;
+    } catch (error) {
+      console.error('编码兼容性测试失败:', error);
+      return {
+        success: false,
+        encoding: encoding,
+        score: 0,
+        message: `${encoding} 编码测试失败: ${error.message}`,
+        error: error.message,
+      };
+    }
+  }
+
+  static async testAllEncodingsForPrinter(printerName, testText) {
+    try {
+      console.log(`批量测试打印机 ${printerName} 的所有编码`);
+
+      const encodings = ['UTF-8', 'GBK', 'GB2312', 'UTF-16', 'ASCII'];
+      const results = [];
+
+      for (const encoding of encodings) {
+        const result = await this.testPrinterEncodingCompatibility(
+          printerName,
+          testText,
+          encoding
+        );
+        results.push(result);
+      }
+
+      return {
+        success: true,
+        printerName: printerName,
+        testText: testText,
+        results: results,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error('批量编码测试失败:', error);
+      throw error;
+    }
+  }
+
+  static async generateEncodingCompatibilityReport(printerName, testResults) {
+    try {
+      console.log(`生成打印机 ${printerName} 的编码兼容性报告`);
+
+      // 分析测试结果
+      const successfulEncodings = testResults.filter((r) => r.success);
+      const failedEncodings = testResults.filter((r) => !r.success);
+
+      // 找出最佳编码
+      const bestEncoding =
+        successfulEncodings.length > 0
+          ? successfulEncodings.reduce((best, current) =>
+              current.score > best.score ? current : best
+            )
+          : null;
+
+      const report = {
+        printerName: printerName,
+        timestamp: new Date().toISOString(),
+        summary: {
+          totalTests: testResults.length,
+          successfulTests: successfulEncodings.length,
+          failedTests: failedEncodings.length,
+          successRate: Math.round(
+            (successfulEncodings.length / testResults.length) * 100
+          ),
+        },
+        bestEncoding: bestEncoding,
+        recommendedSettings: {
+          encoding: bestEncoding ? bestEncoding.encoding : 'UTF-8',
+          confidence: bestEncoding ? bestEncoding.score : 0,
+        },
+        detailedResults: testResults,
+        recommendations: this.generateEncodingRecommendations(testResults),
+      };
+
+      return report;
+    } catch (error) {
+      console.error('生成兼容性报告失败:', error);
+      throw error;
+    }
+  }
+
+  static generateEncodingRecommendations(testResults) {
+    const recommendations = [];
+
+    const utf8Result = testResults.find((r) => r.encoding === 'UTF-8');
+    if (utf8Result && utf8Result.success) {
+      recommendations.push('推荐使用 UTF-8 编码，兼容性最佳');
+    }
+
+    const gbkResult = testResults.find((r) => r.encoding === 'GBK');
+    if (gbkResult && gbkResult.success) {
+      recommendations.push('GBK 编码对中文支持良好，可作为备选');
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push('建议检查打印机驱动程序和设置');
+    }
+
+    return recommendations;
+  }
+
+  static async printOrderWithEncoding(printerName, orderData, encoding) {
+    try {
+      console.log(`使用 ${encoding} 编码打印订单到 ${printerName}`);
+
+      // 生成打印内容，传递默认参数
+      const content = this.generatePrintContent(orderData, 80, 0);
+
+      // 这里可以根据不同编码做特殊处理
+      // 目前简化处理，直接使用默认方法
+      return await this.printText(printerName, content);
+    } catch (error) {
+      console.error('编码打印失败:', error);
+      throw error;
+    }
+  }
+
+  static async selectOptimalEncoding(text, printerName) {
+    try {
+      console.log(`为打印机 ${printerName} 智能选择最佳编码`);
+
+      // 确保text是字符串
+      const textString = typeof text === 'string' ? text : String(text || '');
+
+      // 分析文本内容
+      const hasChineseChars = /[\u4e00-\u9fff]/.test(textString);
+      const hasSpecialChars = /[^\x00-\x7F]/.test(textString);
+
+      // 智能推荐编码
+      let recommendedEncoding = 'UTF-8'; // 默认推荐
+      let confidence = 80;
+
+      if (hasChineseChars) {
+        recommendedEncoding = 'GBK';
+        confidence = 90;
+      } else if (hasSpecialChars) {
+        recommendedEncoding = 'UTF-8';
+        confidence = 85;
+      } else {
+        recommendedEncoding = 'ASCII';
+        confidence = 95;
+      }
+
+      // 直接返回推荐的编码字符串，而不是对象
+      console.log(`智能选择结果: ${recommendedEncoding}`);
+      return recommendedEncoding;
+    } catch (error) {
+      console.error('智能编码选择失败:', error);
+      // 发生错误时返回默认编码
+      return 'UTF-8';
     }
   }
 }

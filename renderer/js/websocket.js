@@ -59,19 +59,30 @@ class WebSocketClient {
 
       this.ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          console.log('[WebSocket] Message received:', data);
+          console.log('[WebSocket] Raw message received:', event.data);
 
-          // 根据消息类型分发事件
-          if (data.type === 'new_order') {
-            this.emit('newOrder', data);
-          } else if (data.type === 'order_update') {
-            this.emit('orderUpdate', data);
-          } else {
-            this.emit('message', data);
+          // 尝试解析 JSON，如果失败则作为纯文本处理
+          let data;
+          try {
+            data = JSON.parse(event.data);
+            console.log('[WebSocket] JSON message parsed:', data);
+
+            // 根据消息类型分发事件
+            if (data.type === 'new_order') {
+              this.emit('newOrder', data);
+            } else if (data.type === 'order_update') {
+              this.emit('orderUpdate', data);
+            } else {
+              this.emit('message', data);
+            }
+          } catch (parseError) {
+            // 如果不是 JSON，作为纯文本消息处理
+            console.log('[WebSocket] Text message received:', event.data);
+            this.emit('textMessage', event.data);
+            this.emit('message', { type: 'text', content: event.data });
           }
         } catch (error) {
-          console.error('[WebSocket] Failed to parse message:', error);
+          console.error('[WebSocket] Failed to process message:', error);
           this.emit('messageError', error);
         }
       };

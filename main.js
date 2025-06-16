@@ -125,7 +125,7 @@ function createTray() {
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setToolTip('餐厅订单打印系统');
+  tray.setToolTip('MenuorgPrint');
 
   // 双击托盘图标显示窗口
   tray.on('double-click', () => {
