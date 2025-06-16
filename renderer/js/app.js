@@ -250,6 +250,11 @@ class OrderPrintApp {
       this.showPrintPreview();
     });
 
+    // 中文编码测试页面按钮
+    document.getElementById('openTestPageBtn').addEventListener('click', () => {
+      this.openChineseEncodingTestPage();
+    });
+
     // 打印设置模态框事件
     document
       .getElementById('savePrintSettings')
@@ -1037,6 +1042,36 @@ class OrderPrintApp {
 
   hidePreview() {
     document.getElementById('printPreviewModal').classList.add('hidden');
+  }
+
+  // 打开中文编码测试页面
+  async openChineseEncodingTestPage() {
+    console.log('[APP] Opening Chinese encoding test page');
+
+    try {
+      // 使用 electron API 打开新窗口
+      if (window.electronAPI && window.electronAPI.openNewWindow) {
+        const success = await window.electronAPI.openNewWindow(
+          'test_electron_integration.html',
+          {
+            width: 1200,
+            height: 900,
+            title: '🧪 中文编码测试 - Electron环境热敏打印机测试',
+          }
+        );
+
+        if (success) {
+          this.showTrayNotification('已打开中文编码测试页面');
+        } else {
+          alert('打开测试页面失败，请检查文件是否存在');
+        }
+      } else {
+        alert('无法打开新窗口，electronAPI 不可用');
+      }
+    } catch (error) {
+      console.error('[APP] Failed to open test page:', error);
+      alert('打开测试页面失败: ' + error.message);
+    }
   }
 
   // 托盘通知

@@ -198,6 +198,104 @@ ipcMain.handle(
   }
 );
 
+// 新增：中文编码相关的IPC处理程序
+
+// 检测文本中的中文字符类型
+ipcMain.handle('detect-chinese-character-type', async (event, text) => {
+  try {
+    return await printerUtils.detectChineseCharacterType(text);
+  } catch (error) {
+    console.error('检测中文字符类型失败:', error);
+    throw error;
+  }
+});
+
+// 获取打印机编码支持信息
+ipcMain.handle('get-printer-encoding-info', async (event, printerName) => {
+  try {
+    return await printerUtils.getPrinterEncodingInfo(printerName);
+  } catch (error) {
+    console.error('获取打印机编码信息失败:', error);
+    throw error;
+  }
+});
+
+// 测试打印机编码兼容性
+ipcMain.handle(
+  'test-printer-encoding-compatibility',
+  async (event, printerName, testText, encoding) => {
+    try {
+      return await printerUtils.testPrinterEncodingCompatibility(
+        printerName,
+        testText,
+        encoding
+      );
+    } catch (error) {
+      console.error('测试编码兼容性失败:', error);
+      throw error;
+    }
+  }
+);
+
+// 批量测试所有编码
+ipcMain.handle(
+  'test-all-encodings-for-printer',
+  async (event, printerName, testText) => {
+    try {
+      return await printerUtils.testAllEncodingsForPrinter(
+        printerName,
+        testText
+      );
+    } catch (error) {
+      console.error('批量测试编码失败:', error);
+      throw error;
+    }
+  }
+);
+
+// 生成编码兼容性报告
+ipcMain.handle(
+  'generate-encoding-compatibility-report',
+  async (event, printerName, testResults) => {
+    try {
+      return await printerUtils.generateEncodingCompatibilityReport(
+        printerName,
+        testResults
+      );
+    } catch (error) {
+      console.error('生成兼容性报告失败:', error);
+      throw error;
+    }
+  }
+);
+
+// 使用指定编码打印订单
+ipcMain.handle(
+  'print-order-with-encoding',
+  async (event, printerName, orderData, encoding) => {
+    try {
+      return await printerUtils.printOrderWithEncoding(
+        printerName,
+        orderData,
+        encoding
+      );
+    } catch (error) {
+      console.error('编码打印失败:', error);
+      throw error;
+    }
+  }
+);
+
+// 智能选择最佳编码
+ipcMain.handle('select-optimal-encoding', async (event, text, printerName) => {
+  try {
+    return await printerUtils.selectOptimalEncoding(text, printerName);
+  } catch (error) {
+    console.error('智能编码选择失败:', error);
+    throw error;
+  }
+});
+
 ipcMain.handle(
   'print-order',
   async (event, orderData, width = 80, fontSize = 0) => {
@@ -262,6 +360,48 @@ ipcMain.handle('maximize-window', async () => {
 ipcMain.handle('close-window', async () => {
   if (mainWindow) {
     mainWindow.close();
+  }
+});
+
+// 打开新窗口（用于中文编码测试页面）
+ipcMain.handle('open-new-window', async (event, url, options = {}) => {
+  try {
+    const newWindow = new BrowserWindow({
+      width: options.width || 1200,
+      height: options.height || 900,
+      title: options.title || '新窗口',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+      },
+      show: false,
+      parent: mainWindow, // 设置为主窗口的子窗口
+      modal: false,
+    });
+
+    // 加载指定的URL/文件
+    if (url.startsWith('file://')) {
+      // 如果是文件URL，直接加载
+      await newWindow.loadURL(url);
+    } else {
+      // 如果是相对路径，加载文件
+      await newWindow.loadFile(url);
+    }
+
+    newWindow.once('ready-to-show', () => {
+      newWindow.show();
+    });
+
+    // 窗口关闭时清理
+    newWindow.on('closed', () => {
+      // 窗口已关闭，清理引用
+    });
+
+    return true;
+  } catch (error) {
+    console.error('打开新窗口失败:', error);
+    return false;
   }
 });
 

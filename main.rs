@@ -2454,6 +2454,513 @@ async fn set_global_font_size(font_size: i32, state: State<'_, AppState>) -> Res
     Ok(())
 }
 
+// 新增：中文编码相关的数据结构
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct EncodingTestResult {
+    encoding: String,
+    score: f64,
+    success: bool,
+    error: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct PrinterEncodingInfo {
+    name: String,
+    supports_chinese: bool,
+    recommended_encoding: String,
+    fallback_encodings: Vec<String>,
+    command_level: i32,
+    test_results: Option<Vec<EncodingTestResult>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct EncodingCompatibilityReport {
+    printer_name: String,
+    overall_score: f64,
+    encoding_scores: std::collections::HashMap<String, EncodingScoreInfo>,
+    grade: String,
+    recommendations: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct EncodingScoreInfo {
+    average_score: f64,
+    test_count: i32,
+    grade: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ChineseCharacterAnalysis {
+    character_type: String,  // "NONE", "SYMBOLS_ONLY", "SIMPLIFIED", "TRADITIONAL", "MIXED"
+    simplified_count: i32,
+    traditional_count: i32,
+    symbol_count: i32,
+    total_chars: i32,
+    confidence: f64,
+}
+
+// 新增：检测文本的中文字符类型
+#[tauri::command]
+async fn detect_chinese_character_type(text: String) -> Result<ChineseCharacterAnalysis, String> {
+    info!("🔍 [ENCODING] 开始分析中文字符类型");
+    info!("🔍 [ENCODING] 文本长度: {} 字符", text.chars().count());
+
+    let mut simplified_count = 0;
+    let mut traditional_count = 0;
+    let mut symbol_count = 0;
+    let total_chars = text.chars().count() as i32;
+
+    // 简体中文常用字符范围
+    let simplified_chars = [
+        '你', '我', '他', '们', '的', '是', '在', '有', '和', '对', '就', '会', '说', '要', '来', '到', '这', '那', '可', '以',
+        '了', '不', '个', '人', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '年', '月', '日', '时', '分', '秒',
+        '元', '块', '钱', '订', '单', '打', '印', '测', '试', '餐', '厅', '菜', '品', '地', '址', '电', '话', '号', '码'
+    ];
+
+    // 繁体中文常用字符
+    let traditional_chars = [
+        '您', '們', '個', '來', '這', '那', '會', '說', '對', '時', '間', '點', '錢', '訂', '單', '測', '試', '餐', '廳', '電', '話'
+    ];
+
+    // 中文符号
+    let chinese_symbols = [
+        '￥', '＄', '€', '【', '】', '《', '》', '（', '）', '「', '」', '、', '。', '，', '；', '：', '？', '！', '※'
+    ];
+
+    for ch in text.chars() {
+        if simplified_chars.contains(&ch) {
+            simplified_count += 1;
+        } else if traditional_chars.contains(&ch) {
+            traditional_count += 1;
+        } else if chinese_symbols.contains(&ch) {
+            symbol_count += 1;
+        }
+    }
+
+    // 判断字符类型
+    let character_type = if simplified_count == 0 && traditional_count == 0 && symbol_count == 0 {
+        "NONE"
+    } else if simplified_count == 0 && traditional_count == 0 && symbol_count > 0 {
+        "SYMBOLS_ONLY"
+    } else if simplified_count > traditional_count * 2 {
+        "SIMPLIFIED"
+    } else if traditional_count > simplified_count * 2 {
+        "TRADITIONAL"
+    } else {
+        "MIXED"
+    };
+
+    // 计算置信度
+    let chinese_chars = simplified_count + traditional_count + symbol_count;
+    let confidence = if total_chars > 0 {
+        chinese_chars as f64 / total_chars as f64
+    } else {
+        0.0
+    };
+
+    let analysis = ChineseCharacterAnalysis {
+        character_type: character_type.to_string(),
+        simplified_count,
+        traditional_count,
+        symbol_count,
+        total_chars,
+        confidence,
+    };
+
+    info!("✅ [ENCODING] 字符分析完成: {:?}", analysis);
+    Ok(analysis)
+}
+
+// 新增：获取打印机的编码支持信息
+#[tauri::command]
+async fn get_printer_encoding_info(printer_name: String) -> Result<PrinterEncodingInfo, String> {
+    info!("🔍 [ENCODING] 获取打印机编码信息: {}", printer_name);
+
+    let name_lower = printer_name.to_lowercase();
+    
+    // 根据打印机型号推断编码支持
+    let (supports_chinese, recommended_encoding, fallback_encodings, command_level) = 
+        if name_lower.contains("epson") {
+            (true, "UTF8".to_string(), vec!["UTF8".to_string(), "GBK".to_string(), "BIG5".to_string()], 2)
+        } else if name_lower.contains("xprinter") || name_lower.contains("gprinter") {
+            (true, "GBK".to_string(), vec!["GBK".to_string(), "GB18030".to_string(), "UTF8".to_string()], 2)
+        } else if name_lower.contains("thermal") || name_lower.contains("receipt") || name_lower.contains("pos") {
+            (true, "GBK".to_string(), vec!["GBK".to_string(), "UTF8".to_string(), "GB2312".to_string()], 1)
+        } else {
+            (false, "UTF8".to_string(), vec!["UTF8".to_string()], 0)
+        };
+
+    let encoding_info = PrinterEncodingInfo {
+        name: printer_name.clone(),
+        supports_chinese,
+        recommended_encoding,
+        fallback_encodings,
+        command_level,
+        test_results: None,
+    };
+
+    info!("✅ [ENCODING] 编码信息: {:?}", encoding_info);
+    Ok(encoding_info)
+}
+
+// 新增：测试打印机的编码兼容性
+#[tauri::command]
+async fn test_printer_encoding_compatibility(
+    printer_name: String,
+    test_text: String,
+    encoding: String,
+) -> Result<EncodingTestResult, String> {
+    info!("🧪 [ENCODING] 测试打印机编码兼容性");
+    info!("🧪 [ENCODING] 打印机: {}", printer_name);
+    info!("🧪 [ENCODING] 编码: {}", encoding);
+    info!("🧪 [ENCODING] 测试文本长度: {} 字符", test_text.chars().count());
+
+    // 生成带编码优化的打印内容
+    let optimized_content = match encoding.as_str() {
+        "UTF8" => {
+            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: UTF-8\n测试文本:\n{}\n\n\x1D\x56\x00", 
+                    "\x1B\x45\x01UTF-8 编码测试\x1B\x45\x00", test_text)
+        }
+        "GBK" | "GB18030" => {
+            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: {}\n测试文本:\n{}\n\n\x1D\x56\x00", 
+                    "\x1B\x45\x01GBK 编码测试\x1B\x45\x00", encoding, test_text)
+        }
+        "BIG5" => {
+            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: Big5\n测试文本:\n{}\n\n\x1D\x56\x00", 
+                    "\x1B\x45\x01Big5 编码测试\x1B\x45\x00", test_text)
+        }
+        _ => {
+            format!("\x1B@{}\n\n测试编码: {}\n测试文本:\n{}\n\n\x1D\x56\x00", 
+                    "\x1B\x45\x01编码测试\x1B\x45\x00", encoding, test_text)
+        }
+    };
+
+    // 尝试打印测试
+    let result = match print_to_printer(&printer_name, &optimized_content).await {
+        Ok(_) => {
+            info!("✅ [ENCODING] 编码测试成功: {} - {}", printer_name, encoding);
+            
+            // 根据编码类型计算分数
+            let score = match encoding.as_str() {
+                "UTF8" => 0.95,  // UTF8通常兼容性最好
+                "GBK" | "GB18030" => 0.90,  // GBK系列适合中文
+                "BIG5" => 0.85,  // Big5适合繁体中文
+                "GB2312" => 0.80,  // 较老的编码
+                _ => 0.70,
+            };
+
+            // 根据打印机类型调整分数
+            let name_lower = printer_name.to_lowercase();
+            let adjusted_score = if name_lower.contains("thermal") || name_lower.contains("receipt") {
+                // 热敏打印机
+                match encoding.as_str() {
+                    "GBK" | "GB18030" => score + 0.05,  // 热敏打印机更适合GBK
+                    "UTF8" => score - 0.05,
+                    _ => score,
+                }
+            } else {
+                score
+            };
+
+            EncodingTestResult {
+                encoding: encoding.clone(),
+                score: adjusted_score,
+                success: true,
+                error: None,
+            }
+        }
+        Err(e) => {
+            warn!("⚠️ [ENCODING] 编码测试失败: {} - {} - {}", printer_name, encoding, e);
+            
+            // 尝试增强版打印
+            #[cfg(target_os = "windows")]
+            match print_to_printer_enhanced(&printer_name, &optimized_content).await {
+                Ok(_) => {
+                    info!("✅ [ENCODING] 增强版编码测试成功: {} - {}", printer_name, encoding);
+                    EncodingTestResult {
+                        encoding: encoding.clone(),
+                        score: 0.75,  // 增强版成功给予较低分数
+                        success: true,
+                        error: None,
+                    }
+                }
+                Err(enhanced_error) => {
+                    error!("❌ [ENCODING] 增强版编码测试也失败: {} - {} - {}", printer_name, encoding, enhanced_error);
+                    EncodingTestResult {
+                        encoding: encoding.clone(),
+                        score: 0.0,
+                        success: false,
+                        error: Some(format!("打印失败: {} | 增强版: {}", e, enhanced_error)),
+                    }
+                }
+            }
+            
+            #[cfg(not(target_os = "windows"))]
+            {
+                EncodingTestResult {
+                    encoding: encoding.clone(),
+                    score: 0.0,
+                    success: false,
+                    error: Some(e),
+                }
+            }
+        }
+    };
+
+    info!("📊 [ENCODING] 测试结果: {:?}", result);
+    Ok(result)
+}
+
+// 新增：批量测试所有编码
+#[tauri::command]
+async fn test_all_encodings_for_printer(
+    printer_name: String,
+    test_text: String,
+) -> Result<Vec<EncodingTestResult>, String> {
+    info!("🧪 [ENCODING] 开始批量编码测试: {}", printer_name);
+
+    let encodings = vec!["UTF8", "GBK", "GB18030", "BIG5", "GB2312"];
+    let mut results = Vec::new();
+
+    for encoding in encodings {
+        info!("🔄 [ENCODING] 测试编码: {}", encoding);
+        
+        // 添加延迟避免打印队列堵塞
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        
+        match test_printer_encoding_compatibility(
+            printer_name.clone(),
+            test_text.clone(),
+            encoding.to_string(),
+        ).await {
+            Ok(result) => {
+                results.push(result);
+            }
+            Err(e) => {
+                warn!("⚠️ [ENCODING] 编码 {} 测试失败: {}", encoding, e);
+                results.push(EncodingTestResult {
+                    encoding: encoding.to_string(),
+                    score: 0.0,
+                    success: false,
+                    error: Some(e),
+                });
+            }
+        }
+    }
+
+    info!("✅ [ENCODING] 批量测试完成，共测试 {} 种编码", results.len());
+    Ok(results)
+}
+
+// 新增：生成编码兼容性报告
+#[tauri::command]
+async fn generate_encoding_compatibility_report(
+    printer_name: String,
+    test_results: Vec<EncodingTestResult>,
+) -> Result<EncodingCompatibilityReport, String> {
+    info!("📊 [ENCODING] 生成兼容性报告: {}", printer_name);
+
+    let mut encoding_scores = std::collections::HashMap::new();
+    let mut total_score = 0.0;
+    let mut valid_tests = 0;
+
+    for result in &test_results {
+        if result.success {
+            total_score += result.score;
+            valid_tests += 1;
+        }
+
+        let grade = if result.score >= 0.9 {
+            "优秀"
+        } else if result.score >= 0.8 {
+            "良好"
+        } else if result.score >= 0.7 {
+            "一般"
+        } else if result.score >= 0.5 {
+            "较差"
+        } else {
+            "失败"
+        };
+
+        encoding_scores.insert(
+            result.encoding.clone(),
+            EncodingScoreInfo {
+                average_score: result.score,
+                test_count: 1,
+                grade: grade.to_string(),
+            },
+        );
+    }
+
+    let overall_score = if valid_tests > 0 {
+        total_score / valid_tests as f64
+    } else {
+        0.0
+    };
+
+    let overall_grade = if overall_score >= 0.9 {
+        "优秀"
+    } else if overall_score >= 0.8 {
+        "良好"
+    } else if overall_score >= 0.7 {
+        "一般"
+    } else if overall_score >= 0.5 {
+        "较差"
+    } else {
+        "失败"
+    };
+
+    // 生成建议
+    let mut recommendations = Vec::new();
+    
+    let best_encoding = test_results
+        .iter()
+        .filter(|r| r.success)
+        .max_by(|a, b| a.score.partial_cmp(&b.score).unwrap_or(std::cmp::Ordering::Equal));
+
+    if let Some(best) = best_encoding {
+        recommendations.push(format!("推荐使用 {} 编码（评分: {:.1}%）", best.encoding, best.score * 100.0));
+    }
+
+    if overall_score < 0.8 {
+        recommendations.push("建议检查打印机驱动程序是否支持中文字符集".to_string());
+    }
+
+    if test_results.iter().any(|r| !r.success) {
+        recommendations.push("部分编码测试失败，建议使用评分最高的编码".to_string());
+    }
+
+    let report = EncodingCompatibilityReport {
+        printer_name: printer_name.clone(),
+        overall_score,
+        encoding_scores,
+        grade: overall_grade.to_string(),
+        recommendations,
+    };
+
+    info!("✅ [ENCODING] 兼容性报告生成完成: 总分 {:.1}%, 等级 {}", overall_score * 100.0, overall_grade);
+    Ok(report)
+}
+
+// 新增：使用指定编码打印订单
+#[tauri::command]
+async fn print_order_with_encoding(
+    printer_name: String,
+    order_data: OrderData,
+    encoding: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    info!("🖨️ [ENCODING] 使用指定编码打印订单");
+    info!("🖨️ [ENCODING] 打印机: {}", printer_name);
+    info!("🖨️ [ENCODING] 编码: {}", encoding);
+    info!("🖨️ [ENCODING] 订单ID: {}", order_data.order_id);
+
+    // 获取打印机配置
+    let printer_config = {
+        let printers = state.printers.lock().unwrap();
+        printers.iter().find(|p| p.name == printer_name).cloned()
+    };
+
+    let printer = printer_config.ok_or_else(|| format!("打印机 {} 未找到", printer_name))?;
+
+    // 生成基础打印内容
+    let base_content = generate_print_content(&order_data, printer.width, printer.font_size)?;
+
+    // 根据编码优化打印内容
+    let optimized_content = match encoding.as_str() {
+        "UTF8" => {
+            format!("\x1B@\x1C&\x1C\x43\x01{}", base_content)
+        }
+        "GBK" | "GB18030" => {
+            format!("\x1B@\x1C&\x1C\x2E\x00{}", base_content) // GBK编码设置
+        }
+        "BIG5" => {
+            format!("\x1B@\x1C&\x1C\x2E\x01{}", base_content) // Big5编码设置
+        }
+        _ => base_content, // 默认处理
+    };
+
+    // 执行打印
+    match print_to_printer(&printer_name, &optimized_content).await {
+        Ok(_) => {
+            info!("✅ [ENCODING] 编码打印成功: {} - {}", printer_name, encoding);
+            Ok(format!("订单 {} 使用 {} 编码打印成功", order_data.order_id, encoding))
+        }
+        Err(e) => {
+            warn!("⚠️ [ENCODING] 编码打印失败，尝试增强版: {}", e);
+            
+            #[cfg(target_os = "windows")]
+            match print_to_printer_enhanced(&printer_name, &optimized_content).await {
+                Ok(_) => {
+                    info!("✅ [ENCODING] 增强版编码打印成功: {} - {}", printer_name, encoding);
+                    Ok(format!("订单 {} 使用 {} 编码打印成功（增强版）", order_data.order_id, encoding))
+                }
+                Err(enhanced_error) => {
+                    error!("❌ [ENCODING] 增强版编码打印失败: {}", enhanced_error);
+                    Err(format!("编码打印失败: {} | 增强版: {}", e, enhanced_error))
+                }
+            }
+            
+            #[cfg(not(target_os = "windows"))]
+            Err(format!("编码打印失败: {}", e))
+        }
+    }
+}
+
+// 新增：智能选择最佳编码
+#[tauri::command]
+async fn select_optimal_encoding(
+    text: String,
+    printer_name: String,
+) -> Result<String, String> {
+    info!("🤖 [ENCODING] 智能选择最佳编码");
+    info!("🤖 [ENCODING] 打印机: {}", printer_name);
+
+    // 分析文本字符类型
+    let analysis = detect_chinese_character_type(text.clone()).await?;
+    
+    // 获取打印机编码信息
+    let printer_info = get_printer_encoding_info(printer_name.clone()).await?;
+
+    // 根据字符类型和打印机特性选择编码
+    let optimal_encoding = match analysis.character_type.as_str() {
+        "NONE" => "UTF8".to_string(), // 无中文字符，使用UTF8
+        "SYMBOLS_ONLY" => "UTF8".to_string(), // 仅符号，UTF8兼容性好
+        "SIMPLIFIED" => {
+            // 简体中文，根据打印机类型选择
+            if printer_info.supports_chinese {
+                printer_info.recommended_encoding
+            } else {
+                "UTF8".to_string()
+            }
+        }
+        "TRADITIONAL" => {
+            // 繁体中文，优先Big5
+            if printer_info.fallback_encodings.contains(&"BIG5".to_string()) {
+                "BIG5".to_string()
+            } else if printer_info.supports_chinese {
+                "UTF8".to_string()
+            } else {
+                "UTF8".to_string()
+            }
+        }
+        "MIXED" => {
+            // 混合文本，使用通用性好的编码
+            if printer_info.supports_chinese {
+                "UTF8".to_string()
+            } else {
+                "UTF8".to_string()
+            }
+        }
+        _ => "UTF8".to_string(), // 默认UTF8
+    };
+
+    info!("✅ [ENCODING] 智能选择结果: {} (字符类型: {}, 置信度: {:.1}%)", 
+          optimal_encoding, analysis.character_type, analysis.confidence * 100.0);
+
+    Ok(optimal_encoding)
+}
+
 fn main() {
     // 初始化日志系统
     if let Err(e) = init_logger() {
@@ -2483,7 +2990,15 @@ fn main() {
             debug_printer,
             test_frontend_call,
             get_global_font_size,
-            set_global_font_size
+            set_global_font_size,
+            // 新增的中文编码相关命令
+            detect_chinese_character_type,
+            get_printer_encoding_info,
+            test_printer_encoding_compatibility,
+            test_all_encodings_for_printer,
+            generate_encoding_compatibility_report,
+            print_order_with_encoding,
+            select_optimal_encoding
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

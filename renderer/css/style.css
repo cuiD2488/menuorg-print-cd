@@ -63,6 +63,15 @@ button:hover {
     background: #dc3545;
 }
 
+.btn-warning {
+    background: #ffc107;
+    color: #212529;
+}
+
+.btn-warning:hover {
+    background: #e0a800;
+}
+
 /* 登录界面 */
 #loginSection {
     max-width: 450px;
