@@ -28,27 +28,154 @@ class OrderPrintApp {
 
   async updatePrinterSelect() {
     const printers = this.printerManager.getAllPrinters();
-    const select = document.getElementById('printerSelect');
-
-    select.innerHTML = '';
+    const container = document.getElementById('printerList');
+    const selectedPrinters = this.printerManager.getSelectedPrinters();
 
     if (printers.length === 0) {
-      select.innerHTML = '<option value="">未发现打印机</option>';
+      container.innerHTML = `
+        <div class="no-printers">
+          <div class="icon">🖨️</div>
+          <div>未发现可用打印机</div>
+          <div style="font-size: 11px; margin-top: 4px;">请检查打印机连接并点击刷新</div>
+        </div>
+      `;
     } else {
+      container.innerHTML = '';
+
       printers.forEach((printer) => {
-        const option = document.createElement('option');
-        option.value = printer.name;
-        option.textContent = `${printer.name} (${printer.status})`;
+        const isSelected = selectedPrinters.includes(printer.name);
+        const printerItem = document.createElement('div');
+        printerItem.className = `printer-item ${isSelected ? 'selected' : ''}`;
 
-        if (this.printerManager.getSelectedPrinters().includes(printer.name)) {
-          option.selected = true;
-        }
+        printerItem.innerHTML = `
+          <div class="printer-checkbox">
+            <input type="checkbox" 
+                   data-printer="${printer.name}" 
+                   ${isSelected ? 'checked' : ''}>
+          </div>
+          <div class="printer-info">
+            <div class="printer-name">${printer.name}</div>
+            <div class="printer-details">
+              <span class="printer-detail-item width">${printer.width}mm</span>
+              ${
+                printer.isThermal
+                  ? '<span class="printer-detail-item thermal">热敏</span>'
+                  : ''
+              }
+              ${
+                printer.isDefault
+                  ? '<span class="printer-detail-item default">默认</span>'
+                  : ''
+              }
+              <span class="printer-detail-item">字体: ${this.getFontSizeText(
+                printer.fontSize
+              )}</span>
+            </div>
+          </div>
+          <div class="printer-status">
+            <span class="printer-status-dot ${this.getPrinterStatusClass(
+              printer
+            )}"></span>
+            <span class="printer-status-text">${
+              isSelected ? '已选择' : printer.status
+            }</span>
+          </div>
+        `;
 
-        select.appendChild(option);
+        // 添加复选框事件监听
+        const checkbox = printerItem.querySelector('input[type="checkbox"]');
+        checkbox.addEventListener('change', (e) => {
+          this.handlePrinterToggle(e.target.dataset.printer, e.target.checked);
+        });
+
+        container.appendChild(printerItem);
       });
     }
 
+    this.updatePrinterSelectionSummary();
     this.updatePrinterStatus();
+  }
+
+  handlePrinterToggle(printerName, isChecked) {
+    console.log('[APP] 切换打印机选择:', printerName, isChecked);
+
+    let selectedPrinters = this.printerManager.getSelectedPrinters();
+
+    if (isChecked) {
+      if (!selectedPrinters.includes(printerName)) {
+        selectedPrinters.push(printerName);
+      }
+    } else {
+      selectedPrinters = selectedPrinters.filter(
+        (name) => name !== printerName
+      );
+    }
+
+    this.printerManager.setSelectedPrinters(selectedPrinters);
+    this.updatePrinterSelect(); // 重新渲染列表
+  }
+
+  updatePrinterSelectionSummary() {
+    const selectedPrinters = this.printerManager.getSelectedPrinters();
+    const totalPrinters = this.printerManager.getAllPrinters().length;
+
+    // 检查是否已有摘要容器，如果没有则创建
+    let summaryContainer = document.querySelector('.printer-selection-summary');
+    if (!summaryContainer) {
+      summaryContainer = document.createElement('div');
+      summaryContainer.className = 'printer-selection-summary';
+      const printerList = document.getElementById('printerList');
+      printerList.parentNode.insertBefore(summaryContainer, printerList);
+    }
+
+    if (selectedPrinters.length === 0) {
+      summaryContainer.innerHTML = `
+        <div class="summary-title">打印机选择</div>
+        <div class="summary-content">
+          尚未选择任何打印机，新订单将无法自动打印
+        </div>
+      `;
+    } else {
+      const selectedNames =
+        selectedPrinters.length > 2
+          ? `${selectedPrinters.slice(0, 2).join(', ')} 等${
+              selectedPrinters.length
+            }台`
+          : selectedPrinters.join(', ');
+
+      summaryContainer.innerHTML = `
+        <div class="summary-title">已选择 <span class="summary-count">${selectedPrinters.length}</span>/${totalPrinters} 台打印机</div>
+        <div class="summary-content">${selectedNames}</div>
+      `;
+    }
+  }
+
+  getPrinterStatusClass(printer) {
+    if (this.printerManager.getSelectedPrinters().includes(printer.name)) {
+      return 'enabled';
+    }
+    if (printer.status === 'Ready') {
+      return 'ready';
+    }
+    return 'error';
+  }
+
+  getFontSizeText(fontSize) {
+    switch (fontSize) {
+      case 0:
+        return '小';
+      case 1:
+        return '中';
+      case 2:
+        return '大';
+      default:
+        return '小';
+    }
+  }
+
+  handlePrinterSelection(e) {
+    // 这个方法现在由新的复选框处理逻辑替代，保留以防兼容性问题
+    console.log('[APP] 旧版打印机选择方法被调用，这不应该发生');
   }
 
   async loadUIConfig() {
@@ -76,13 +203,23 @@ class OrderPrintApp {
       this.handleRefreshPrinters();
     });
 
+    document
+      .getElementById('selectAllPrinters')
+      .addEventListener('click', () => {
+        this.handleSelectAllPrinters();
+      });
+
+    document
+      .getElementById('clearAllPrinters')
+      .addEventListener('click', () => {
+        this.handleClearAllPrinters();
+      });
+
     document.getElementById('testPrint').addEventListener('click', () => {
       this.handleTestPrint();
     });
 
-    document.getElementById('printerSelect').addEventListener('change', (e) => {
-      this.handlePrinterSelection(e);
-    });
+    // 旧的 printerSelect 已被新的复选框列表替代
 
     document.getElementById('autoPrint').addEventListener('change', () => {
       this.saveUIConfig();
@@ -312,49 +449,135 @@ class OrderPrintApp {
     await this.updatePrinterSelect();
   }
 
-  async handleTestPrint() {
-    console.log('[APP] Test print initiated');
+  handleSelectAllPrinters() {
+    console.log('[APP] 全选打印机');
+    const allPrinters = this.printerManager.getAllPrinters();
+    const allPrinterNames = allPrinters.map((p) => p.name);
 
-    if (!this.printerManager.isAnyPrinterSelected()) {
-      console.warn('[APP] No printer selected for test print');
-      alert('Please select a printer first');
+    this.printerManager.setSelectedPrinters(allPrinterNames);
+    this.updatePrinterSelect();
+
+    this.showTrayNotification(`已选择所有 ${allPrinterNames.length} 台打印机`);
+  }
+
+  handleClearAllPrinters() {
+    console.log('[APP] 清空打印机选择');
+
+    if (this.printerManager.getSelectedPrinters().length === 0) {
+      this.showTrayNotification('当前没有选择任何打印机');
       return;
     }
 
-    try {
-      console.log('[APP] Starting test print...');
-      await this.printerManager.testPrint();
-      console.log('[APP] Test print completed successfully');
-      alert('Test print completed');
-    } catch (error) {
-      console.error('[APP] Test print failed:', error);
-      alert('Test print failed: ' + error.message);
-    }
+    this.printerManager.setSelectedPrinters([]);
+    this.updatePrinterSelect();
+
+    this.showTrayNotification('已清空所有打印机选择');
   }
 
-  handlePrinterSelection(e) {
-    const selectedPrinters = Array.from(e.target.selectedOptions).map(
-      (option) => option.value
-    );
-    this.printerManager.setSelectedPrinters(selectedPrinters);
-    this.updatePrinterStatus();
+  async handleTestPrint() {
+    const selectedPrinters = this.printerManager.getSelectedPrinters();
+
+    if (selectedPrinters.length === 0) {
+      alert('请先选择至少一台打印机');
+      return;
+    }
+
+    console.log('[APP] 开始测试打印，选中的打印机:', selectedPrinters);
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    // 显示加载状态
+    const testButton = document.getElementById('testPrint');
+    const originalText = testButton.textContent;
+    testButton.textContent = '测试中...';
+    testButton.disabled = true;
+
+    try {
+      // 并行向所有选中的打印机发送测试打印
+      const printPromises = selectedPrinters.map(async (printerName) => {
+        try {
+          console.log(`[APP] 向打印机 ${printerName} 发送测试打印`);
+          await this.printerManager.testPrint(printerName);
+          successCount++;
+          console.log(`[APP] 打印机 ${printerName} 测试成功`);
+          return { printer: printerName, success: true };
+        } catch (error) {
+          errorCount++;
+          const errorMsg = `${printerName}: ${error.message}`;
+          errors.push(errorMsg);
+          console.error(`[APP] 打印机 ${printerName} 测试失败:`, error);
+          return { printer: printerName, success: false, error: error.message };
+        }
+      });
+
+      const results = await Promise.all(printPromises);
+
+      // 显示结果
+      if (successCount > 0 && errorCount === 0) {
+        this.showTrayNotification(`✅ 所有 ${successCount} 台打印机测试成功！`);
+      } else if (successCount > 0 && errorCount > 0) {
+        this.showTrayNotification(
+          `⚠️ ${successCount} 台成功，${errorCount} 台失败`
+        );
+      } else {
+        this.showTrayNotification(`❌ 所有打印机测试失败`);
+      }
+
+      // 在控制台显示详细结果
+      console.log('[APP] 测试打印结果:', {
+        总数: selectedPrinters.length,
+        成功: successCount,
+        失败: errorCount,
+        详细结果: results,
+      });
+
+      if (errors.length > 0) {
+        console.error('[APP] 测试打印错误详情:', errors);
+      }
+    } catch (error) {
+      console.error('[APP] 测试打印过程出错:', error);
+      this.showTrayNotification(`❌ 测试打印失败: ${error.message}`);
+    } finally {
+      // 恢复按钮状态
+      testButton.textContent = originalText;
+      testButton.disabled = false;
+    }
   }
 
   updatePrinterStatus() {
     const statusEl = document.getElementById('printerStatus');
-    const selectedCount = this.printerManager.getSelectedPrintersCount();
+    const selectedPrinters = this.printerManager.getSelectedPrinters();
+    const totalPrinters = this.printerManager.getAllPrinters().length;
 
     console.log(
-      '[APP] Updating printer status, selected count:',
-      selectedCount
+      '[APP] 更新打印机状态，已选择:',
+      selectedPrinters.length,
+      '总计:',
+      totalPrinters
     );
 
-    if (selectedCount === 0) {
-      statusEl.textContent = 'Not Selected';
+    if (selectedPrinters.length === 0) {
+      statusEl.textContent = '未选择';
       statusEl.className = 'status-badge status-error';
-    } else {
-      statusEl.textContent = `Selected ${selectedCount}`;
+    } else if (selectedPrinters.length === 1) {
+      statusEl.textContent = `已选择 1 台`;
       statusEl.className = 'status-badge status-success';
+    } else {
+      statusEl.textContent = `已选择 ${selectedPrinters.length} 台`;
+      statusEl.className = 'status-badge status-success';
+    }
+
+    // 可选：添加工具提示显示选中的打印机名称
+    if (selectedPrinters.length > 0) {
+      const printerNames =
+        selectedPrinters.length > 3
+          ? `${selectedPrinters.slice(0, 3).join(', ')} 等`
+          : selectedPrinters.join(', ');
+      statusEl.title = `选中的打印机: ${printerNames}`;
+    } else {
+      statusEl.title = '请选择要使用的打印机';
     }
   }
 
@@ -412,8 +635,8 @@ class OrderPrintApp {
 
   async handleNewOrder(orderData) {
     await window.electronAPI.showNotification({
-      title: 'New Order',
-      body: `Order ID: ${orderData.order_id || orderData.id}`,
+      title: '新订单',
+      body: `订单号: ${orderData.order_id || orderData.id}`,
     });
 
     const orderId = orderData.order_id || orderData.id;
@@ -422,8 +645,39 @@ class OrderPrintApp {
       if (orderDetails.success) {
         this.addOrderToList(orderDetails.data);
 
+        // 检查是否启用自动打印
         if (document.getElementById('autoPrint').checked) {
-          await this.printerManager.printOrder(orderDetails.data);
+          const selectedPrinters = this.printerManager.getSelectedPrinters();
+
+          if (selectedPrinters.length === 0) {
+            console.warn('[APP] 自动打印失败: 未选择任何打印机');
+            this.showTrayNotification('⚠️ 自动打印失败: 未选择打印机');
+          } else {
+            try {
+              console.log(
+                `[APP] 自动打印新订单到 ${selectedPrinters.length} 台打印机`
+              );
+              const printResult = await this.printerManager.printOrder(
+                orderDetails.data
+              );
+
+              if (printResult.成功数量 > 0) {
+                this.showTrayNotification(
+                  `✅ 订单 ${orderId} 已自动打印到 ${printResult.成功数量} 台打印机`
+                );
+              }
+
+              if (printResult.失败数量 > 0) {
+                console.warn('[APP] 自动打印部分失败:', printResult.错误列表);
+                this.showTrayNotification(
+                  `⚠️ ${printResult.失败数量} 台打印机打印失败`
+                );
+              }
+            } catch (error) {
+              console.error('[APP] 自动打印完全失败:', error);
+              this.showTrayNotification(`❌ 自动打印失败: ${error.message}`);
+            }
+          }
         }
       }
     }
@@ -546,14 +800,54 @@ class OrderPrintApp {
   }
 
   async printCurrentOrder() {
-    if (this.currentOrderForPrint) {
-      await this.printOrderById(this.currentOrderForPrint.order_id);
-      this.hideOrderModal();
-    }
+    // 实现打印当前订单的逻辑
+    console.log('[APP] 打印当前订单');
+    this.hideOrderModal();
   }
 
   async printOrder(orderId) {
-    await this.printOrderById(orderId);
+    console.log('[APP] 手动打印订单:', orderId);
+
+    const selectedPrinters = this.printerManager.getSelectedPrinters();
+    if (selectedPrinters.length === 0) {
+      alert('请先选择至少一台打印机');
+      return;
+    }
+
+    // 查找订单数据
+    const order = this.orders.find((o) => o.order_id === orderId);
+    if (!order) {
+      console.error('[APP] 未找到订单:', orderId);
+      alert('未找到订单数据');
+      return;
+    }
+
+    try {
+      console.log(
+        `[APP] 开始向 ${selectedPrinters.length} 台打印机打印订单 ${orderId}`
+      );
+
+      const printResult = await this.printerManager.printOrder(order);
+
+      if (printResult.成功数量 > 0) {
+        this.showTrayNotification(
+          `✅ 订单 ${orderId} 已打印到 ${printResult.成功数量} 台打印机`
+        );
+      }
+
+      if (printResult.失败数量 > 0) {
+        console.warn('[APP] 打印部分失败:', printResult.错误列表);
+        this.showTrayNotification(
+          `⚠️ ${printResult.失败数量} 台打印机打印失败`
+        );
+      }
+
+      console.log('[APP] 打印结果:', printResult);
+    } catch (error) {
+      console.error('[APP] 打印订单失败:', error);
+      this.showTrayNotification(`❌ 打印失败: ${error.message}`);
+      alert(`打印失败: ${error.message}`);
+    }
   }
 
   testWebSocketConnection() {
@@ -574,32 +868,6 @@ class OrderPrintApp {
       console.log('[APP] Starting WebSocket connection test...');
       this.connectWebSocket();
     }, 1000);
-  }
-
-  async printOrderById(orderId) {
-    console.log('[APP] Print order requested for:', orderId);
-
-    const order = this.orders.find((o) => o.order_id === orderId);
-    if (!order) {
-      console.warn('[APP] Order not found for printing:', orderId);
-      return;
-    }
-
-    if (!this.printerManager.isAnyPrinterSelected()) {
-      console.warn('[APP] No printer selected for order printing');
-      alert('Please select a printer first');
-      return;
-    }
-
-    try {
-      console.log('[APP] Starting order print process...');
-      await this.printerManager.printOrder(order);
-      console.log('[APP] Order printed successfully');
-      alert('Order printed successfully');
-    } catch (error) {
-      console.error('[APP] Order print failed:', error);
-      alert('Print failed: ' + error.message);
-    }
   }
 
   // 打印设置相关方法

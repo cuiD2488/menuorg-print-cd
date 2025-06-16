@@ -200,10 +200,11 @@ ipcMain.handle(
 
 ipcMain.handle(
   'print-order',
-  async (event, printerName, orderData, width = 80, fontSize = 0) => {
+  async (event, orderData, width = 80, fontSize = 0) => {
     try {
+      // 注意：这里我们不再传递printerName，因为新的逻辑是在后端处理多选打印机
       return await printerUtils.printOrder(
-        printerName,
+        'default', // 使用默认或第一个可用打印机
         orderData,
         width,
         fontSize

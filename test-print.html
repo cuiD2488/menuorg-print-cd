@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>多选打印机功能测试</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+
+      .container {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        color: #333;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        background: #fafafa;
+      }
+
+      .section h3 {
+        margin-top: 0;
+        color: #555;
+      }
+
+      .printer-item {
+        display: flex;
+        align-items: center;
+        padding: 10px;
+        margin: 5px 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+
+      .printer-checkbox {
+        margin-right: 10px;
+      }
+
+      .printer-info {
+        flex: 1;
+      }
+
+      .printer-name {
+        font-weight: bold;
+        color: #333;
+      }
+
+      .printer-details {
+        font-size: 12px;
+        color: #666;
+      }
+
+      .btn {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+
+      .btn:hover {
+        background: #0056b3;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+      }
+
+      .btn-secondary:hover {
+        background: #545b62;
+      }
+
+      .btn-success {
+        background: #28a745;
+      }
+
+      .btn-success:hover {
+        background: #1e7e34;
+      }
+
+      .status {
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+
+      #log {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 15px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🖨️ 多选打印机功能测试</h1>
+
+      <!-- 打印机列表 -->
+      <div class="section">
+        <h3>可用打印机</h3>
+        <div id="printerList">
+          <div class="status info">正在加载打印机列表...</div>
+        </div>
+        <div>
+          <button class="btn" onclick="refreshPrinters()">刷新打印机</button>
+          <button class="btn btn-secondary" onclick="selectAllPrinters()">
+            全选
+          </button>
+          <button class="btn btn-secondary" onclick="clearAllPrinters()">
+            清空
+          </button>
+        </div>
+      </div>
+
+      <!-- 操作区域 -->
+      <div class="section">
+        <h3>打印测试</h3>
+        <div>
+          <button class="btn btn-success" onclick="testPrint()">
+            测试打印到所有选中打印机
+          </button>
+          <button class="btn" onclick="printSampleOrder()">打印示例订单</button>
+        </div>
+        <div id="actionStatus" class="status info" style="display: none"></div>
+      </div>
+
+      <!-- 状态显示 -->
+      <div class="section">
+        <h3>状态信息</h3>
+        <div id="statusInfo" class="status info">
+          选中打印机: 0 台<br />
+          最后操作: 无
+        </div>
+      </div>
+
+      <!-- 日志 -->
+      <div class="section">
+        <h3>操作日志</h3>
+        <div id="log"></div>
+        <button class="btn btn-secondary" onclick="clearLog()">清空日志</button>
+      </div>
+    </div>
+
+    <script>
+      let printers = [];
+      let selectedPrinters = [];
+
+      // 日志功能
+      function log(message) {
+        const logEl = document.getElementById('log');
+        const timestamp = new Date().toLocaleTimeString();
+        logEl.textContent += `[${timestamp}] ${message}\n`;
+        logEl.scrollTop = logEl.scrollHeight;
+        console.log(message);
+      }
+
+      function clearLog() {
+        document.getElementById('log').textContent = '';
+      }
+
+      // 状态更新
+      function updateStatus() {
+        const statusEl = document.getElementById('statusInfo');
+        const selectedCount = selectedPrinters.length;
+        const totalCount = printers.length;
+
+        let statusText = `选中打印机: ${selectedCount}/${totalCount} 台`;
+        if (selectedCount > 0) {
+          const names =
+            selectedPrinters.length > 2
+              ? `${selectedPrinters.slice(0, 2).join(', ')} 等`
+              : selectedPrinters.join(', ');
+          statusText += `<br>选中的打印机: ${names}`;
+        }
+
+        statusEl.innerHTML = statusText;
+      }
+
+      // 显示操作状态
+      function showActionStatus(message, type = 'info') {
+        const statusEl = document.getElementById('actionStatus');
+        statusEl.className = `status ${type}`;
+        statusEl.textContent = message;
+        statusEl.style.display = 'block';
+
+        setTimeout(() => {
+          statusEl.style.display = 'none';
+        }, 5000);
+      }
+
+      // 渲染打印机列表
+      function renderPrinters() {
+        const container = document.getElementById('printerList');
+
+        if (printers.length === 0) {
+          container.innerHTML =
+            '<div class="status error">未发现任何打印机</div>';
+          return;
+        }
+
+        let html = '';
+        printers.forEach((printer) => {
+          const isSelected = selectedPrinters.includes(printer.name);
+          html += `
+            <div class="printer-item">
+              <div class="printer-checkbox">
+                <input type="checkbox" 
+                       value="${printer.name}" 
+                       ${isSelected ? 'checked' : ''}
+                       onchange="togglePrinter('${
+                         printer.name
+                       }', this.checked)">
+              </div>
+              <div class="printer-info">
+                <div class="printer-name">${printer.name}</div>
+                <div class="printer-details">
+                  宽度: ${printer.width || 80}mm | 
+                  类型: ${printer.isThermal ? '热敏' : '普通'} | 
+                  状态: ${printer.status || 'Ready'}
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        container.innerHTML = html;
+        updateStatus();
+      }
+
+      // 切换打印机选择
+      function togglePrinter(printerName, isChecked) {
+        if (isChecked) {
+          if (!selectedPrinters.includes(printerName)) {
+            selectedPrinters.push(printerName);
+            log(`✅ 选择打印机: ${printerName}`);
+          }
+        } else {
+          selectedPrinters = selectedPrinters.filter(
+            (name) => name !== printerName
+          );
+          log(`❌ 取消选择打印机: ${printerName}`);
+        }
+        updateStatus();
+      }
+
+      // 刷新打印机列表
+      async function refreshPrinters() {
+        log('🔄 刷新打印机列表...');
+        showActionStatus('正在刷新打印机列表...', 'info');
+
+        try {
+          // 模拟获取打印机列表
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          // 模拟打印机数据
+          printers = [
+            {
+              name: 'HP LaserJet 1020',
+              width: 80,
+              isThermal: false,
+              status: 'Ready',
+            },
+            {
+              name: 'EPSON TM-T20II',
+              width: 58,
+              isThermal: true,
+              status: 'Ready',
+            },
+            {
+              name: 'Canon PIXMA',
+              width: 80,
+              isThermal: false,
+              status: 'Ready',
+            },
+            {
+              name: 'Zebra ZD420',
+              width: 58,
+              isThermal: true,
+              status: 'Ready',
+            },
+          ];
+
+          renderPrinters();
+          log(`✅ 发现 ${printers.length} 台打印机`);
+          showActionStatus(`发现 ${printers.length} 台打印机`, 'success');
+        } catch (error) {
+          log(`❌ 刷新打印机失败: ${error.message}`);
+          showActionStatus('刷新打印机失败', 'error');
+        }
+      }
+
+      // 全选打印机
+      function selectAllPrinters() {
+        selectedPrinters = printers.map((p) => p.name);
+        renderPrinters();
+        log(`✅ 已选择所有 ${selectedPrinters.length} 台打印机`);
+        showActionStatus(
+          `已选择所有 ${selectedPrinters.length} 台打印机`,
+          'success'
+        );
+      }
+
+      // 清空选择
+      function clearAllPrinters() {
+        const prevCount = selectedPrinters.length;
+        selectedPrinters = [];
+        renderPrinters();
+        log(`🗑️ 已清空 ${prevCount} 台打印机的选择`);
+        showActionStatus('已清空所有打印机选择', 'info');
+      }
+
+      // 测试打印
+      async function testPrint() {
+        if (selectedPrinters.length === 0) {
+          alert('请先选择至少一台打印机');
+          return;
+        }
+
+        log(`🧪 开始测试打印，目标: ${selectedPrinters.length} 台打印机`);
+        showActionStatus(
+          `正在向 ${selectedPrinters.length} 台打印机发送测试打印...`,
+          'info'
+        );
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        // 模拟并行打印
+        const promises = selectedPrinters.map(async (printerName) => {
+          try {
+            log(`📤 向 ${printerName} 发送测试打印...`);
+
+            // 模拟打印延迟
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 + Math.random() * 2000)
+            );
+
+            // 模拟一定的失败率
+            if (Math.random() > 0.8) {
+              throw new Error('打印机连接超时');
+            }
+
+            log(`✅ ${printerName} 测试打印成功`);
+            successCount++;
+            return { printer: printerName, success: true };
+          } catch (error) {
+            log(`❌ ${printerName} 测试打印失败: ${error.message}`);
+            errorCount++;
+            return {
+              printer: printerName,
+              success: false,
+              error: error.message,
+            };
+          }
+        });
+
+        const results = await Promise.all(promises);
+
+        // 显示结果
+        if (successCount > 0 && errorCount === 0) {
+          log(`🎉 所有 ${successCount} 台打印机测试成功！`);
+          showActionStatus(
+            `所有 ${successCount} 台打印机测试成功！`,
+            'success'
+          );
+        } else if (successCount > 0 && errorCount > 0) {
+          log(`⚠️ 测试完成: ${successCount} 台成功，${errorCount} 台失败`);
+          showActionStatus(
+            `${successCount} 台成功，${errorCount} 台失败`,
+            'error'
+          );
+        } else {
+          log(`💥 所有打印机测试失败`);
+          showActionStatus('所有打印机测试失败', 'error');
+        }
+
+        console.log('测试打印结果:', results);
+      }
+
+      // 打印示例订单
+      async function printSampleOrder() {
+        if (selectedPrinters.length === 0) {
+          alert('请先选择至少一台打印机');
+          return;
+        }
+
+        log(`📋 开始打印示例订单到 ${selectedPrinters.length} 台打印机`);
+        showActionStatus(
+          `正在向 ${selectedPrinters.length} 台打印机打印订单...`,
+          'info'
+        );
+
+        // 模拟订单打印
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        log(`✅ 示例订单已发送到所有选中的打印机`);
+        showActionStatus('示例订单打印完成', 'success');
+      }
+
+      // 页面加载时初始化
+      window.onload = function () {
+        log('🚀 多选打印机测试页面已加载');
+        refreshPrinters();
+      };
+    </script>
+  </body>
+</html>

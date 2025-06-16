@@ -61,32 +61,45 @@
           <div class="left-panel">
             <!-- Printer Configuration -->
             <div class="config-panel">
-              <h3>Printer Settings</h3>
+              <h3>打印机设置</h3>
               <div class="printer-config">
-                <label for="printerSelect">Select Printers (Multiple):</label>
-                <select id="printerSelect" multiple size="5">
-                  <option value="">Loading...</option>
-                </select>
-                <div class="printer-actions">
-                  <button id="refreshPrinters" class="btn-small">
-                    Refresh
-                  </button>
-                  <button id="testPrint" class="btn-small">Test Print</button>
+                <div class="printer-header">
+                  <span>可用打印机:</span>
+                  <div class="header-actions">
+                    <button id="refreshPrinters" class="btn-small">刷新</button>
+                    <button
+                      id="selectAllPrinters"
+                      class="btn-small btn-secondary"
+                    >
+                      全选
+                    </button>
+                    <button
+                      id="clearAllPrinters"
+                      class="btn-small btn-secondary"
+                    >
+                      清空
+                    </button>
+                  </div>
                 </div>
+
+                <!-- 打印机列表容器 -->
+                <div id="printerList" class="printer-list">
+                  <div class="loading-text">正在加载打印机...</div>
+                </div>
+
                 <div class="printer-actions">
+                  <button id="testPrint" class="btn-small">测试打印</button>
                   <button id="printSettingsBtn" class="btn-small btn-secondary">
-                    Print Settings
+                    打印设置
                   </button>
-                  <button id="printPreviewBtn" class="btn-small">
-                    Preview
-                  </button>
+                  <button id="printPreviewBtn" class="btn-small">预览</button>
                 </div>
               </div>
               <div class="auto-print-config">
                 <label class="checkbox-label">
                   <input type="checkbox" id="autoPrint" checked />
                   <span class="checkmark"></span>
-                  Auto print new orders
+                  自动打印新订单
                 </label>
               </div>
             </div>

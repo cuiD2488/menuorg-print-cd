@@ -205,49 +205,107 @@ class PrinterManager {
   }
 
   async printOrder(orderData, printerName = null) {
-    const printersToPrint = printerName
-      ? [printerName]
-      : this.getEnabledPrinters().map((p) => p.name);
-
-    if (printersToPrint.length === 0) {
-      throw new Error('没有启用的打印机');
+    if (!orderData) {
+      throw new Error('订单数据不能为空');
     }
 
+    console.log('开始打印订单:', orderData.order_id || 'Unknown');
+
+    // 如果指定了打印机名称，只打印到该打印机
+    if (printerName) {
+      const printer = this.printers.find((p) => p.name === printerName);
+      if (!printer) {
+        throw new Error(`找不到指定的打印机: ${printerName}`);
+      }
+
+      console.log(`向指定打印机打印: ${printerName}`);
+      return await this.printToSinglePrinter(orderData, printer);
+    }
+
+    // 否则，向所有选中的打印机打印
+    const selectedPrinters = this.getSelectedPrinters();
+    if (selectedPrinters.length === 0) {
+      throw new Error('没有选择任何打印机，无法打印订单');
+    }
+
+    console.log(`向 ${selectedPrinters.length} 台选中的打印机打印订单`);
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
     const results = [];
 
-    for (const printerNameToPrint of printersToPrint) {
-      try {
-        const printer = this.printers.find(
-          (p) => p.name === printerNameToPrint
-        );
-        const width = printer ? printer.width : 80;
-        const fontSize = printer ? printer.fontSize : this.globalFontSize;
-
-        console.log(
-          `开始打印订单到: ${printerNameToPrint} (宽度: ${width}mm, 字体: ${this.getFontSizeText(
-            fontSize
-          )})`,
-          orderData
-        );
-        await window.electronAPI.printOrder(
-          printerNameToPrint,
-          orderData,
-          width,
-          fontSize
-        );
-        results.push({ printer: printerNameToPrint, success: true });
-        console.log(`订单打印成功: ${printerNameToPrint}`);
-      } catch (error) {
-        console.error(`订单打印失败: ${printerNameToPrint}`, error);
-        results.push({
-          printer: printerNameToPrint,
-          success: false,
-          error: error.message,
-        });
+    // 并行向所有选中的打印机打印
+    const printPromises = selectedPrinters.map(async (printerName) => {
+      const printer = this.printers.find((p) => p.name === printerName);
+      if (!printer) {
+        const error = `找不到打印机: ${printerName}`;
+        errors.push(error);
+        errorCount++;
+        return { printer: printerName, success: false, error };
       }
+
+      try {
+        console.log(`向打印机 ${printerName} 发送订单打印`);
+        await this.printToSinglePrinter(orderData, printer);
+        successCount++;
+        console.log(`打印机 ${printerName} 订单打印成功`);
+        return { printer: printerName, success: true };
+      } catch (error) {
+        errorCount++;
+        const errorMsg = `${printerName}: ${error.message}`;
+        errors.push(errorMsg);
+        console.error(`打印机 ${printerName} 订单打印失败:`, error);
+        return { printer: printerName, success: false, error: error.message };
+      }
+    });
+
+    const printResults = await Promise.all(printPromises);
+    results.push(...printResults);
+
+    // 汇总结果
+    const summary = {
+      总打印机数: selectedPrinters.length,
+      成功数量: successCount,
+      失败数量: errorCount,
+      详细结果: results,
+      错误列表: errors,
+    };
+
+    console.log('订单打印结果汇总:', summary);
+
+    if (successCount === 0) {
+      throw new Error(`所有打印机都打印失败: ${errors.join('; ')}`);
     }
 
-    return results;
+    if (errorCount > 0) {
+      console.warn(
+        `订单打印部分成功: ${successCount} 成功, ${errorCount} 失败`
+      );
+    }
+
+    return summary;
+  }
+
+  // 向单个打印机打印的辅助方法
+  async printToSinglePrinter(orderData, printer) {
+    try {
+      const width = printer.width || 80;
+      const fontSize =
+        printer.fontSize !== undefined ? printer.fontSize : this.globalFontSize;
+
+      console.log(
+        `打印机 ${printer.name}: 宽度=${width}mm, 字体=${this.getFontSizeText(
+          fontSize
+        )}`
+      );
+
+      await window.electronAPI.printOrder(orderData, width, fontSize);
+      return true;
+    } catch (error) {
+      console.error(`打印机 ${printer.name} 打印失败:`, error);
+      throw error;
+    }
   }
 
   // 生成打印预览
