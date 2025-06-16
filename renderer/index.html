@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Restaurant Order Print System</title>
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Login Section -->
+      <div id="loginSection" class="section">
+        <div class="login-container">
+          <h2>User Login</h2>
+          <form id="loginForm">
+            <div class="form-group">
+              <label for="username">Username:</label>
+              <input
+                type="text"
+                id="username"
+                required
+                placeholder="Enter username"
+              />
+            </div>
+            <div class="form-group">
+              <label for="password">Password:</label>
+              <input
+                type="password"
+                id="password"
+                required
+                placeholder="Enter password"
+              />
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="rememberLogin" />
+                <span class="checkmark"></span>
+                Remember username and password
+              </label>
+            </div>
+            <div class="form-group">
+              <button type="submit" id="loginBtn">Login</button>
+            </div>
+            <div class="login-status" id="loginStatus"></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Main Section -->
+      <div id="mainSection" class="section hidden">
+        <div class="header">
+          <h1>Restaurant Order Print System</h1>
+          <div class="user-info">
+            <span id="userInfo"></span>
+            <button id="logoutBtn" class="btn-secondary">Logout</button>
+          </div>
+        </div>
+
+        <div class="content">
+          <!-- Left Panel -->
+          <div class="left-panel">
+            <!-- Printer Configuration -->
+            <div class="config-panel">
+              <h3>Printer Settings</h3>
+              <div class="printer-config">
+                <label for="printerSelect">Select Printers (Multiple):</label>
+                <select id="printerSelect" multiple size="5">
+                  <option value="">Loading...</option>
+                </select>
+                <div class="printer-actions">
+                  <button id="refreshPrinters" class="btn-small">
+                    Refresh
+                  </button>
+                  <button id="testPrint" class="btn-small">Test Print</button>
+                </div>
+                <div class="printer-actions">
+                  <button id="printSettingsBtn" class="btn-small btn-secondary">
+                    Print Settings
+                  </button>
+                  <button id="printPreviewBtn" class="btn-small">
+                    Preview
+                  </button>
+                </div>
+              </div>
+              <div class="auto-print-config">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="autoPrint" checked />
+                  <span class="checkmark"></span>
+                  Auto print new orders
+                </label>
+              </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="status-panel">
+              <h3>System Status</h3>
+              <div class="status-item">
+                <span>WebSocket:</span>
+                <span id="wsStatus" class="status-badge status-disconnected"
+                  >Disconnected</span
+                >
+                <button id="testWebSocketBtn" class="btn-secondary">
+                  Test Connection
+                </button>
+              </div>
+              <div class="status-item">
+                <span>Printer:</span>
+                <span id="printerStatus" class="status-badge"
+                  >Not Selected</span
+                >
+              </div>
+              <div class="status-item">
+                <span>Today Orders:</span>
+                <span id="todayOrderCount" class="status-badge">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Panel -->
+          <div class="right-panel">
+            <div class="orders-panel">
+              <div class="orders-header">
+                <h3>Recent Orders</h3>
+                <div class="orders-actions">
+                  <span id="orderCount" class="order-count">(0)</span>
+                  <button id="refreshOrders" class="btn-small">Refresh</button>
+                  <button id="clearOrders" class="btn-small btn-danger">
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div id="ordersList" class="orders-list">
+                <div class="no-orders">No orders yet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div id="orderModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Order Details</h3>
+          <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+          <div id="orderDetails"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="printOrderBtn" class="btn-primary">Print Order</button>
+          <button id="closeModalBtn" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Print Settings Modal -->
+    <div id="printSettingsModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Print Layout Settings</h3>
+          <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+          <div class="settings-form">
+            <div class="form-row">
+              <label for="paperWidth">Paper Width (mm):</label>
+              <input
+                type="number"
+                id="paperWidth"
+                value="58"
+                min="30"
+                max="100"
+              />
+            </div>
+            <div class="form-row">
+              <label for="fontSize">Font Size:</label>
+              <input type="number" id="fontSize" value="12" min="8" max="20" />
+            </div>
+            <div class="form-row">
+              <label for="fontFamily">Font Family:</label>
+              <select id="fontFamily">
+                <option value="SimSun">宋体</option>
+                <option value="Microsoft YaHei">微软雅黑</option>
+                <option value="SimHei">黑体</option>
+                <option value="monospace">等宽字体</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="lineSpacing">Line Spacing:</label>
+              <input
+                type="number"
+                id="lineSpacing"
+                value="1.2"
+                min="1.0"
+                max="2.0"
+                step="0.1"
+              />
+            </div>
+            <div class="form-row">
+              <label for="margin">Margin (mm):</label>
+              <input type="number" id="margin" value="5" min="0" max="20" />
+            </div>
+            <div class="form-row checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="showLogo" checked />
+                <span class="checkmark"></span>
+                Show store logo/name
+              </label>
+            </div>
+            <div class="form-row checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="showOrderTime" checked />
+                <span class="checkmark"></span>
+                Show order time
+              </label>
+            </div>
+            <div class="form-row checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="showItemDetails" checked />
+                <span class="checkmark"></span>
+                Show item details
+              </label>
+            </div>
+            <div class="form-row checkbox-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="showSeparator" checked />
+                <span class="checkmark"></span>
+                Show separators
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="savePrintSettings" class="btn-primary">
+            Save Settings
+          </button>
+          <button id="resetPrintSettings" class="btn-secondary">Reset</button>
+          <button id="closePrintSettings" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Print Preview Modal -->
+    <div id="printPreviewModal" class="modal hidden">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3>Print Preview</h3>
+          <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+          <div class="preview-container">
+            <div class="preview-paper">
+              <div id="previewContent" class="preview-content"></div>
+            </div>
+            <div class="preview-controls">
+              <p><strong>Preview Settings:</strong></p>
+              <p>Paper Width: <span id="previewPaperWidth">58</span>mm</p>
+              <p>Font Size: <span id="previewFontSize">12</span>px</p>
+              <p>
+                Characters per line: <span id="previewCharsPerLine">32</span>
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="printFromPreview" class="btn-primary">Print</button>
+          <button id="refreshPreview" class="btn-secondary">Refresh</button>
+          <button id="closePreview" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Processing...</p>
+      </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/printer.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
