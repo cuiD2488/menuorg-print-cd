@@ -713,9 +713,12 @@ class OrderPrintApp {
       console.log('[APP] Loading recent orders from API...');
       const response = await API.getOrderList(1, 10);
 
+      console.log('[APP] API response:', response);
+
       if (response.success) {
         this.orders = response.data || [];
         console.log('[APP] Loaded orders:', this.orders.length);
+        console.log('[APP] First order sample:', this.orders[0]);
         this.renderOrdersList();
 
         // 更新今日订单数量
@@ -760,6 +763,13 @@ class OrderPrintApp {
       '[APP] Rendering orders list, total orders:',
       this.orders.length
     );
+    console.log('[APP] Container element found:', !!container);
+    console.log('[APP] Count element found:', !!countEl);
+
+    if (!container) {
+      console.error('[APP] ordersList container not found!');
+      return;
+    }
 
     countEl.textContent = `(${this.orders.length})`;
 
@@ -782,9 +792,12 @@ class OrderPrintApp {
       return;
     }
 
+    console.log('[APP] Creating order elements...');
     container.innerHTML = '';
 
-    this.orders.forEach((order) => {
+    this.orders.forEach((order, index) => {
+      console.log(`[APP] Rendering order ${index + 1}:`, order.order_id);
+
       const orderEl = document.createElement('div');
       orderEl.className = 'order-item';
 
@@ -843,6 +856,8 @@ class OrderPrintApp {
 
       container.appendChild(orderEl);
     });
+
+    console.log('[APP] Order list rendering completed');
   }
 
   // 获取订单状态文本
