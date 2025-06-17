@@ -200,173 +200,257 @@ class PrinterUtils {
   }
 
   static generatePrintContent(order, width = 80, fontSize = 0) {
+    // 根据纸张宽度设置字符数 (考虑中文字符占2个位置)
     const charWidth = width === 80 ? 48 : 32;
     let content = '';
 
-    // ESC/POS initialization
-    content += '\x1B@';
-    content += '\x1C\x26';
-    content += '\x1C\x43\x01';
+    // 验证订单数据并添加默认值
+    const safeOrder = {
+      order_id: order.order_id || 'UNKNOWN',
+      rd_name: order.rd_name || '餐厅名称',
+      recipient_name: order.recipient_name || '客户',
+      recipient_address: order.recipient_address || '',
+      recipient_phone: order.recipient_phone || '',
+      total: order.total || '0.00',
+      dishes_array: order.dishes_array || [],
+      // 添加可能缺失的字段的默认值
+      serial_num: order.serial_num || 0,
+      create_time:
+        order.create_time || order.created_at || new Date().toISOString(),
+      delivery_time: order.delivery_time || '',
+      delivery_style: order.delivery_style || 1, // 默认外卖
+      paystyle: order.paystyle || 1, // 默认现金
+      user_email: order.user_email || '',
+      order_notes: order.order_notes || '',
+      sub_total: order.sub_total || order.total || '0.00',
+      discount_total: order.discount_total || '0.00',
+      exemption: order.exemption || '0.00',
+      tax_fee: order.tax_fee || '0.00',
+      tax_rate: order.tax_rate || '0.00',
+      delivery_fee: order.delivery_fee || '0.00',
+      retail_delivery_fee: order.retail_delivery_fee || '0.00',
+      convenience_fee: order.convenience_fee || '0.00',
+      convenience_rate: order.convenience_rate || '0.00',
+      tip_fee: order.tip_fee || '0.00',
+      recipient_distance: order.recipient_distance || '0.00',
+    };
 
-    // Font size
+    // ESC/POS initialization - 使用优化的头部命令
+    content += '\x1B@'; // 复位打印机
+    content += '\x1C\x26'; // 切换到中文模式
+    content += '\x1C\x43\x01'; // 设置中文字符集
+
+    // 优化的字体大小设置 - 调整中号和大号使其比原来小一点
     switch (fontSize) {
-      case 0:
-        content += '\x1D\x21\x00';
+      case 0: // 小号字体 (默认大小) - 保持不变
+        content += '\x1D\x21\x00'; // 正常大小 (1x1)
         break;
-      case 1:
-        content += '\x1D\x21\x10';
+      case 1: // 中号字体 - 只放大宽度，比原来小
+        content += '\x1D\x21\x01'; // 宽度2x，高度1x
         break;
-      case 2:
-        content += '\x1D\x21\x11';
+      case 2: // 大号字体 - 只放大高度，比原来小
+        content += '\x1D\x21\x10'; // 宽度1x，高度2x
         break;
       default:
-        content += '\x1D\x21\x00';
+        content += '\x1D\x21\x00'; // 正常大小
         break;
     }
 
-    content += '\x1B\x33\x30';
+    // 设置行间距为更宽松的间距
+    content += '\x1B\x33\x30'; // 设置行间距为48/180英寸
 
-    // Header
+    // ============= 头部信息 (居中) =============
     content += '='.repeat(charWidth) + '\n';
-    content += '\x1B\x45\x01';
-    const restaurantName = order.rd_name || '餐厅名称';
-    content += this.centerTextMixed(restaurantName.toUpperCase(), charWidth);
-    content += '\x1B\x45\x00\n';
+    content += '\x1B\x45\x01'; // 加粗
+    content += this.centerTextMixed(safeOrder.rd_name.toUpperCase(), charWidth);
+    content += '\x1B\x45\x00\n'; // 关闭加粗
 
-    const orderType = this.getOrderTypeText(order);
-    content += '\x1B\x45\x01';
+    // 订单类型 (居中)
+    const orderType = this.getOrderTypeText(safeOrder);
+    content += '\x1B\x45\x01'; // 加粗
     content += this.centerTextMixed(orderType, charWidth);
-    content += '\x1B\x45\x00\n';
+    content += '\x1B\x45\x00\n'; // 关闭加粗
     content += '='.repeat(charWidth) + '\n\n';
 
-    // Order info
-    content += '\x1B\x45\x01';
-    content += this.centerTextMixed(`Order #: ${order.order_id}`, charWidth);
-    content += '\x1B\x45\x00\n';
+    // ============= 订单信息表格 =============
+    // 订单号 (居中显示)
+    content += '\x1B\x45\x01'; // 加粗
+    const orderLine = `Order #: ${safeOrder.order_id}`;
+    content += this.centerTextMixed(orderLine, charWidth);
+    content += '\x1B\x45\x00\n'; // 关闭加粗
 
+    // 流水号 (居中显示)
     const serial =
-      order.serial_num > 0
-        ? `#${order.serial_num.toString().padStart(3, '0')}`
-        : `#${this.getOrderSerial(order)}`;
-    content += this.centerTextMixed(`Serial: ${serial}`, charWidth) + '\n\n';
+      safeOrder.serial_num > 0
+        ? `#${safeOrder.serial_num.toString().padStart(3, '0')}`
+        : `#${this.getOrderSerial(safeOrder)}`;
+    const serialLine = `Serial: ${serial}`;
+    content += this.centerTextMixed(serialLine, charWidth) + '\n\n';
 
+    // 基本信息表格 (左对齐标签，右对齐数值)
     content += this.formatTableRow(
       'Order Date:',
-      this.formatOrderTime(order.create_time),
+      this.formatOrderTime(safeOrder.create_time),
       charWidth
     );
 
-    if (order.delivery_style === 1) {
+    if (safeOrder.delivery_style === 1) {
+      // 外送
       content += this.formatTableRow(
         'Delivery Time:',
-        this.formatDeliveryTime(order.delivery_time),
+        this.formatDeliveryTime(safeOrder.delivery_time),
         charWidth
       );
-      if (order.recipient_distance && order.recipient_distance !== '0.00') {
-        content += this.formatTableRow(
-          'Distance:',
-          `${order.recipient_distance} miles`,
-          charWidth
-        );
+      if (
+        safeOrder.recipient_distance &&
+        safeOrder.recipient_distance !== '0.00'
+      ) {
+        const distanceLine = `${safeOrder.recipient_distance} miles`;
+        content += this.formatTableRow('Distance:', distanceLine, charWidth);
       }
     } else {
+      // 自取
       content += this.formatTableRow(
         'Pickup Time:',
-        this.formatDeliveryTime(order.delivery_time),
+        this.formatDeliveryTime(safeOrder.delivery_time),
         charWidth
       );
     }
 
     content += this.formatTableRow(
       'Payment:',
-      this.getPaymentMethodText(order.paystyle),
+      this.getPaymentMethodText(safeOrder.paystyle),
       charWidth
     );
     content += this.formatTableRow(
       'Customer:',
-      this.prepareMixedContent(order.recipient_name),
+      this.prepareMixedContent(safeOrder.recipient_name),
       charWidth
     );
-    content += this.formatTableRow('Phone:', order.recipient_phone, charWidth);
 
-    if (order.recipient_address && order.delivery_style === 1) {
+    if (safeOrder.recipient_phone) {
       content += this.formatTableRow(
-        'Address:',
-        this.prepareMixedContent(order.recipient_address),
+        'Phone:',
+        safeOrder.recipient_phone,
         charWidth
       );
     }
 
-    if (order.user_email) {
-      content += this.formatTableRow('Email:', order.user_email, charWidth);
+    // 地址 (如果是外送)
+    if (safeOrder.recipient_address && safeOrder.delivery_style === 1) {
+      content += this.formatTableRow(
+        'Address:',
+        this.prepareMixedContent(safeOrder.recipient_address),
+        charWidth
+      );
+    }
+
+    if (safeOrder.user_email) {
+      content += this.formatTableRow('Email:', safeOrder.user_email, charWidth);
     }
 
     content += '\n' + '-'.repeat(charWidth) + '\n';
 
-    // Items
-    content += '\x1B\x45\x01';
+    // ============= 商品明细表格 =============
+    content += '\x1B\x45\x01'; // 加粗
     content += this.centerTextMixed('ORDER ITEMS', charWidth);
-    content += '\x1B\x45\x00\n';
+    content += '\x1B\x45\x00\n'; // 关闭加粗
     content += '-'.repeat(charWidth) + '\n';
 
-    for (const item of order.dishes_array) {
-      content += this.formatItemTableRow(
-        this.prepareMixedContent(item.dishes_name),
-        item.amount,
-        parseFloat(item.unit_price) || 0.0,
-        parseFloat(item.price) || 0.0,
+    // 表格标题 - 简化版本
+    const header = this.formatTableHeader(
+      'Item Name',
+      'Qty',
+      '',
+      'Total',
+      charWidth
+    );
+    content += header;
+    content += '-'.repeat(charWidth) + '\n';
+
+    for (const item of safeOrder.dishes_array) {
+      // 为菜品项添加默认值
+      const safeItem = {
+        dishes_name: item.dishes_name || '菜品',
+        amount: item.amount || 1,
+        unit_price: item.unit_price || item.price || '0.00',
+        price: item.price || '0.00',
+        dishes_describe: item.dishes_describe || '',
+        remark: item.remark || '',
+      };
+
+      const price = parseFloat(safeItem.price) || 0.0;
+      const unitPrice = parseFloat(safeItem.unit_price) || 0.0;
+
+      // 商品行 (使用智能换行)
+      content += this.formatItemTableRowSmart(
+        this.prepareMixedContent(safeItem.dishes_name),
+        safeItem.amount,
+        unitPrice,
+        price,
         charWidth
       );
 
-      if (item.dishes_describe) {
-        content += `  + ${this.prepareMixedContent(item.dishes_describe)}\n`;
+      // 附加项目 (如米饭等) - 只显示名称，不显示价格和数量
+      if (safeItem.dishes_describe) {
+        content += `  + ${this.prepareMixedContent(
+          safeItem.dishes_describe
+        )}\n`;
       }
 
-      if (item.remark) {
-        content += `  Note: ${this.prepareMixedContent(item.remark)}\n`;
+      // 特殊要求
+      if (safeItem.remark) {
+        content += `  Note: ${this.prepareMixedContent(safeItem.remark)}\n`;
       }
 
+      // 增加商品间的行距
       content += '\n';
     }
 
-    // Payment summary
-    const subTotal = parseFloat(order.sub_total) || 0.0;
-    const discountTotal = parseFloat(order.discount_total) || 0.0;
-    const exemption = parseFloat(order.exemption) || 0.0;
-    const taxFee = parseFloat(order.tax_fee) || 0.0;
-    const taxRate = parseFloat(order.tax_rate) || 0.0;
-    const deliveryFee = parseFloat(order.delivery_fee) || 0.0;
-    const retailDeliveryFee = parseFloat(order.retail_delivery_fee) || 0.0;
-    const convenienceFee = parseFloat(order.convenience_fee) || 0.0;
-    const tipFee = parseFloat(order.tip_fee) || 0.0;
-    const total = parseFloat(order.total) || 0.0;
+    // ============= 费用明细 (右下角，每行一个数据，右对齐) =============
+    const subTotal = parseFloat(safeOrder.sub_total) || 0.0;
+    const discountTotal = parseFloat(safeOrder.discount_total) || 0.0;
+    const exemption = parseFloat(safeOrder.exemption) || 0.0;
+    const taxFee = parseFloat(safeOrder.tax_fee) || 0.0;
+    const taxRate = parseFloat(safeOrder.tax_rate) || 0.0;
+    const deliveryFee = parseFloat(safeOrder.delivery_fee) || 0.0;
+    const convenienceFee = parseFloat(safeOrder.convenience_fee) || 0.0;
+    const retailDeliveryFee = parseFloat(safeOrder.retail_delivery_fee) || 0.0;
+    const tipFee = parseFloat(safeOrder.tip_fee) || 0.0;
+    const total = parseFloat(safeOrder.total) || 0.0;
 
-    content += '\n';
-    content += '\x1B\x45\x01';
+    content += '-'.repeat(charWidth) + '\n';
+    content += '\x1B\x45\x01'; // 加粗
     content += this.centerTextMixed('PAYMENT SUMMARY', charWidth);
-    content += '\x1B\x45\x00\n';
+    content += '\x1B\x45\x00\n'; // 关闭加粗
     content += '-'.repeat(charWidth) + '\n';
 
+    // 小计
     content += this.formatFeeLine('Subtotal', subTotal, charWidth);
 
+    // 折扣
     if (discountTotal > 0.0) {
       content += this.formatFeeLine('Discount', -discountTotal, charWidth);
     }
 
+    // 免费金额
     if (exemption > 0.0) {
       content += this.formatFeeLine('Exemption', -exemption, charWidth);
     }
 
+    // 税费
     if (taxFee > 0.0) {
       const taxLabel =
         taxRate > 0.0 ? `Tax (${(taxRate * 100.0).toFixed(1)}%)` : 'Tax';
       content += this.formatFeeLine(taxLabel, taxFee, charWidth);
     }
 
+    // 配送费
     if (deliveryFee > 0.0) {
       content += this.formatFeeLine('Delivery Fee', deliveryFee, charWidth);
     }
 
+    // 零售配送费
     if (retailDeliveryFee > 0.0) {
       content += this.formatFeeLine(
         'Retail Del. Fee',
@@ -375,8 +459,9 @@ class PrinterUtils {
       );
     }
 
+    // 便民费
     if (convenienceFee > 0.0) {
-      const convRate = parseFloat(order.convenience_rate) || 0.0;
+      const convRate = parseFloat(safeOrder.convenience_rate) || 0.0;
       const convLabel =
         convRate > 0.0
           ? `Service Fee (${(convRate * 100.0).toFixed(1)}%)`
@@ -384,33 +469,38 @@ class PrinterUtils {
       content += this.formatFeeLine(convLabel, convenienceFee, charWidth);
     }
 
+    // 小费
     if (tipFee > 0.0) {
       content += this.formatFeeLine('Tip', tipFee, charWidth);
     }
 
     content += '-'.repeat(charWidth) + '\n';
 
-    content += '\x1B\x45\x01';
+    content += '\x1B\x45\x01'; // 加粗
     content += this.formatFeeLine('TOTAL', total, charWidth);
-    content += '\x1B\x45\x00';
+    content += '\x1B\x45\x00'; // 关闭加粗
 
     content += '\n' + '='.repeat(charWidth) + '\n';
 
-    if (order.order_notes) {
+    if (safeOrder.order_notes) {
       content += '\nNotes:\n';
-      content += this.prepareMixedContent(order.order_notes) + '\n';
+      content += this.prepareMixedContent(safeOrder.order_notes) + '\n';
     }
 
+    // 结尾信息
     content += '\n';
     content +=
       this.centerTextMixed('Thank you for your order!', charWidth) + '\n';
     content += this.centerTextMixed(
-      `Order Time: ${this.formatSimpleTime(order.create_time)}`,
+      `Order Time: ${this.formatSimpleTime(safeOrder.create_time)}`,
       charWidth
     );
+
+    // 空行，为切纸预留空间
     content += '\n\n\n\n';
 
-    content += '\x1D\x56\x00';
+    // 单次自动切纸命令 - 避免重复切纸
+    content += '\x1D\x56\x00'; // GS V 0 - 全切 (最通用的切纸命令)
 
     return content;
   }
@@ -473,7 +563,16 @@ class PrinterUtils {
   }
 
   static prepareMixedContent(text) {
-    return text
+    // 添加参数验证，防止 undefined.split() 错误
+    if (text === null || text === undefined) {
+      console.warn('⚠️ [prepareMixedContent] 接收到空文本，返回空字符串');
+      return '';
+    }
+
+    // 确保是字符串类型
+    const textStr = String(text);
+
+    return textStr
       .split('')
       .filter((c) => !this.isControlChar(c) || this.isAllowedControlChar(c))
       .join('');
@@ -501,39 +600,127 @@ class PrinterUtils {
   }
 
   static formatItemTableRow(name, qty, unitPrice, totalPrice, width) {
-    const nameWidth = Math.max(Math.floor(width * 0.7), 20);
-    const qtyWidth = 4;
-    const totalWidth = width - nameWidth - qtyWidth - 2;
+    const nameWidth = Math.floor(width * 0.6); // 60% for name
+    const qtyWidth = 6; // 6 chars for quantity
+    const totalWidth = width - nameWidth - qtyWidth - 2; // rest for total
 
+    const truncatedName = this.truncateForWidth(name, nameWidth);
     const qtyStr = qty.toString();
-    const totalStr = totalPrice === 0.0 ? '+0.00' : totalPrice.toFixed(2);
+    const totalStr = `$${totalPrice.toFixed(2)}`;
 
-    if (this.displayWidth(name) > nameWidth) {
-      let result = '';
-      const wrappedLines = this.wrapTextForWidth(name, nameWidth).split('\n');
+    const nameFormatted = this.padForWidth(truncatedName, nameWidth);
+    const qtyFormatted = this.centerText(qtyStr, qtyWidth);
+    const totalFormatted = this.padForWidth(totalStr, totalWidth);
 
-      if (wrappedLines.length > 0) {
-        const firstLine = this.truncateForWidth(wrappedLines[0], nameWidth);
-        result += `${firstLine.padEnd(nameWidth)} ${qtyStr
-          .padStart(qtyWidth)
-          .slice(-qtyWidth)} ${totalStr
-          .padStart(totalWidth)
-          .slice(-totalWidth)}\n`;
-      }
+    return `${nameFormatted}${qtyFormatted}${totalFormatted}\n`;
+  }
 
-      for (let i = 1; i < wrappedLines.length; i++) {
-        const line = this.truncateForWidth(wrappedLines[i], nameWidth);
-        result += `${line.padEnd(nameWidth)}\n`;
-      }
+  static formatItemTableRowSmart(name, qty, unitPrice, totalPrice, width) {
+    const nameWidth = Math.floor(width * 0.75); // 75% 给商品名 (增加了列宽)
+    const qtyWidth = 4; // 4个字符给数量 (减少了宽度)
+    const totalWidth = width - nameWidth - qtyWidth - 2; // 剩余给总价
 
-      return result;
+    // 商品名处理 - 智能单词换行，无省略号
+    const nameDisplayWidth = this.displayWidth(name);
+    if (nameDisplayWidth <= nameWidth) {
+      // 商品名可以在一行显示
+      const nameFormatted = this.padForWidth(name, nameWidth);
+      const qtyStr = qty.toString();
+      const qtyFormatted = this.centerText(qtyStr, qtyWidth);
+      const totalStr = `${totalPrice.toFixed(2)}`;
+      const totalFormatted = this.padForWidth(totalStr, totalWidth);
+
+      return `${nameFormatted}${qtyFormatted}${totalFormatted}\n`;
     } else {
-      return `${this.padForWidth(name, nameWidth)} ${qtyStr
-        .padStart(qtyWidth)
-        .slice(-qtyWidth)} ${totalStr
-        .padStart(totalWidth)
-        .slice(-totalWidth)}\n`;
+      // 商品名太长，使用智能换行显示
+      const lines = this.smartWrapText(name, nameWidth);
+      let result = '';
+
+      for (let i = 0; i < lines.length; i++) {
+        if (i === 0) {
+          // 第一行：菜名 + 数量 + 总价
+          const lineFormatted = this.padForWidth(lines[i], nameWidth);
+          const qtyStr = qty.toString();
+          const qtyFormatted = this.centerText(qtyStr, qtyWidth);
+          const totalStr = `${totalPrice.toFixed(2)}`;
+          const totalFormatted = this.padForWidth(totalStr, totalWidth);
+          result += `${lineFormatted}${qtyFormatted}${totalFormatted}\n`;
+        } else {
+          // 后续行：只显示菜名续行，缩进2个空格
+          result += `  ${lines[i]}\n`;
+        }
+      }
+      return result;
     }
+  }
+
+  static smartWrapText(text, width) {
+    const lines = [];
+    let currentLine = '';
+    let currentWidth = 0;
+
+    // 按空格和标点符号分割，但保持分隔符
+    const words = [];
+    let currentWord = '';
+
+    for (const ch of text) {
+      if (ch.match(/\s/) || ch.match(/[,.\(\)\[\]{}\-\/\\]/)) {
+        if (currentWord) {
+          words.push(currentWord);
+          currentWord = '';
+        }
+        if (!ch.match(/\s/)) {
+          words.push(ch);
+        }
+      } else {
+        currentWord += ch;
+      }
+    }
+
+    // 添加最后一个单词
+    if (currentWord) {
+      words.push(currentWord);
+    }
+
+    for (const word of words) {
+      const wordWidth = this.displayWidth(word);
+
+      // 如果当前行为空，直接添加单词（即使超宽也要添加，避免无限循环）
+      if (currentLine === '') {
+        currentLine = word;
+        currentWidth = wordWidth;
+      }
+      // 如果添加这个单词会超宽，先结束当前行
+      else if (currentWidth + 1 + wordWidth > width) {
+        lines.push(currentLine);
+        currentLine = word;
+        currentWidth = wordWidth;
+      }
+      // 添加单词到当前行
+      else {
+        currentLine += ' ' + word;
+        currentWidth += 1 + wordWidth;
+      }
+    }
+
+    // 添加最后一行
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    return lines.length > 0 ? lines : [''];
+  }
+
+  static formatTableHeader(name, qty, price, total, width) {
+    const nameWidth = Math.floor(width * 0.6); // 60% 给商品名
+    const qtyWidth = 6; // 6个字符给数量
+    const totalWidth = width - nameWidth - qtyWidth - 2; // 剩余给总价
+
+    const nameFormatted = this.padForWidth(name, nameWidth);
+    const qtyFormatted = this.centerText(qty, qtyWidth);
+    const totalFormatted = this.padForWidth(total, totalWidth);
+
+    return `${nameFormatted}${qtyFormatted}${totalFormatted}\n`;
   }
 
   static formatFeeLine(label, amount, width) {
@@ -651,13 +838,13 @@ class PrinterUtils {
   }
 
   static centerText(text, width) {
-    const textLen = text.length;
-    if (textLen >= width) {
+    const textWidth = this.displayWidth(text);
+    if (textWidth >= width) {
       return text;
+    } else {
+      const padding = Math.floor((width - textWidth) / 2);
+      return ' '.repeat(padding) + text;
     }
-    const leftPadding = Math.floor((width - textLen) / 2);
-    const rightPadding = width - textLen - leftPadding;
-    return ' '.repeat(leftPadding) + text + ' '.repeat(rightPadding);
   }
 
   static async printText(printerName, content) {

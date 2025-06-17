@@ -11,6 +11,8 @@ const {
 const path = require('path');
 const fs = require('fs');
 const printerUtils = require('./src/printer');
+// 引入混合打印引擎
+const PrinterHybrid = require('./src/printer-hybrid');
 
 // 简单的配置存储
 const configPath = path.join(app.getPath('userData'), 'config.json');
@@ -179,10 +181,14 @@ if (!gotTheLock) {
 // IPC 处理程序
 ipcMain.handle('get-printers', async () => {
   try {
-    return await printerUtils.getPrinters();
+    console.log('🔍 获取系统打印机列表...');
+    // 使用混合打印引擎获取打印机列表
+    const printers = await hybridPrinter.getPrinters();
+    console.log('✅ 成功获取打印机列表:', printers.length, '台');
+    return printers;
   } catch (error) {
-    console.error('获取打印机列表失败:', error);
-    return [];
+    console.error('❌ 获取打印机失败:', error);
+    throw error;
   }
 });
 
@@ -190,9 +196,17 @@ ipcMain.handle(
   'test-print',
   async (event, printerName, width = 80, fontSize = 0) => {
     try {
-      return await printerUtils.testPrint(printerName, width, fontSize);
+      console.log('🧪 测试打印:', { printerName, width, fontSize });
+      // 使用混合打印引擎测试打印
+      const result = await hybridPrinter.testPrint(
+        printerName,
+        width,
+        fontSize
+      );
+      console.log('✅ 测试打印结果:', result);
+      return result;
     } catch (error) {
-      console.error('测试打印失败:', error);
+      console.error('❌ 测试打印失败:', error);
       throw error;
     }
   }
@@ -203,7 +217,9 @@ ipcMain.handle(
 // 检测文本中的中文字符类型
 ipcMain.handle('detect-chinese-character-type', async (event, text) => {
   try {
-    return await printerUtils.detectChineseCharacterType(text);
+    return (await PrinterHybrid.detectChineseCharacterType)
+      ? await PrinterHybrid.detectChineseCharacterType(text)
+      : await printerUtils.detectChineseCharacterType(text);
   } catch (error) {
     console.error('检测中文字符类型失败:', error);
     throw error;
@@ -213,7 +229,9 @@ ipcMain.handle('detect-chinese-character-type', async (event, text) => {
 // 获取打印机编码支持信息
 ipcMain.handle('get-printer-encoding-info', async (event, printerName) => {
   try {
-    return await printerUtils.getPrinterEncodingInfo(printerName);
+    return (await PrinterHybrid.getPrinterEncodingInfo)
+      ? await PrinterHybrid.getPrinterEncodingInfo(printerName)
+      : await printerUtils.getPrinterEncodingInfo(printerName);
   } catch (error) {
     console.error('获取打印机编码信息失败:', error);
     throw error;
@@ -225,11 +243,17 @@ ipcMain.handle(
   'test-printer-encoding-compatibility',
   async (event, printerName, testText, encoding) => {
     try {
-      return await printerUtils.testPrinterEncodingCompatibility(
-        printerName,
-        testText,
-        encoding
-      );
+      return (await PrinterHybrid.testPrinterEncodingCompatibility)
+        ? await PrinterHybrid.testPrinterEncodingCompatibility(
+            printerName,
+            testText,
+            encoding
+          )
+        : await printerUtils.testPrinterEncodingCompatibility(
+            printerName,
+            testText,
+            encoding
+          );
     } catch (error) {
       console.error('测试编码兼容性失败:', error);
       throw error;
@@ -242,10 +266,9 @@ ipcMain.handle(
   'test-all-encodings-for-printer',
   async (event, printerName, testText) => {
     try {
-      return await printerUtils.testAllEncodingsForPrinter(
-        printerName,
-        testText
-      );
+      return (await PrinterHybrid.testAllEncodingsForPrinter)
+        ? await PrinterHybrid.testAllEncodingsForPrinter(printerName, testText)
+        : await printerUtils.testAllEncodingsForPrinter(printerName, testText);
     } catch (error) {
       console.error('批量测试编码失败:', error);
       throw error;
@@ -258,10 +281,15 @@ ipcMain.handle(
   'generate-encoding-compatibility-report',
   async (event, printerName, testResults) => {
     try {
-      return await printerUtils.generateEncodingCompatibilityReport(
-        printerName,
-        testResults
-      );
+      return (await PrinterHybrid.generateEncodingCompatibilityReport)
+        ? await PrinterHybrid.generateEncodingCompatibilityReport(
+            printerName,
+            testResults
+          )
+        : await printerUtils.generateEncodingCompatibilityReport(
+            printerName,
+            testResults
+          );
     } catch (error) {
       console.error('生成兼容性报告失败:', error);
       throw error;
@@ -274,13 +302,28 @@ ipcMain.handle(
   'print-order-with-encoding',
   async (event, printerName, orderData, encoding) => {
     try {
-      return await printerUtils.printOrderWithEncoding(
+      console.log('🖨️ 使用指定编码打印:', {
         printerName,
-        orderData,
-        encoding
-      );
+        encoding,
+        orderId: orderData?.order_id,
+      });
+
+      // 使用混合打印引擎的静态方法或回退到 printerUtils
+      if (PrinterHybrid.printOrderWithEncoding) {
+        return await PrinterHybrid.printOrderWithEncoding(
+          printerName,
+          orderData,
+          encoding
+        );
+      } else {
+        return await printerUtils.printOrderWithEncoding(
+          printerName,
+          orderData,
+          encoding
+        );
+      }
     } catch (error) {
-      console.error('编码打印失败:', error);
+      console.error('❌ 编码打印失败:', error);
       throw error;
     }
   }
@@ -289,26 +332,83 @@ ipcMain.handle(
 // 智能选择最佳编码
 ipcMain.handle('select-optimal-encoding', async (event, text, printerName) => {
   try {
-    return await printerUtils.selectOptimalEncoding(text, printerName);
+    return (await PrinterHybrid.selectOptimalEncoding)
+      ? await PrinterHybrid.selectOptimalEncoding(text, printerName)
+      : await printerUtils.selectOptimalEncoding(text, printerName);
   } catch (error) {
     console.error('智能编码选择失败:', error);
     throw error;
   }
 });
 
+// 创建混合打印引擎实例
+const hybridPrinter = new PrinterHybrid();
+
 ipcMain.handle(
   'print-order',
   async (event, orderData, width = 80, fontSize = 0) => {
     try {
-      // 注意：这里我们不再传递printerName，因为新的逻辑是在后端处理多选打印机
-      return await printerUtils.printOrder(
-        'default', // 使用默认或第一个可用打印机
-        orderData,
+      console.log('🖨️ 开始打印订单:', {
+        orderId: orderData.order_id,
         width,
-        fontSize
-      );
+        fontSize,
+      });
+
+      // 获取配置中的选中打印机
+      const config = getConfig();
+      const selectedPrinters = config.selectedPrinters || [];
+
+      if (selectedPrinters.length === 0) {
+        console.log('⚠️ 未配置打印机，使用默认打印机');
+        // 获取第一台可用打印机
+        const printers = await hybridPrinter.getPrinters();
+        if (printers.length === 0) {
+          throw new Error('没有可用的打印机');
+        }
+        const defaultPrinter = printers[0].name;
+        console.log('📍 使用默认打印机:', defaultPrinter);
+
+        // 使用混合打印引擎打印
+        return await hybridPrinter.printOrder(
+          defaultPrinter,
+          orderData,
+          width,
+          fontSize
+        );
+      }
+
+      // 批量打印到选中的打印机
+      const results = [];
+      for (const printerName of selectedPrinters) {
+        try {
+          console.log('🎯 打印到:', printerName);
+          const result = await hybridPrinter.printOrder(
+            printerName,
+            orderData,
+            width,
+            fontSize
+          );
+          results.push({ printer: printerName, success: true, result });
+          console.log('✅ 打印成功:', printerName);
+        } catch (error) {
+          console.error('❌ 打印失败:', printerName, error);
+          results.push({
+            printer: printerName,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+
+      return {
+        success: results.some((r) => r.success),
+        results: results,
+        message: `打印完成: ${results.filter((r) => r.success).length}/${
+          results.length
+        } 成功`,
+      };
     } catch (error) {
-      console.error('打印订单失败:', error);
+      console.error('❌ 打印订单失败:', error);
       throw error;
     }
   }

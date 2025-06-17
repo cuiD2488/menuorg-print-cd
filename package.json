@@ -8,7 +8,9 @@
     "build": "electron-builder",
     "dev": "electron . --dev",
     "pack": "electron-builder --publish=never",
-    "dist": "electron-builder --publish=always"
+    "dist": "electron-builder --publish=always",
+    "build-rust": "cargo build --release",
+    "prebuild": "npm run build-rust"
   },
   "build": {
     "appId": "com.restaurant.orderprinter",
@@ -18,7 +20,8 @@
     },
     "files": [
       "**/*",
-      "!node_modules"
+      "!node_modules",
+      "target/release/printer-engine.exe"
     ],
     "win": {
       "target": [

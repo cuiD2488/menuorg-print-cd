@@ -49,8 +49,8 @@ class OrderPrintApp {
 
         printerItem.innerHTML = `
           <div class="printer-checkbox">
-            <input type="checkbox" 
-                   data-printer="${printer.name}" 
+            <input type="checkbox"
+                   data-printer="${printer.name}"
                    ${isSelected ? 'checked' : ''}>
           </div>
           <div class="printer-info">
@@ -362,8 +362,24 @@ class OrderPrintApp {
         console.log('[APP] Login successful, saving user data');
 
         this.currentUser = result.data;
-        localStorage.setItem('authToken', result.data.token);
-        localStorage.setItem('userId', result.data.user_id);
+
+        // 存储所有必要的认证信息
+        if (result.data.token) {
+          localStorage.setItem('authToken', result.data.token);
+        }
+        if (result.data.user_id) {
+          localStorage.setItem('userId', result.data.user_id);
+        }
+        if (result.data.rd_id) {
+          localStorage.setItem('rdId', result.data.rd_id.toString());
+        }
+
+        // 调试信息：显示存储的数据
+        console.log('[APP] Stored authentication data:', {
+          token: localStorage.getItem('authToken'),
+          userId: localStorage.getItem('userId'),
+          rdId: localStorage.getItem('rdId'),
+        });
 
         // Save credentials if remember login is checked
         if (rememberLogin) {
@@ -411,6 +427,7 @@ class OrderPrintApp {
 
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
+    localStorage.removeItem('rdId');
     this.currentUser = null;
 
     if (this.wsClient) {
@@ -446,6 +463,9 @@ class OrderPrintApp {
       document.getElementById(
         'userInfo'
       ).textContent = `User ID: ${this.currentUser.user_id}`;
+
+      // 加载订单列表
+      this.loadRecentOrders();
     }
   }
 
@@ -689,20 +709,39 @@ class OrderPrintApp {
   }
 
   async loadRecentOrders() {
-    // 模拟订单数据
-    this.orders = [
-      {
-        order_id: 'ORD001',
-        created_at: new Date().toISOString(),
-        total_amount: '58.50',
-        status: '待处理',
-        items: [
-          { name: '宫保鸡丁', quantity: 1, price: '28.00' },
-          { name: '米饭', quantity: 2, price: '6.00' },
-        ],
-      },
-    ];
-    this.renderOrdersList();
+    try {
+      console.log('[APP] Loading recent orders from API...');
+      const response = await API.getOrderList(1, 10);
+
+      if (response.success) {
+        this.orders = response.data || [];
+        console.log('[APP] Loaded orders:', this.orders.length);
+        this.renderOrdersList();
+
+        // 更新今日订单数量
+        const today = new Date().toDateString();
+        this.todayOrderCount = this.orders.filter((order) => {
+          const orderDate = new Date(
+            order.create_time || order.created_at
+          ).toDateString();
+          return orderDate === today;
+        }).length;
+
+        document.getElementById('todayOrderCount').textContent =
+          this.todayOrderCount;
+      } else {
+        console.warn('[APP] Failed to load orders:', response.message);
+        this.orders = [];
+        this.renderOrdersList();
+        // 显示错误提示
+        this.showTrayNotification(`获取订单失败: ${response.message}`);
+      }
+    } catch (error) {
+      console.error('[APP] Error loading orders:', error);
+      this.orders = [];
+      this.renderOrdersList();
+      this.showTrayNotification(`获取订单失败: ${error.message}`);
+    }
   }
 
   addOrderToList(order) {
@@ -725,7 +764,21 @@ class OrderPrintApp {
     countEl.textContent = `(${this.orders.length})`;
 
     if (this.orders.length === 0) {
-      container.innerHTML = '<div class="no-orders">No orders yet</div>';
+      container.innerHTML = `
+        <div class="no-orders">
+          <div class="icon">📋</div>
+          <div>暂无订单</div>
+          <div style="font-size: 11px; margin-top: 4px;">
+            <button id="refreshOrdersBtn" class="btn-small">刷新订单列表</button>
+          </div>
+        </div>
+      `;
+
+      // 添加刷新按钮事件监听
+      const refreshBtn = container.querySelector('#refreshOrdersBtn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => this.loadRecentOrders());
+      }
       return;
     }
 
@@ -735,22 +788,56 @@ class OrderPrintApp {
       const orderEl = document.createElement('div');
       orderEl.className = 'order-item';
 
+      // 处理订单时间显示
+      const orderTime =
+        order.create_time || order.created_at || new Date().toISOString();
+      const timeDisplay = new Date(orderTime).toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      // 处理订单状态
+      const statusText = this.getOrderStatusText(order.order_status);
+      const statusClass = this.getOrderStatusClass(order.order_status);
+
+      // 处理商品数量
+      const dishesCount =
+        order.dishes_count ||
+        (order.dishes_array ? order.dishes_array.length : 0);
+
       orderEl.innerHTML = `
         <div class="order-header">
-          <span class="order-id">Order ID: ${order.order_id}</span>
-          <span class="order-time">${new Date(
-            order.created_at
-          ).toLocaleString()}</span>
+          <span class="order-id">订单 #${order.order_id}</span>
+          <span class="order-time">${timeDisplay}</span>
         </div>
         <div class="order-info">
-          <span>¥${order.total_amount}</span>
-          <span>${order.status}</span>
+          <div class="order-customer">
+            <span class="customer-name">${order.recipient_name || '客户'}</span>
+            ${
+              order.delivery_style === 1
+                ? '<span class="delivery-type">外送</span>'
+                : '<span class="delivery-type">自取</span>'
+            }
+          </div>
+          <div class="order-summary">
+            <span class="order-amount">¥${parseFloat(order.total || 0).toFixed(
+              2
+            )}</span>
+            <span class="order-items">${dishesCount}个商品</span>
+          </div>
+        </div>
+        <div class="order-status">
+          <span class="status-badge ${statusClass}">${statusText}</span>
         </div>
         <div class="order-actions">
-          <button onclick="app.showOrderDetails('${
+          <button class="btn-small btn-info" onclick="app.showOrderDetails('${
             order.order_id
-          }')">View Details</button>
-          <button onclick="app.printOrder('${order.order_id}')">Print</button>
+          }')">查看详情</button>
+          <button class="btn-small btn-primary" onclick="app.printOrder('${
+            order.order_id
+          }')">打印订单</button>
         </div>
       `;
 
@@ -758,45 +845,255 @@ class OrderPrintApp {
     });
   }
 
+  // 获取订单状态文本
+  getOrderStatusText(status) {
+    switch (status) {
+      case 1:
+        return '待确认';
+      case 2:
+        return '已确认';
+      case 3:
+        return '制作中';
+      case 4:
+        return '待取餐';
+      case 5:
+        return '配送中';
+      case 6:
+        return '已完成';
+      case 7:
+        return '已取消';
+      case 10:
+        return '已完成'; // API返回的完成状态
+      case 0:
+        return '待处理';
+      default:
+        return `状态${status}`;
+    }
+  }
+
+  // 获取订单状态样式类
+  getOrderStatusClass(status) {
+    switch (status) {
+      case 1:
+        return 'status-pending';
+      case 2:
+        return 'status-confirmed';
+      case 3:
+        return 'status-cooking';
+      case 4:
+        return 'status-ready';
+      case 5:
+        return 'status-delivery';
+      case 6:
+      case 10:
+        return 'status-completed';
+      case 7:
+        return 'status-cancelled';
+      case 0:
+        return 'status-pending';
+      default:
+        return 'status-unknown';
+    }
+  }
+
   clearOrders() {
     console.log('[APP] Clear orders requested');
-    if (confirm('Are you sure you want to clear the order list?')) {
+    if (confirm('确定要清空订单列表吗？这不会影响服务器数据。')) {
       console.log('[APP] Clearing orders list');
       this.orders = [];
       this.renderOrdersList();
     }
   }
 
-  showOrderDetails(orderId) {
+  async showOrderDetails(orderId) {
     console.log('[APP] Showing order details for:', orderId);
 
-    const order = this.orders.find((o) => o.order_id === orderId);
-    if (!order) {
-      console.warn('[APP] Order not found:', orderId);
-      return;
+    try {
+      // 显示加载状态
+      const detailsEl = document.getElementById('orderDetails');
+      detailsEl.innerHTML = '<div class="loading">正在加载订单详情...</div>';
+      document.getElementById('orderModal').classList.remove('hidden');
+
+      // 从API获取订单详情
+      const response = await API.getOrderById(orderId);
+
+      if (response.success && response.data) {
+        const order = response.data;
+        this.displayOrderDetails(order);
+        this.currentOrderForPrint = order;
+        console.log('[APP] Order details loaded successfully');
+      } else {
+        console.warn('[APP] Failed to load order details:', response.message);
+        detailsEl.innerHTML = `<div class="error">加载失败: ${response.message}</div>`;
+      }
+    } catch (error) {
+      console.error('[APP] Error loading order details:', error);
+      const detailsEl = document.getElementById('orderDetails');
+      detailsEl.innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
     }
+  }
 
+  displayOrderDetails(order) {
     const detailsEl = document.getElementById('orderDetails');
-    detailsEl.innerHTML = `
-      <p><strong>Order ID:</strong> ${order.order_id}</p>
-      <p><strong>Order Time:</strong> ${new Date(
-        order.created_at
-      ).toLocaleString()}</p>
-      <p><strong>Total Amount:</strong> ¥${order.total_amount}</p>
-      <p><strong>Status:</strong> ${order.status}</p>
-      <h4>Order Items:</h4>
-      <ul>
-        ${order.items
-          .map(
-            (item) => `<li>${item.name} x${item.quantity} - ¥${item.price}</li>`
-          )
-          .join('')}
-      </ul>
-    `;
 
-    document.getElementById('orderModal').classList.remove('hidden');
-    this.currentOrderForPrint = order;
-    console.log('[APP] Order details modal opened');
+    // 处理时间格式
+    const createTime = order.create_time
+      ? new Date(order.create_time).toLocaleString('zh-CN')
+      : '未知';
+    const deliveryTime = order.delivery_time
+      ? new Date(order.delivery_time).toLocaleString('zh-CN')
+      : '无';
+
+    // 处理商品列表
+    const dishes = order.dishes_array || [];
+    const dishesHtml = dishes
+      .map(
+        (dish) => `
+      <tr>
+        <td class="dish-name">${dish.dishes_name}</td>
+        <td class="dish-qty">${dish.amount}</td>
+        <td class="dish-price">¥${parseFloat(dish.unit_price || 0).toFixed(
+          2
+        )}</td>
+        <td class="dish-total">¥${parseFloat(dish.price || 0).toFixed(2)}</td>
+        ${
+          dish.remark
+            ? `<td class="dish-remark">${dish.remark}</td>`
+            : '<td>-</td>'
+        }
+      </tr>
+    `
+      )
+      .join('');
+
+    detailsEl.innerHTML = `
+      <div class="order-detail-content">
+        <div class="order-basic-info">
+          <h4>基本信息</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <label>订单号:</label>
+              <span>${order.order_id}</span>
+            </div>
+            <div class="info-item">
+              <label>餐厅:</label>
+              <span>${order.rd_name || '未知餐厅'}</span>
+            </div>
+            <div class="info-item">
+              <label>下单时间:</label>
+              <span>${createTime}</span>
+            </div>
+            <div class="info-item">
+              <label>送达时间:</label>
+              <span>${deliveryTime}</span>
+            </div>
+            <div class="info-item">
+              <label>订单状态:</label>
+              <span class="status-badge ${this.getOrderStatusClass(
+                order.order_status
+              )}">${this.getOrderStatusText(order.order_status)}</span>
+            </div>
+            <div class="info-item">
+              <label>配送方式:</label>
+              <span>${order.delivery_style === 1 ? '外送' : '自取'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="customer-info">
+          <h4>客户信息</h4>
+          <div class="info-grid">
+            <div class="info-item">
+              <label>客户姓名:</label>
+              <span>${order.recipient_name || '未提供'}</span>
+            </div>
+            <div class="info-item">
+              <label>联系电话:</label>
+              <span>${order.recipient_phone || '未提供'}</span>
+            </div>
+            <div class="info-item full-width">
+              <label>送餐地址:</label>
+              <span>${order.recipient_address || '未提供'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="dishes-info">
+          <h4>商品明细</h4>
+          <table class="dishes-table">
+            <thead>
+              <tr>
+                <th>商品名称</th>
+                <th>数量</th>
+                <th>单价</th>
+                <th>小计</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${dishesHtml}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="payment-info">
+          <h4>费用明细</h4>
+          <div class="payment-grid">
+            <div class="payment-item">
+              <label>商品小计:</label>
+              <span>¥${parseFloat(order.sub_total || 0).toFixed(2)}</span>
+            </div>
+            <div class="payment-item">
+              <label>配送费:</label>
+              <span>¥${parseFloat(order.delivery_fee || 0).toFixed(2)}</span>
+            </div>
+            <div class="payment-item">
+              <label>税费:</label>
+              <span>¥${parseFloat(order.tax_fee || 0).toFixed(2)}</span>
+            </div>
+            <div class="payment-item">
+              <label>小费:</label>
+              <span>¥${parseFloat(order.tip_fee || 0).toFixed(2)}</span>
+            </div>
+            <div class="payment-item total">
+              <label>订单总计:</label>
+              <span>¥${parseFloat(order.total || 0).toFixed(2)}</span>
+            </div>
+            <div class="payment-item">
+              <label>支付方式:</label>
+              <span>${this.getPaymentMethodText(order.paystyle)}</span>
+            </div>
+          </div>
+        </div>
+
+        ${
+          order.order_notes
+            ? `
+          <div class="order-notes">
+            <h4>订单备注</h4>
+            <p>${order.order_notes}</p>
+          </div>
+        `
+            : ''
+        }
+      </div>
+    `;
+  }
+
+  // 获取支付方式文本
+  getPaymentMethodText(paystyle) {
+    switch (paystyle) {
+      case 1:
+        return '现金';
+      case 2:
+        return '信用卡';
+      case 3:
+        return '借记卡';
+      case 4:
+        return '在线支付';
+      default:
+        return '未知';
+    }
   }
 
   hideOrderModal() {

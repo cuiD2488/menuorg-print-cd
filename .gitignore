@@ -35,3 +35,4 @@ pnpm-debug.log*
 # sh 脚本
 git-helper.sh
 merge-upstram.sh
+/target

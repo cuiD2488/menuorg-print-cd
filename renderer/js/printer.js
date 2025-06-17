@@ -1048,58 +1048,26 @@ class PrinterManager {
   // 向单个打印机打印的辅助方法（增强编码支持）
   async printToSinglePrinter(orderData, printer) {
     try {
+      console.log(`🎯 [打印] 开始打印到 ${printer.name}`);
+      console.log(`🔧 [打印] 打印机配置:`, {
+        width: printer.width,
+        fontSize: printer.fontSize,
+        encoding: printer.recommendedEncoding,
+      });
+
       const width = printer.width || 80;
       const fontSize =
         printer.fontSize !== undefined ? printer.fontSize : this.globalFontSize;
 
-      console.log(
-        `🖨️ [打印] 打印机: ${
-          printer.name
-        }, 宽度=${width}mm, 字体=${this.getFontSizeText(fontSize)}`
-      );
-
-      // 检测订单内容中的中文字符并选择最佳编码
-      const orderText = this.extractOrderText(orderData);
-      const selectedEncoding = await this.selectOptimalEncoding(
-        orderText,
-        printer
-      );
-
-      console.log(
-        `🔍 [编码] 为打印机 ${printer.name} 选择编码: ${selectedEncoding}`
-      );
-
-      // 生成优化的打印内容（包含编码优化的ESC/POS命令）
-      const optimizedContent = this.generateOptimizedPrintContent(
-        orderData,
-        width,
-        fontSize,
-        selectedEncoding,
-        printer.commandLevel
-      );
-
-      // 发送打印任务（可以选择使用优化内容或原始API）
-      if (window.electronAPI && window.electronAPI.printOrderWithEncoding) {
-        // Electron环境：使用真实的编码优化打印接口
-        await window.electronAPI.printOrderWithEncoding(
-          printer.name,
-          orderData,
-          selectedEncoding
-        );
-      } else if (optimizedContent) {
-        // 浏览器环境：使用模拟编码打印
-        await this.mockPrintOrderWithEncoding(
-          printer.name,
-          optimizedContent,
-          selectedEncoding
-        );
+      // 检查是否在Electron环境中
+      if (window.electronAPI && window.electronAPI.printOrder) {
+        // Electron环境：使用混合打印引擎
+        console.log(`🔌 [打印] 使用Electron API打印`);
+        await window.electronAPI.printOrder(orderData, width, fontSize);
       } else {
-        // 回退到基础打印接口
-        if (window.electronAPI && window.electronAPI.printOrder) {
-          await window.electronAPI.printOrder(orderData, width, fontSize);
-        } else {
-          await this.mockPrintOrder(orderData, width, fontSize, printer.name);
-        }
+        // 浏览器环境：使用模拟打印
+        console.log(`🌐 [打印] 使用模拟打印`);
+        await this.mockPrintOrder(orderData, width, fontSize, printer.name);
       }
 
       console.log(`✅ [打印] 打印机 ${printer.name} 打印成功`);
@@ -1107,10 +1075,26 @@ class PrinterManager {
     } catch (error) {
       console.error(`❌ [打印] 打印机 ${printer.name} 打印失败:`, error);
 
-      // 尝试使用备用编码重新打印
-      if (printer.fallbackEncodings && printer.fallbackEncodings.length > 1) {
-        console.log(`🔄 [打印] 尝试使用备用编码重新打印...`);
-        return await this.printWithFallbackEncoding(orderData, printer);
+      // 简单重试机制：如果是Electron环境失败，尝试模拟打印
+      if (
+        window.electronAPI &&
+        error.message.includes('Error invoking remote method')
+      ) {
+        try {
+          console.log(`🔄 [打印] Electron失败，尝试模拟打印重试...`);
+          await this.mockPrintOrder(
+            orderData,
+            printer.width || 80,
+            printer.fontSize !== undefined
+              ? printer.fontSize
+              : this.globalFontSize,
+            printer.name
+          );
+          console.log(`✅ [打印] 模拟打印重试成功`);
+          return true;
+        } catch (retryError) {
+          console.error(`❌ [打印] 模拟打印重试也失败:`, retryError);
+        }
       }
 
       throw error;
