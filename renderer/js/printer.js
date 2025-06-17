@@ -1247,53 +1247,180 @@ class PrinterManager {
       }
 
       // 设置行间距
-      content += '\x1B\x33\x30'; // 设置行间距
+      content += '\x1B\x33\x20'; // 设置行间距
 
-      // 生成订单内容（简化版，实际应该生成完整的订单格式）
+      // 生成订单内容 - 优化版本匹配图片样式
       const charWidth = width === 80 ? 48 : 32;
 
-      // 标题
+      // Validate order data and add default values
+      const safeOrder = {
+        order_id: orderData.order_id || 'UNKNOWN',
+        rd_name: orderData.rd_name || 'Restaurant Name',
+        recipient_name: orderData.recipient_name || 'Customer',
+        recipient_address: orderData.recipient_address || '',
+        recipient_phone: orderData.recipient_phone || '',
+        total: orderData.total || '0.00',
+        dishes_array: orderData.dishes_array || [],
+        serial_num: orderData.serial_num || 0,
+        create_time:
+          orderData.create_time ||
+          orderData.created_at ||
+          new Date().toISOString(),
+        delivery_time: orderData.delivery_time || '',
+        delivery_style: orderData.delivery_style || 1, // Default delivery
+        paystyle: orderData.paystyle || 1, // Default cash
+        user_email: orderData.user_email || '',
+        order_notes: orderData.order_notes || '',
+        sub_total: orderData.sub_total || orderData.total || '0.00',
+        discount_total: orderData.discount_total || '0.00',
+        tax_fee: orderData.tax_fee || '0.00',
+        delivery_fee: orderData.delivery_fee || '0.00',
+        convenience_fee: orderData.convenience_fee || '0.00',
+        tip_fee: orderData.tip_fee || '0.00',
+        order_status: orderData.order_status || 0,
+      };
+
+      // ============= Header Section =============
       content += '='.repeat(charWidth) + '\n';
-      content += '\x1B\x45\x01'; // 加粗
-      content +=
-        this.centerText(orderData.rd_name || 'RESTAURANT ORDER', charWidth) +
-        '\n';
-      content += '\x1B\x45\x00'; // 关闭加粗
+
+      // Restaurant name (centered, bold)
+      content += '\x1B\x45\x01'; // Bold on
+      content += this.centerText(safeOrder.rd_name.toUpperCase(), charWidth);
+      content += '\x1B\x45\x00\n'; // Bold off
+
+      // Order type (centered, bold)
+      const orderType = safeOrder.delivery_style === 1 ? 'DELIVERY' : 'PICKUP';
+      content += '\x1B\x45\x01'; // Bold on
+      content += this.centerText(orderType, charWidth);
+      content += '\x1B\x45\x00\n'; // Bold off
+
       content += '='.repeat(charWidth) + '\n\n';
 
-      // 订单号
-      content += `Order #: ${orderData.order_id || 'N/A'}\n`;
-      content += `Customer: ${orderData.recipient_name || 'N/A'}\n`;
-      if (orderData.recipient_address) {
-        content += `Address: ${orderData.recipient_address}\n`;
+      // ============= Order Info Section =============
+      // Order ID and Serial (centered)
+      content += '\x1B\x45\x01'; // Bold on
+      content += this.centerText(`Order #: ${safeOrder.order_id}`, charWidth);
+      content += '\x1B\x45\x00\n'; // Bold off
+
+      const serial =
+        safeOrder.serial_num > 0
+          ? `#${safeOrder.serial_num.toString().padStart(3, '0')}`
+          : `#${this.getOrderSerial(safeOrder)}`;
+      content += this.centerText(`Serial: ${serial}`, charWidth) + '\n\n';
+
+      // Time information (compact format)
+      const orderTime = this.formatCompactTime(safeOrder.create_time);
+      const deliveryTime = safeOrder.delivery_time
+        ? this.formatCompactTime(safeOrder.delivery_time)
+        : '';
+
+      content += this.formatCompactRow('Order Date:', orderTime, charWidth);
+      if (deliveryTime) {
+        const timeLabel =
+          safeOrder.delivery_style === 1 ? 'Delivery Time:' : 'Pickup Time:';
+        content += this.formatCompactRow(timeLabel, deliveryTime, charWidth);
       }
+
+      // Payment and customer info in compact format
+      content += this.formatCompactRow(
+        'Payment:',
+        this.getPaymentMethodText(safeOrder.paystyle),
+        charWidth
+      );
+      content += this.formatCompactRow(
+        'Customer:',
+        this.prepareMixedContent(safeOrder.recipient_name),
+        charWidth
+      );
+      if (safeOrder.recipient_phone) {
+        content += this.formatCompactRow(
+          'Phone:',
+          safeOrder.recipient_phone,
+          charWidth
+        );
+      }
+
+      content += '\n' + '-'.repeat(charWidth) + '\n';
+
+      // ============= Order Items Section =============
+      content += '\x1B\x45\x01'; // Bold on
+      content += this.centerText('ORDER ITEMS', charWidth);
+      content += '\x1B\x45\x00\n'; // Bold off
+      content += '-'.repeat(charWidth) + '\n';
+
+      // Items header
+      content += this.formatItemHeader('Item Name', 'Qty', 'Total', charWidth);
+      content += '-'.repeat(charWidth) + '\n';
+
+      // Items list
+      for (const item of safeOrder.dishes_array) {
+        const safeItem = {
+          dishes_name: item.dishes_name || 'Item',
+          amount: item.amount || 1,
+          price: item.price || '0.00',
+          remark: item.remark || '',
+        };
+
+        const price = parseFloat(safeItem.price) || 0.0;
+
+        // Main item line
+        content += this.formatItemRow(
+          this.prepareMixedContent(safeItem.dishes_name),
+          safeItem.amount,
+          price,
+          charWidth
+        );
+
+        // Item notes (if any)
+        if (safeItem.remark) {
+          content += `  + ${this.prepareMixedContent(safeItem.remark)}\n`;
+        }
+      }
+
+      content += '\n' + '-'.repeat(charWidth) + '\n';
+
+      // ============= Payment Summary =============
+      content += '\x1B\x45\x01'; // Bold on
+      content += this.centerText('PAYMENT SUMMARY', charWidth);
+      content += '\x1B\x45\x00\n'; // Bold off
+      content += '-'.repeat(charWidth) + '\n';
+
+      const subTotal = parseFloat(safeOrder.sub_total) || 0.0;
+      const taxFee = parseFloat(safeOrder.tax_fee) || 0.0;
+      const total = parseFloat(safeOrder.total) || 0.0;
+
+      // Payment breakdown
+      content += this.formatPaymentRow('Subtotal', subTotal, charWidth);
+
+      if (taxFee > 0.0) {
+        content += this.formatPaymentRow('Tax (9.0%)', taxFee, charWidth);
+      }
+
+      content += '-'.repeat(charWidth) + '\n';
+
+      // Total (bold)
+      content += '\x1B\x45\x01'; // Bold on
+      content += this.formatPaymentRow('TOTAL', total, charWidth);
+      content += '\x1B\x45\x00'; // Bold off
+
+      content += '\n' + '='.repeat(charWidth) + '\n';
+
+      // ============= Footer =============
       content += '\n';
+      content += this.centerText('Thank you for your order!', charWidth) + '\n';
 
-      // 商品列表
-      content += '-'.repeat(charWidth) + '\n';
-      content += 'ITEMS:\n';
-      content += '-'.repeat(charWidth) + '\n';
+      const footerTime = this.formatSimpleTime(safeOrder.create_time);
+      content += this.centerText(`Order Time: ${footerTime}`, charWidth);
 
-      if (orderData.dishes_array) {
-        orderData.dishes_array.forEach((dish) => {
-          content += `${dish.dishes_name || 'Item'} x${dish.amount || 1}\n`;
-          if (dish.remark) {
-            content += `  Note: ${dish.remark}\n`;
-          }
-          content += `  $${dish.price || '0.00'}\n\n`;
-        });
+      // Order notes (if any)
+      if (safeOrder.order_notes) {
+        content += '\n\n' + '-'.repeat(charWidth) + '\n';
+        content += 'Notes:\n';
+        content += this.prepareMixedContent(safeOrder.order_notes) + '\n';
       }
 
-      // 总计
-      content += '-'.repeat(charWidth) + '\n';
-      content += '\x1B\x45\x01'; // 加粗
-      content += `TOTAL: $${orderData.total || '0.00'}\n`;
-      content += '\x1B\x45\x00'; // 关闭加粗
-      content += '='.repeat(charWidth) + '\n';
-
-      // 底部信息
-      content += '\nThank you for your order!\n';
-      content += new Date().toLocaleString() + '\n\n\n';
+      // Blank lines for cutting
+      content += '\n\n\n\n';
 
       // 切纸命令
       content += '\x1D\x56\x00'; // GS V 0 - 全切
@@ -2003,6 +2130,167 @@ class PrinterManager {
     content += '\x1D\x56\x00';
 
     return content;
+  }
+
+  // 新增格式化辅助函数 - 用于优化打印布局
+  formatCompactTime(timeStr) {
+    try {
+      const date = new Date(timeStr);
+      return date.toLocaleString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    } catch (error) {
+      return timeStr;
+    }
+  }
+
+  formatSimpleTime(timeStr) {
+    try {
+      const date = new Date(timeStr);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch (error) {
+      return timeStr;
+    }
+  }
+
+  formatCompactRow(label, value, width) {
+    const labelWidth = this.calculateDisplayWidth(label);
+    const valueWidth = this.calculateDisplayWidth(value);
+    const totalUsed = labelWidth + valueWidth;
+
+    if (totalUsed >= width - 1) {
+      return `${label}\n  ${value}\n`;
+    }
+
+    const spaces = width - totalUsed;
+    return `${label}${' '.repeat(spaces)}${value}\n`;
+  }
+
+  formatItemHeader(itemName, qty, total, width) {
+    const nameWidth = Math.floor(width * 0.7); // 70% for item name
+    const qtyWidth = 5; // 5 chars for qty
+    const totalWidth = width - nameWidth - qtyWidth - 1;
+
+    const nameFormatted = this.padForWidth(itemName, nameWidth);
+    const qtyFormatted = this.centerText(qty, qtyWidth);
+    const totalFormatted = this.padForWidth(total, totalWidth);
+
+    return `${nameFormatted}${qtyFormatted}${totalFormatted}\n`;
+  }
+
+  formatItemRow(name, qty, price, width) {
+    const nameWidth = Math.floor(width * 0.7); // 70% for item name
+    const qtyWidth = 5; // 5 chars for qty
+    const totalWidth = width - nameWidth - qtyWidth - 1;
+
+    // Handle long item names with smart wrapping
+    const nameDisplayWidth = this.calculateDisplayWidth(name);
+    if (nameDisplayWidth <= nameWidth) {
+      // Item name fits in one line
+      const nameFormatted = this.padForWidth(name, nameWidth);
+      const qtyFormatted = this.centerText(qty.toString(), qtyWidth);
+      const priceFormatted = this.padForWidth(price.toFixed(2), totalWidth);
+
+      return `${nameFormatted}${qtyFormatted}${priceFormatted}\n`;
+    } else {
+      // Item name is too long, wrap it
+      const truncatedName = this.truncateForWidth(name, nameWidth - 3) + '...';
+      const nameFormatted = this.padForWidth(truncatedName, nameWidth);
+      const qtyFormatted = this.centerText(qty.toString(), qtyWidth);
+      const priceFormatted = this.padForWidth(price.toFixed(2), totalWidth);
+
+      return `${nameFormatted}${qtyFormatted}${priceFormatted}\n`;
+    }
+  }
+
+  formatPaymentRow(label, amount, width) {
+    const amountStr =
+      amount < 0 ? `-$${(-amount).toFixed(2)}` : `$${amount.toFixed(2)}`;
+    const labelWidth = this.calculateDisplayWidth(label);
+    const amountWidth = this.calculateDisplayWidth(amountStr);
+
+    if (labelWidth + amountWidth + 1 >= width) {
+      return `${label}\n  ${amountStr}\n`;
+    }
+
+    const spaces = width - labelWidth - amountWidth;
+    return `${label}${' '.repeat(spaces)}${amountStr}\n`;
+  }
+
+  padForWidth(text, targetWidth) {
+    const textWidth = this.calculateDisplayWidth(text);
+    if (textWidth >= targetWidth) {
+      return text;
+    }
+    const padding = targetWidth - textWidth;
+    return text + ' '.repeat(padding);
+  }
+
+  truncateForWidth(text, maxWidth) {
+    let result = '';
+    let currentWidth = 0;
+
+    for (const char of text) {
+      const charWidth = /[\u4e00-\u9fff\u3400-\u4dbf]/.test(char) ? 2 : 1;
+      if (currentWidth + charWidth > maxWidth) {
+        break;
+      }
+      result += char;
+      currentWidth += charWidth;
+    }
+
+    return result;
+  }
+
+  getOrderSerial(order) {
+    const orderId = order.order_id.toString();
+    return orderId.slice(-3).padStart(3, '0');
+  }
+
+  getPaymentMethodText(paystyle) {
+    switch (paystyle) {
+      case 0:
+        return 'Cash on Delivery';
+      case 1:
+        return 'Online Payment';
+      case 2:
+        return 'Credit Card';
+      default:
+        return 'Unknown Payment';
+    }
+  }
+
+  prepareMixedContent(text) {
+    // 添加参数验证，防止 undefined.split() 错误
+    if (text === null || text === undefined) {
+      console.warn('⚠️ [prepareMixedContent] 接收到空文本，返回空字符串');
+      return '';
+    }
+
+    // 确保是字符串类型
+    const textStr = String(text);
+
+    return textStr
+      .split('')
+      .filter((c) => !this.isControlChar(c) || this.isAllowedControlChar(c))
+      .join('');
+  }
+
+  isControlChar(c) {
+    const code = c.charCodeAt(0);
+    return code < 32 || (code >= 127 && code < 160);
+  }
+
+  isAllowedControlChar(c) {
+    return ['\n', '\r', '\t'].includes(c);
   }
 }
 

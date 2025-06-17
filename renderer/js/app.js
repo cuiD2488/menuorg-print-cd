@@ -777,14 +777,14 @@ class OrderPrintApp {
       container.innerHTML = `
         <div class="no-orders">
           <div class="icon">📋</div>
-          <div>暂无订单</div>
+          <div>No orders yet</div>
           <div style="font-size: 11px; margin-top: 4px;">
-            <button id="refreshOrdersBtn" class="btn-small">刷新订单列表</button>
+            <button id="refreshOrdersBtn" class="btn-small">Refresh Order List</button>
           </div>
         </div>
       `;
 
-      // 添加刷新按钮事件监听
+      // Add refresh button event listener
       const refreshBtn = container.querySelector('#refreshOrdersBtn');
       if (refreshBtn) {
         refreshBtn.addEventListener('click', () => this.loadRecentOrders());
@@ -801,44 +801,48 @@ class OrderPrintApp {
       const orderEl = document.createElement('div');
       orderEl.className = 'order-item';
 
-      // 处理订单时间显示
-      const orderTime =
-        order.create_time || order.created_at || new Date().toISOString();
-      const timeDisplay = new Date(orderTime).toLocaleString('zh-CN', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      // Handle time display
+      const createTime = order.create_time || order.created_at;
+      const timeDisplay = createTime
+        ? new Date(createTime).toLocaleString('en-US', {
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })
+        : 'Unknown time';
 
-      // 处理订单状态
+      // Count dishes
+      const dishesCount = order.dishes_array
+        ? order.dishes_array.length
+        : order.items?.length || 0;
+
+      // Get status information
       const statusText = this.getOrderStatusText(order.order_status);
       const statusClass = this.getOrderStatusClass(order.order_status);
 
-      // 处理商品数量
-      const dishesCount =
-        order.dishes_count ||
-        (order.dishes_array ? order.dishes_array.length : 0);
-
       orderEl.innerHTML = `
         <div class="order-header">
-          <span class="order-id">订单 #${order.order_id}</span>
+          <span class="order-id">Order #${order.order_id}</span>
           <span class="order-time">${timeDisplay}</span>
         </div>
         <div class="order-info">
           <div class="order-customer">
-            <span class="customer-name">${order.recipient_name || '客户'}</span>
+            <span class="customer-name">${
+              order.recipient_name || 'Customer'
+            }</span>
             ${
               order.delivery_style === 1
-                ? '<span class="delivery-type">外送</span>'
-                : '<span class="delivery-type">自取</span>'
+                ? '<span class="delivery-type">Delivery</span>'
+                : '<span class="delivery-type">Pickup</span>'
             }
           </div>
           <div class="order-summary">
-            <span class="order-amount">¥${parseFloat(order.total || 0).toFixed(
+            <span class="order-amount">$${parseFloat(order.total || 0).toFixed(
               2
             )}</span>
-            <span class="order-items">${dishesCount}个商品</span>
+            <span class="order-items">${dishesCount} items</span>
           </div>
         </div>
         <div class="order-status">
@@ -847,10 +851,10 @@ class OrderPrintApp {
         <div class="order-actions">
           <button class="btn-small btn-info" onclick="app.showOrderDetails('${
             order.order_id
-          }')">查看详情</button>
+          }')">View Details</button>
           <button class="btn-small btn-primary" onclick="app.printOrder('${
             order.order_id
-          }')">打印订单</button>
+          }')">Print Order</button>
         </div>
       `;
 
@@ -860,52 +864,40 @@ class OrderPrintApp {
     console.log('[APP] Order list rendering completed');
   }
 
-  // 获取订单状态文本
+  // Get order status text in English
   getOrderStatusText(status) {
     switch (status) {
-      case 1:
-        return '待确认';
-      case 2:
-        return '已确认';
-      case 3:
-        return '制作中';
-      case 4:
-        return '待取餐';
-      case 5:
-        return '配送中';
-      case 6:
-        return '已完成';
-      case 7:
-        return '已取消';
-      case 10:
-        return '已完成'; // API返回的完成状态
       case 0:
-        return '待处理';
+        return 'Pending';
+      case 1:
+        return 'Confirmed';
+      case 2:
+        return 'In Progress';
+      case 3:
+        return 'Ready';
+      case 4:
+        return 'Completed';
+      case 5:
+        return 'Cancelled';
       default:
-        return `状态${status}`;
+        return 'Unknown';
     }
   }
 
-  // 获取订单状态样式类
   getOrderStatusClass(status) {
     switch (status) {
-      case 1:
-        return 'status-pending';
-      case 2:
-        return 'status-confirmed';
-      case 3:
-        return 'status-cooking';
-      case 4:
-        return 'status-ready';
-      case 5:
-        return 'status-delivery';
-      case 6:
-      case 10:
-        return 'status-completed';
-      case 7:
-        return 'status-cancelled';
       case 0:
         return 'status-pending';
+      case 1:
+        return 'status-confirmed';
+      case 2:
+        return 'status-progress';
+      case 3:
+        return 'status-ready';
+      case 4:
+        return 'status-completed';
+      case 5:
+        return 'status-cancelled';
       default:
         return 'status-unknown';
     }
@@ -955,15 +947,15 @@ class OrderPrintApp {
   displayOrderDetails(order) {
     const detailsEl = document.getElementById('orderDetails');
 
-    // 处理时间格式
+    // Handle time formatting
     const createTime = order.create_time
-      ? new Date(order.create_time).toLocaleString('zh-CN')
-      : '未知';
+      ? new Date(order.create_time).toLocaleString('en-US')
+      : 'Unknown';
     const deliveryTime = order.delivery_time
-      ? new Date(order.delivery_time).toLocaleString('zh-CN')
-      : '无';
+      ? new Date(order.delivery_time).toLocaleString('en-US')
+      : 'None';
 
-    // 处理商品列表
+    // Handle dishes list
     const dishes = order.dishes_array || [];
     const dishesHtml = dishes
       .map(
@@ -971,10 +963,10 @@ class OrderPrintApp {
       <tr>
         <td class="dish-name">${dish.dishes_name}</td>
         <td class="dish-qty">${dish.amount}</td>
-        <td class="dish-price">¥${parseFloat(dish.unit_price || 0).toFixed(
+        <td class="dish-price">$${parseFloat(dish.unit_price || 0).toFixed(
           2
         )}</td>
-        <td class="dish-total">¥${parseFloat(dish.price || 0).toFixed(2)}</td>
+        <td class="dish-total">$${parseFloat(dish.price || 0).toFixed(2)}</td>
         ${
           dish.remark
             ? `<td class="dish-remark">${dish.remark}</td>`
@@ -988,65 +980,85 @@ class OrderPrintApp {
     detailsEl.innerHTML = `
       <div class="order-detail-content">
         <div class="order-basic-info">
-          <h4>基本信息</h4>
+          <h4>Basic Information</h4>
           <div class="info-grid">
             <div class="info-item">
-              <label>订单号:</label>
+              <label>Order ID:</label>
               <span>${order.order_id}</span>
             </div>
             <div class="info-item">
-              <label>餐厅:</label>
-              <span>${order.rd_name || '未知餐厅'}</span>
+              <label>Restaurant:</label>
+              <span>${order.rd_name || 'Unknown Restaurant'}</span>
             </div>
             <div class="info-item">
-              <label>下单时间:</label>
+              <label>Order Date:</label>
               <span>${createTime}</span>
             </div>
             <div class="info-item">
-              <label>送达时间:</label>
+              <label>Delivery Time:</label>
               <span>${deliveryTime}</span>
             </div>
             <div class="info-item">
-              <label>订单状态:</label>
+              <label>Order Status:</label>
               <span class="status-badge ${this.getOrderStatusClass(
                 order.order_status
               )}">${this.getOrderStatusText(order.order_status)}</span>
             </div>
             <div class="info-item">
-              <label>配送方式:</label>
-              <span>${order.delivery_style === 1 ? '外送' : '自取'}</span>
+              <label>Delivery Type:</label>
+              <span>${order.delivery_style === 1 ? 'Delivery' : 'Pickup'}</span>
             </div>
           </div>
         </div>
 
         <div class="customer-info">
-          <h4>客户信息</h4>
+          <h4>Customer Information</h4>
           <div class="info-grid">
             <div class="info-item">
-              <label>客户姓名:</label>
-              <span>${order.recipient_name || '未提供'}</span>
+              <label>Customer Name:</label>
+              <span>${order.recipient_name || 'Not Provided'}</span>
             </div>
             <div class="info-item">
-              <label>联系电话:</label>
-              <span>${order.recipient_phone || '未提供'}</span>
+              <label>Phone Number:</label>
+              <span>${order.recipient_phone || 'Not Provided'}</span>
             </div>
             <div class="info-item full-width">
-              <label>送餐地址:</label>
-              <span>${order.recipient_address || '未提供'}</span>
+              <label>Delivery Address:</label>
+              <span>${order.recipient_address || 'Not Provided'}</span>
             </div>
+            ${
+              order.user_email
+                ? `
+            <div class="info-item full-width">
+              <label>Email:</label>
+              <span>${order.user_email}</span>
+            </div>
+            `
+                : ''
+            }
+            ${
+              order.recipient_distance && order.recipient_distance !== '0.00'
+                ? `
+            <div class="info-item">
+              <label>Distance:</label>
+              <span>${order.recipient_distance} miles</span>
+            </div>
+            `
+                : ''
+            }
           </div>
         </div>
 
         <div class="dishes-info">
-          <h4>商品明细</h4>
+          <h4>Item Details</h4>
           <table class="dishes-table">
             <thead>
               <tr>
-                <th>商品名称</th>
-                <th>数量</th>
-                <th>单价</th>
-                <th>小计</th>
-                <th>备注</th>
+                <th>Item Name</th>
+                <th>Quantity</th>
+                <th>Unit Price</th>
+                <th>Subtotal</th>
+                <th>Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -1056,30 +1068,100 @@ class OrderPrintApp {
         </div>
 
         <div class="payment-info">
-          <h4>费用明细</h4>
+          <h4>Payment Details</h4>
           <div class="payment-grid">
             <div class="payment-item">
-              <label>商品小计:</label>
-              <span>¥${parseFloat(order.sub_total || 0).toFixed(2)}</span>
+              <label>Subtotal:</label>
+              <span>$${parseFloat(order.sub_total || 0).toFixed(2)}</span>
             </div>
+            ${
+              parseFloat(order.discount_total || 0) > 0
+                ? `
             <div class="payment-item">
-              <label>配送费:</label>
-              <span>¥${parseFloat(order.delivery_fee || 0).toFixed(2)}</span>
+              <label>Discount:</label>
+              <span>-$${parseFloat(order.discount_total || 0).toFixed(2)}</span>
             </div>
+            `
+                : ''
+            }
+            ${
+              parseFloat(order.exemption || 0) > 0
+                ? `
             <div class="payment-item">
-              <label>税费:</label>
-              <span>¥${parseFloat(order.tax_fee || 0).toFixed(2)}</span>
+              <label>Exemption:</label>
+              <span>-$${parseFloat(order.exemption || 0).toFixed(2)}</span>
             </div>
+            `
+                : ''
+            }
+            ${
+              parseFloat(order.tax_fee || 0) > 0
+                ? `
             <div class="payment-item">
-              <label>小费:</label>
-              <span>¥${parseFloat(order.tip_fee || 0).toFixed(2)}</span>
+              <label>Tax Fee${
+                order.tax_rate
+                  ? ` (${(parseFloat(order.tax_rate) * 100).toFixed(1)}%)`
+                  : ''
+              }:</label>
+              <span>$${parseFloat(order.tax_fee || 0).toFixed(2)}</span>
             </div>
+            `
+                : ''
+            }
+            ${
+              parseFloat(order.delivery_fee || 0) > 0
+                ? `
+            <div class="payment-item">
+              <label>Delivery Fee:</label>
+              <span>$${parseFloat(order.delivery_fee || 0).toFixed(2)}</span>
+            </div>
+            `
+                : ''
+            }
+            ${
+              parseFloat(order.retail_delivery_fee || 0) > 0
+                ? `
+            <div class="payment-item">
+              <label>Retail Delivery Fee:</label>
+              <span>$${parseFloat(order.retail_delivery_fee || 0).toFixed(
+                2
+              )}</span>
+            </div>
+            `
+                : ''
+            }
+            ${
+              parseFloat(order.convenience_fee || 0) > 0
+                ? `
+            <div class="payment-item">
+              <label>Service Fee${
+                order.convenience_rate
+                  ? ` (${(parseFloat(order.convenience_rate) * 100).toFixed(
+                      1
+                    )}%)`
+                  : ''
+              }:</label>
+              <span>$${parseFloat(order.convenience_fee || 0).toFixed(2)}</span>
+            </div>
+            `
+                : ''
+            }
+            ${
+              parseFloat(order.tip_fee || 0) > 0
+                ? `
+            <div class="payment-item">
+              <label>Tip:</label>
+              <span>$${parseFloat(order.tip_fee || 0).toFixed(2)}</span>
+            </div>
+            `
+                : ''
+            }
             <div class="payment-item total">
-              <label>订单总计:</label>
-              <span>¥${parseFloat(order.total || 0).toFixed(2)}</span>
+              <label>Order Total:</label>
+              <span>$${parseFloat(order.total || 0).toFixed(2)}</span>
             </div>
             <div class="payment-item">
-              <label>支付方式:</label>
+              <label>Payment Method:</label>
               <span>${this.getPaymentMethodText(order.paystyle)}</span>
             </div>
           </div>
@@ -1089,7 +1171,7 @@ class OrderPrintApp {
           order.order_notes
             ? `
           <div class="order-notes">
-            <h4>订单备注</h4>
+            <h4>Order Notes</h4>
             <p>${order.order_notes}</p>
           </div>
         `
@@ -1099,19 +1181,21 @@ class OrderPrintApp {
     `;
   }
 
-  // 获取支付方式文本
+  // Get payment method text in English
   getPaymentMethodText(paystyle) {
     switch (paystyle) {
+      case 0:
+        return 'Cash on Delivery';
       case 1:
-        return '现金';
+        return 'Cash';
       case 2:
-        return '信用卡';
+        return 'Credit Card';
       case 3:
-        return '借记卡';
+        return 'Debit Card';
       case 4:
-        return '在线支付';
+        return 'Online Payment';
       default:
-        return '未知';
+        return 'Unknown';
     }
   }
 
@@ -1121,9 +1205,48 @@ class OrderPrintApp {
   }
 
   async printCurrentOrder() {
-    // 实现打印当前订单的逻辑
     console.log('[APP] 打印当前订单');
-    this.hideOrderModal();
+
+    if (!this.currentOrderForPrint) {
+      alert('没有找到订单数据');
+      return;
+    }
+
+    const selectedPrinters = this.printerManager.getSelectedPrinters();
+    if (selectedPrinters.length === 0) {
+      alert('请先选择至少一台打印机');
+      return;
+    }
+
+    try {
+      console.log(
+        `[APP] 开始向 ${selectedPrinters.length} 台打印机打印订单 ${this.currentOrderForPrint.order_id}`
+      );
+
+      const printResult = await this.printerManager.printOrder(
+        this.currentOrderForPrint
+      );
+
+      if (printResult.成功数量 > 0) {
+        this.showTrayNotification(
+          `✅ 订单 ${this.currentOrderForPrint.order_id} 已打印到 ${printResult.成功数量} 台打印机`
+        );
+      }
+
+      if (printResult.失败数量 > 0) {
+        console.warn('[APP] 打印部分失败:', printResult.错误列表);
+        this.showTrayNotification(
+          `⚠️ ${printResult.失败数量} 台打印机打印失败`
+        );
+      }
+
+      console.log('[APP] 打印结果:', printResult);
+      this.hideOrderModal();
+    } catch (error) {
+      console.error('[APP] 打印订单失败:', error);
+      this.showTrayNotification(`❌ 打印失败: ${error.message}`);
+      alert(`打印失败: ${error.message}`);
+    }
   }
 
   async printOrder(orderId) {

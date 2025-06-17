@@ -159,7 +159,7 @@ button:hover {
     display: grid;
     grid-template-columns: 350px 1fr;
     gap: 30px;
-    height: calc(100vh - 200px);
+    /* height: calc(100vh - 200px); */
 }
 
 /* 左侧面板 */
