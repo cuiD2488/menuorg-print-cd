@@ -13,26 +13,45 @@
     "prebuild": "npm run build-rust"
   },
   "build": {
-    "appId": "com.restaurant.orderprinter",
-    "productName": "MenuorgPrint",
+    "appId": "com.restaurant.order.printer",
+    "productName": "Restaurant Order Printer",
+    "removePackageScripts": false,
     "directories": {
       "output": "dist"
     },
-    "files": [
-      "**/*",
-      "!node_modules",
-      "target/release/printer-engine.exe"
-    ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "win": {
-      "target": [
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    }
+      "icon": "assets/icon.ico",
+      "target": "nsis"
+    },
+    "mac": {
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "icon": "assets/icon.png"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "src/**/*",
+      "target/release/*.dll",
+      "target/release/*.exe",
+      "package.json"
+    ],
+    "extraFiles": [
+      {
+        "from": "target/release",
+        "to": ".",
+        "filter": [
+          "*.dll",
+          "*.exe"
+        ]
+      }
+    ]
   },
   "keywords": [
     "restaurant",
