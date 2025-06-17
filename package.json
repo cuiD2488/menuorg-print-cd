@@ -43,7 +43,7 @@
   "author": "Restaurant Order Printer",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^20.0.0",
+    "electron": "22.3.27",
     "electron-builder": "^23.0.0"
   },
   "dependencies": {

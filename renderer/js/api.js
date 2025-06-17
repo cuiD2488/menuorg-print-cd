@@ -113,12 +113,17 @@ class API {
       console.log('[API] Getting order details for order ID:', orderId);
 
       const response = await this.request(
-        `/order/get_by_id?user_id=${userId}&order_id=${orderId}`
+        `/order/get_by_id?user_id=${userId}&id=${orderId}`
       );
 
       console.log('[API] Order details response:', response);
 
-      if (response.code === 0 || response.success) {
+      // 检查多种可能的成功状态
+      if (
+        response.code === 0 ||
+        response.success ||
+        response.status_code === 200
+      ) {
         return {
           success: true,
           data: response.data || response.result,

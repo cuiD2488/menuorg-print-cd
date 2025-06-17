@@ -932,6 +932,10 @@ class OrderPrintApp {
       // 从API获取订单详情
       const response = await API.getOrderById(orderId);
 
+      console.log('[APP] API Response Full:', response);
+      console.log('[APP] Response Success:', response.success);
+      console.log('[APP] Response Data:', response.data);
+
       if (response.success && response.data) {
         const order = response.data;
         this.displayOrderDetails(order);
