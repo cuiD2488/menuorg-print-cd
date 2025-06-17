@@ -1067,7 +1067,7 @@ class PrinterManager {
       } else {
         // 浏览器环境：使用模拟打印
         console.log(`🌐 [打印] 使用模拟打印`);
-        await this.mockPrintOrder(orderData, width, fontSize, printer.name);
+        await this.mockPrintOrder(printerName, width, fontSize, printer.name);
       }
 
       console.log(`✅ [打印] 打印机 ${printer.name} 打印成功`);
@@ -1197,7 +1197,7 @@ class PrinterManager {
   ) {
     try {
       console.log(
-        `🛠️ [内容生成] 生成优化打印内容，编码: ${encoding}, 命令级别: ${commandLevel}`
+        `🛠️ [Content Generation] Generating optimized print content, encoding: ${encoding}, command level: ${commandLevel}`
       );
 
       // 基础ESC/POS命令（参考main.rs逻辑）
@@ -1278,6 +1278,7 @@ class PrinterManager {
         convenience_fee: orderData.convenience_fee || '0.00',
         tip_fee: orderData.tip_fee || '0.00',
         order_status: orderData.order_status || 0,
+        distance: orderData.distance || '',
       };
 
       // ============= Header Section =============
@@ -1289,49 +1290,73 @@ class PrinterManager {
       content += '\x1B\x45\x00\n'; // Bold off
 
       // Order type (centered, bold)
-      const orderType = safeOrder.delivery_style === 1 ? 'DELIVERY' : 'PICKUP';
+      const orderType =
+        safeOrder.delivery_style === 1 ? 'DELIVERY ORDER' : 'PICKUP ORDER';
       content += '\x1B\x45\x01'; // Bold on
       content += this.centerText(orderType, charWidth);
       content += '\x1B\x45\x00\n'; // Bold off
 
       content += '='.repeat(charWidth) + '\n\n';
 
-      // ============= Order Info Section =============
-      // Order ID and Serial (centered)
+      // ============= Basic Information =============
       content += '\x1B\x45\x01'; // Bold on
-      content += this.centerText(`Order #: ${safeOrder.order_id}`, charWidth);
+      content += this.centerText('BASIC INFORMATION', charWidth);
       content += '\x1B\x45\x00\n'; // Bold off
+      content += '-'.repeat(charWidth) + '\n';
+
+      // Order ID and Serial
+      content += this.formatCompactRow(
+        'Order ID:',
+        safeOrder.order_id,
+        charWidth
+      );
 
       const serial =
         safeOrder.serial_num > 0
           ? `#${safeOrder.serial_num.toString().padStart(3, '0')}`
           : `#${this.getOrderSerial(safeOrder)}`;
-      content += this.centerText(`Serial: ${serial}`, charWidth) + '\n\n';
+      content += this.formatCompactRow('Serial:', serial, charWidth);
 
-      // Time information (compact format)
+      // Restaurant and dates
+      content += this.formatCompactRow(
+        'Restaurant:',
+        this.prepareMixedContent(safeOrder.rd_name),
+        charWidth
+      );
+
       const orderTime = this.formatCompactTime(safeOrder.create_time);
-      const deliveryTime = safeOrder.delivery_time
-        ? this.formatCompactTime(safeOrder.delivery_time)
-        : '';
-
       content += this.formatCompactRow('Order Date:', orderTime, charWidth);
-      if (deliveryTime) {
+
+      if (safeOrder.delivery_time) {
+        const deliveryTime = this.formatCompactTime(safeOrder.delivery_time);
         const timeLabel =
           safeOrder.delivery_style === 1 ? 'Delivery Time:' : 'Pickup Time:';
         content += this.formatCompactRow(timeLabel, deliveryTime, charWidth);
       }
 
-      // Payment and customer info in compact format
+      // Order status
+      const statusText = this.getOrderStatusText(safeOrder.order_status);
+      content += this.formatCompactRow('Status:', statusText, charWidth);
+
+      // Delivery type
+      const deliveryTypeText =
+        safeOrder.delivery_style === 1 ? 'Delivery' : 'Pickup';
+      content += this.formatCompactRow('Type:', deliveryTypeText, charWidth);
+
+      content += '\n' + '-'.repeat(charWidth) + '\n';
+
+      // ============= Customer Information =============
+      content += '\x1B\x45\x01'; // Bold on
+      content += this.centerText('CUSTOMER INFORMATION', charWidth);
+      content += '\x1B\x45\x00\n'; // Bold off
+      content += '-'.repeat(charWidth) + '\n';
+
       content += this.formatCompactRow(
-        'Payment:',
-        this.getPaymentMethodText(safeOrder.paystyle),
-        charWidth
-      );
-      content += this.formatCompactRow(
-        'Customer:',
+        'Name:',
         this.prepareMixedContent(safeOrder.recipient_name),
         charWidth
       );
+
       if (safeOrder.recipient_phone) {
         content += this.formatCompactRow(
           'Phone:',
@@ -1340,16 +1365,40 @@ class PrinterManager {
         );
       }
 
+      if (safeOrder.recipient_address) {
+        content += this.formatCompactRow(
+          'Address:',
+          this.prepareMixedContent(safeOrder.recipient_address),
+          charWidth
+        );
+      }
+
+      if (safeOrder.user_email) {
+        content += this.formatCompactRow(
+          'Email:',
+          safeOrder.user_email,
+          charWidth
+        );
+      }
+
+      if (safeOrder.distance) {
+        content += this.formatCompactRow(
+          'Distance:',
+          safeOrder.distance,
+          charWidth
+        );
+      }
+
       content += '\n' + '-'.repeat(charWidth) + '\n';
 
-      // ============= Order Items Section =============
+      // ============= Item Details =============
       content += '\x1B\x45\x01'; // Bold on
-      content += this.centerText('ORDER ITEMS', charWidth);
+      content += this.centerText('ITEM DETAILS', charWidth);
       content += '\x1B\x45\x00\n'; // Bold off
       content += '-'.repeat(charWidth) + '\n';
 
       // Items header
-      content += this.formatItemHeader('Item Name', 'Qty', 'Total', charWidth);
+      content += this.formatItemHeader('Item Name', 'Qty', 'Price', charWidth);
       content += '-'.repeat(charWidth) + '\n';
 
       // Items list
@@ -1373,51 +1422,101 @@ class PrinterManager {
 
         // Item notes (if any)
         if (safeItem.remark) {
-          content += `  + ${this.prepareMixedContent(safeItem.remark)}\n`;
+          content += `  Notes: ${this.prepareMixedContent(safeItem.remark)}\n`;
         }
       }
 
       content += '\n' + '-'.repeat(charWidth) + '\n';
 
-      // ============= Payment Summary =============
+      // ============= Payment Details =============
       content += '\x1B\x45\x01'; // Bold on
-      content += this.centerText('PAYMENT SUMMARY', charWidth);
+      content += this.centerText('PAYMENT DETAILS', charWidth);
       content += '\x1B\x45\x00\n'; // Bold off
       content += '-'.repeat(charWidth) + '\n';
 
       const subTotal = parseFloat(safeOrder.sub_total) || 0.0;
+      const discountTotal = parseFloat(safeOrder.discount_total) || 0.0;
+      const deliveryFee = parseFloat(safeOrder.delivery_fee) || 0.0;
+      const convenienceFee = parseFloat(safeOrder.convenience_fee) || 0.0;
+      const tipFee = parseFloat(safeOrder.tip_fee) || 0.0;
       const taxFee = parseFloat(safeOrder.tax_fee) || 0.0;
       const total = parseFloat(safeOrder.total) || 0.0;
 
       // Payment breakdown
-      content += this.formatPaymentRow('Subtotal', subTotal, charWidth);
+      content += this.formatPaymentRow('Subtotal:', subTotal, charWidth);
+
+      if (discountTotal > 0.0) {
+        content += this.formatPaymentRow(
+          'Discount:',
+          -discountTotal,
+          charWidth
+        );
+      }
+
+      if (deliveryFee > 0.0) {
+        content += this.formatPaymentRow(
+          'Delivery Fee:',
+          deliveryFee,
+          charWidth
+        );
+      }
+
+      if (convenienceFee > 0.0) {
+        content += this.formatPaymentRow(
+          'Convenience Fee:',
+          convenienceFee,
+          charWidth
+        );
+      }
+
+      if (tipFee > 0.0) {
+        content += this.formatPaymentRow('Tip:', tipFee, charWidth);
+      }
 
       if (taxFee > 0.0) {
-        content += this.formatPaymentRow('Tax (9.0%)', taxFee, charWidth);
+        const taxRate =
+          subTotal > 0 ? ((taxFee / subTotal) * 100).toFixed(1) : '0.0';
+        content += this.formatPaymentRow(
+          `Tax (${taxRate}%):`,
+          taxFee,
+          charWidth
+        );
       }
 
       content += '-'.repeat(charWidth) + '\n';
 
       // Total (bold)
       content += '\x1B\x45\x01'; // Bold on
-      content += this.formatPaymentRow('TOTAL', total, charWidth);
+      content += this.formatPaymentRow('TOTAL:', total, charWidth);
       content += '\x1B\x45\x00'; // Bold off
 
+      // Payment method
+      content += '\n';
+      content += this.formatCompactRow(
+        'Payment Method:',
+        this.getPaymentMethodText(safeOrder.paystyle),
+        charWidth
+      );
+
       content += '\n' + '='.repeat(charWidth) + '\n';
+
+      // ============= Order Notes =============
+      if (safeOrder.order_notes) {
+        content += '\x1B\x45\x01'; // Bold on
+        content += this.centerText('ORDER NOTES', charWidth);
+        content += '\x1B\x45\x00\n'; // Bold off
+        content += '-'.repeat(charWidth) + '\n';
+        content += this.prepareMixedContent(safeOrder.order_notes) + '\n';
+        content += '\n' + '='.repeat(charWidth) + '\n';
+      }
 
       // ============= Footer =============
       content += '\n';
       content += this.centerText('Thank you for your order!', charWidth) + '\n';
 
+      // Order time in footer
       const footerTime = this.formatSimpleTime(safeOrder.create_time);
       content += this.centerText(`Order Time: ${footerTime}`, charWidth);
-
-      // Order notes (if any)
-      if (safeOrder.order_notes) {
-        content += '\n\n' + '-'.repeat(charWidth) + '\n';
-        content += 'Notes:\n';
-        content += this.prepareMixedContent(safeOrder.order_notes) + '\n';
-      }
 
       // Blank lines for cutting
       content += '\n\n\n\n';
@@ -1426,13 +1525,29 @@ class PrinterManager {
       content += '\x1D\x56\x00'; // GS V 0 - 全切
 
       console.log(
-        `✅ [内容生成] 优化内容生成完成，长度: ${content.length} 字符`
+        `✅ [Content Generation] Optimized content generation completed, length: ${content.length} characters`
       );
       return content;
     } catch (error) {
-      console.error(`❌ [内容生成] 生成优化内容失败:`, error);
+      console.error(
+        `❌ [Content Generation] Failed to generate optimized content:`,
+        error
+      );
       return null; // 返回null表示生成失败，将使用原始方法
     }
+  }
+
+  // Helper method to get order status text in English
+  getOrderStatusText(status) {
+    const statusMap = {
+      0: 'Pending',
+      1: 'Confirmed',
+      2: 'In Progress',
+      3: 'Ready',
+      4: 'Completed',
+      5: 'Cancelled',
+    };
+    return statusMap[status] || 'Unknown';
   }
 
   // 新增：使用备用编码重试打印

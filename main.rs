@@ -348,7 +348,7 @@ async fn connect_websocket(
 
     loop {
         println!("WebSocket连接URL: {} (尝试第 {} 次)", ws_url, retry_count + 1);
-        
+
         match connect_async(&ws_url).await {
             Ok((ws_stream, _)) => {
                 println!("WebSocket连接成功");
@@ -485,7 +485,7 @@ async fn connect_websocket(
 
                 // 取消心跳任务
                 heartbeat_task.abort();
-                
+
                 // 连接断开，准备重连
                 println!("WebSocket连接断开，准备重连...");
                 *is_connected.lock().unwrap() = false;
@@ -497,7 +497,7 @@ async fn connect_websocket(
                 let _ = window.emit("websocket-status", "failed");
             }
         }
-        
+
         // 重连逻辑
         retry_count += 1;
         if retry_count >= max_retries {
@@ -505,7 +505,7 @@ async fn connect_websocket(
             let _ = window.emit("websocket-status", "failed");
             break;
         }
-        
+
         println!("等待 {} 秒后重连...", retry_delay);
         tokio::time::sleep(tokio::time::Duration::from_secs(retry_delay)).await;
         retry_delay = std::cmp::min(retry_delay * 2, 60); // 指数退避，最大60秒
@@ -634,53 +634,277 @@ fn prepare_mixed_content(text: &str) -> String {
 }
 
 fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Result<String, String> {
-    // 根据纸张宽度设置字符数 (考虑中文字符占2个位置)
-    let char_width = if width == 80 { 48 } else { 32 };
-
     let mut content = String::new();
 
-    // ESC/POS初始化命令 - 简化编码设置
-    content.push_str("\x1B@"); // 初始化打印机
-    
-    // 简化的编码设置 - 让打印机使用默认编码处理
-    content.push_str("\x1C\x26"); // 启用汉字模式 (通用命令)
-    content.push_str("\x1C\x43\x01"); // 选择汉字字符模式
-    
-    // 设置字体大小 - 确保中号和大号比小号大
+    // ESC/POS 初始化命令
+    content.push_str("\x1B@"); // ESC @ - 初始化打印机
+
+    // 设置字体大小
     match font_size {
-        0 => { // 小号字体 (默认大小)
-            content.push_str("\x1D\x21\x00"); // 正常大小 (1x1)
-        },
-        1 => { // 中号字体 - 高度放大
-            content.push_str("\x1D\x21\x10"); // 宽度1x，高度2x
-        },
-        2 => { // 大号字体 - 宽度和高度都放大
-            content.push_str("\x1D\x21\x11"); // 宽度2x，高度2x
-        },
-        _ => { // 默认情况
-            content.push_str("\x1D\x21\x00"); // 正常大小
-        }
+        0 => content.push_str("\x1D\x21\x00"), // 正常大小 (1x1)
+        1 => content.push_str("\x1D\x21\x10"), // 宽度1x，高度2x
+        2 => content.push_str("\x1D\x21\x11"), // 宽度2x，高度2x
+        _ => content.push_str("\x1D\x21\x00"), // 默认为正常大小
     }
 
-    // 设置行间距为更宽松的间距
-    content.push_str("\x1B\x33\x30"); // 设置行间距为48/180英寸 (比默认大)
+    // 设置行间距
+    content.push_str("\x1B\x33\x20"); // 设置行间距
 
-    // ============= 头部信息 (居中) =============
-    content.push_str("=".repeat(char_width).as_str());
+    let char_width = if width == 80 { 48 } else { 32 }; // 字符宽度
+
+    // ============= 订单头部 =============
+    content.push_str(&"=".repeat(char_width));
     content.push_str("\n");
+
+    // 餐厅名称 (居中，加粗)
     content.push_str("\x1B\x45\x01"); // 加粗
     content.push_str(&center_text_mixed(&order.rd_name.to_uppercase(), char_width));
     content.push_str("\x1B\x45\x00"); // 关闭加粗
     content.push_str("\n");
 
-    // 订单类型 (居中)
-    let order_type = get_order_type_text(order);
+    // 订单类型 (居中，加粗)
+    let order_type = if order.delivery_style == 1 { "DELIVERY ORDER" } else { "PICKUP ORDER" };
     content.push_str("\x1B\x45\x01"); // 加粗
     content.push_str(&center_text_mixed(order_type, char_width));
     content.push_str("\x1B\x45\x00"); // 关闭加粗
     content.push_str("\n");
-    content.push_str("=".repeat(char_width).as_str());
+
+    content.push_str(&"=".repeat(char_width));
     content.push_str("\n\n");
+
+    // ============= Basic Information =============
+    content.push_str("\x1B\x45\x01"); // 加粗
+    content.push_str(&center_text_mixed("BASIC INFORMATION", char_width));
+    content.push_str("\x1B\x45\x00"); // 关闭加粗
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    // 订单ID和序列号
+    content.push_str(&format_table_row("Order ID:", &order.order_id, char_width));
+
+    let serial = if order.serial_num > 0 {
+        format!("#{:03}", order.serial_num)
+    } else {
+        format!("#{}", get_order_serial(order))
+    };
+    content.push_str(&format_table_row("Serial:", &serial, char_width));
+
+    // 餐厅和时间信息
+    content.push_str(&format_table_row("Restaurant:", &prepare_mixed_content(&order.rd_name), char_width));
+    content.push_str(&format_table_row("Order Date:", &format_order_time(&order.create_time), char_width));
+
+    if !order.delivery_time.is_empty() {
+        let time_label = if order.delivery_style == 1 { "Delivery Time:" } else { "Pickup Time:" };
+        content.push_str(&format_table_row(time_label, &format_delivery_time(&order.delivery_time), char_width));
+    }
+
+    // 订单状态
+    let status_text = match order.order_status {
+        0 => "Pending",
+        1 => "Confirmed",
+        2 => "In Progress",
+        3 => "Ready",
+        4 => "Completed",
+        5 => "Cancelled",
+        _ => "Unknown",
+    };
+    content.push_str(&format_table_row("Status:", status_text, char_width));
+
+    // 订单类型
+    let delivery_type_text = if order.delivery_style == 1 { "Delivery" } else { "Pickup" };
+    content.push_str(&format_table_row("Type:", delivery_type_text, char_width));
+
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    // ============= Customer Information =============
+    content.push_str("\x1B\x45\x01"); // 加粗
+    content.push_str(&center_text_mixed("CUSTOMER INFORMATION", char_width));
+    content.push_str("\x1B\x45\x00"); // 关闭加粗
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    content.push_str(&format_table_row("Name:", &prepare_mixed_content(&order.recipient_name), char_width));
+
+    if !order.recipient_phone.is_empty() {
+        content.push_str(&format_table_row("Phone:", &order.recipient_phone, char_width));
+    }
+
+    if !order.recipient_address.is_empty() {
+        content.push_str(&format_table_row("Address:", &prepare_mixed_content(&order.recipient_address), char_width));
+    }
+
+    if !order.user_email.is_empty() {
+        content.push_str(&format_table_row("Email:", &order.user_email, char_width));
+    }
+
+    if !order.recipient_distance.is_empty() {
+        content.push_str(&format_table_row("Distance:", &order.recipient_distance, char_width));
+    }
+
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    // ============= Item Details =============
+    content.push_str("\x1B\x45\x01"); // 加粗
+    content.push_str(&center_text_mixed("ITEM DETAILS", char_width));
+    content.push_str("\x1B\x45\x00"); // 关闭加粗
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    // 表格标题 - 简化版本
+    let header = format_table_header("Item Name", "Qty", "", "Price", char_width);
+    content.push_str(&header);
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    for item in &order.dishes_array {
+        let price: f64 = item.price.parse().unwrap_or(0.0);
+        let unit_price: f64 = item.unit_price.parse().unwrap_or(0.0);
+
+        // 商品行 (使用混合编码处理菜名)
+        content.push_str(&format_item_table_row(
+            &prepare_mixed_content(&item.dishes_name),
+            item.amount,
+            unit_price,
+            price,
+            char_width
+        ));
+
+        // 附加项目 (如米饭等) - 只显示名称，不显示价格和数量
+        if !item.dishes_describe.is_empty() {
+            content.push_str(&format!("  + {}\n", prepare_mixed_content(&item.dishes_describe)));
+        }
+
+        // 特殊要求 (使用混合编码)
+        if !item.remark.is_empty() {
+            content.push_str(&format!("  Notes: {}\n", prepare_mixed_content(&item.remark)));
+        }
+
+        // 增加商品间的行距
+        content.push_str("\n");
+    }
+
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    // ============= Payment Details =============
+    let sub_total: f64 = order.sub_total.parse().unwrap_or(0.0);
+    let discount_total: f64 = order.discount_total.parse().unwrap_or(0.0);
+    let exemption: f64 = order.exemption.parse().unwrap_or(0.0);
+    let tax_fee: f64 = order.tax_fee.parse().unwrap_or(0.0);
+    let tax_rate: f64 = order.tax_rate.parse().unwrap_or(0.0);
+    let delivery_fee: f64 = order.delivery_fee.parse().unwrap_or(0.0);
+    let convenience_fee: f64 = order.convenience_fee.parse().unwrap_or(0.0);
+    let retail_delivery_fee: f64 = order.retail_delivery_fee.parse().unwrap_or(0.0);
+    let tip_fee: f64 = order.tip_fee.parse().unwrap_or(0.0);
+    let total: f64 = order.total.parse().unwrap_or(0.0);
+
+    content.push_str("\x1B\x45\x01"); // 加粗
+    content.push_str(&center_text_mixed("PAYMENT DETAILS", char_width));
+    content.push_str("\x1B\x45\x00"); // 关闭加粗
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    // 小计
+    content.push_str(&format_fee_line("Subtotal:", sub_total, char_width));
+
+    // 折扣
+    if discount_total > 0.0 {
+        content.push_str(&format_fee_line("Discount:", -discount_total, char_width));
+    }
+
+    // 免费金额
+    if exemption > 0.0 {
+        content.push_str(&format_fee_line("Exemption:", -exemption, char_width));
+    }
+
+    // 配送费
+    if delivery_fee > 0.0 {
+        content.push_str(&format_fee_line("Delivery Fee:", delivery_fee, char_width));
+    }
+
+    // 零售配送费
+    if retail_delivery_fee > 0.0 {
+        content.push_str(&format_fee_line("Retail Del. Fee:", retail_delivery_fee, char_width));
+    }
+
+    // 便民费
+    if convenience_fee > 0.0 {
+        let conv_rate: f64 = order.convenience_rate.parse().unwrap_or(0.0);
+        let conv_label = if conv_rate > 0.0 {
+            format!("Service Fee ({:.1}%):", conv_rate * 100.0)
+        } else {
+            "Service Fee:".to_string()
+        };
+        content.push_str(&format_fee_line(&conv_label, convenience_fee, char_width));
+    }
+
+    // 小费
+    if tip_fee > 0.0 {
+        content.push_str(&format_fee_line("Tip:", tip_fee, char_width));
+    }
+
+    // 税费
+    if tax_fee > 0.0 {
+        let tax_label = if tax_rate > 0.0 {
+            format!("Tax ({:.1}%):", tax_rate * 100.0)
+        } else {
+            "Tax:".to_string()
+        };
+        content.push_str(&format_fee_line(&tax_label, tax_fee, char_width));
+    }
+
+    content.push_str("\n");
+    content.push_str(&"-".repeat(char_width));
+    content.push_str("\n");
+
+    // 总计 (加粗显示)
+    content.push_str("\x1B\x45\x01"); // 加粗
+    content.push_str(&format_fee_line("TOTAL:", total, char_width));
+    content.push_str("\x1B\x45\x00"); // 关闭加粗
+
+    // 支付方式
+    content.push_str("\n");
+    content.push_str(&format_table_row("Payment Method:", get_payment_method_text(order.paystyle), char_width));
+
+    content.push_str("\n");
+    content.push_str(&"=".repeat(char_width));
+    content.push_str("\n");
+
+    // ============= Order Notes =============
+    if !order.order_notes.is_empty() {
+        content.push_str("\x1B\x45\x01"); // 加粗
+        content.push_str(&center_text_mixed("ORDER NOTES", char_width));
+        content.push_str("\x1B\x45\x00"); // 关闭加粗
+        content.push_str("\n");
+        content.push_str(&"-".repeat(char_width));
+        content.push_str("\n");
+        content.push_str(&prepare_mixed_content(&order.order_notes));
+        content.push_str("\n\n");
+        content.push_str(&"=".repeat(char_width));
+        content.push_str("\n");
+    }
+
+    // ============= Footer =============
+    content.push_str("\n");
+    content.push_str(&center_text_mixed("Thank you for your order!", char_width));
+    content.push_str("\n");
+    content.push_str(&center_text_mixed(&format!("Order Time: {}", format_simple_time(&order.create_time)), char_width));
+    content.push_str("\n\n\n\n"); // 空行，为切纸预留空间
+
+    // 单次自动切纸命令 - 避免重复切纸
+    content.push_str("\x1D\x56\x00"); // GS V 0 - 全切 (最通用的切纸命令)
+
+    Ok(content)
+}
 
     // ============= 订单信息表格 =============
     // 订单号 (居中显示)
@@ -729,14 +953,14 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
 
     // ============= 商品明细表格 =============
     content.push_str("\x1B\x45\x01"); // 加粗
-    content.push_str(&center_text_mixed("ORDER ITEMS", char_width));
+    content.push_str(&center_text_mixed("ITEM DETAILS", char_width));
     content.push_str("\x1B\x45\x00"); // 关闭加粗
     content.push_str("\n");
     content.push_str("-".repeat(char_width).as_str());
     content.push_str("\n");
 
     // 表格标题 - 简化版本
-    let header = format_table_header("Item Name", "Qty", "", "Total", char_width);
+    let header = format_table_header("Item Name", "Qty", "", "Price", char_width);
     content.push_str(&header);
     content.push_str("-".repeat(char_width).as_str());
     content.push_str("\n");
@@ -744,7 +968,7 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
     for item in &order.dishes_array {
         let price: f64 = item.price.parse().unwrap_or(0.0);
         let unit_price: f64 = item.unit_price.parse().unwrap_or(0.0);
-        
+
         // 商品行 (使用混合编码处理菜名)
         content.push_str(&format_item_table_row(
             &prepare_mixed_content(&item.dishes_name),
@@ -763,7 +987,7 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
         if !item.remark.is_empty() {
             content.push_str(&format!("  Note: {}\n", prepare_mixed_content(&item.remark)));
         }
-        
+
         // 增加商品间的行距
         content.push_str("\n");
     }
@@ -796,12 +1020,12 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
     if discount_total > 0.0 {
         content.push_str(&format_fee_line("Discount", -discount_total, char_width));
     }
-    
+
     // 免费金额
     if exemption > 0.0 {
         content.push_str(&format_fee_line("Exemption", -exemption, char_width));
     }
-    
+
     // 税费
     if tax_fee > 0.0 {
         let tax_label = if tax_rate > 0.0 {
@@ -811,17 +1035,17 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
         };
         content.push_str(&format_fee_line(&tax_label, tax_fee, char_width));
     }
-    
+
     // 配送费
     if delivery_fee > 0.0 {
         content.push_str(&format_fee_line("Delivery Fee", delivery_fee, char_width));
     }
-    
+
     // 零售配送费
     if retail_delivery_fee > 0.0 {
         content.push_str(&format_fee_line("Retail Del. Fee", retail_delivery_fee, char_width));
     }
-    
+
     // 便民费
     if convenience_fee > 0.0 {
         let conv_rate: f64 = order.convenience_rate.parse().unwrap_or(0.0);
@@ -832,12 +1056,12 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
         };
         content.push_str(&format_fee_line(&conv_label, convenience_fee, char_width));
     }
-    
+
     // 小费
     if tip_fee > 0.0 {
         content.push_str(&format_fee_line("Tip", tip_fee, char_width));
     }
-    
+
     content.push_str("\n");
     content.push_str("=".repeat(char_width).as_str());
     content.push_str("\n");
@@ -880,9 +1104,10 @@ fn get_order_type_text(order: &OrderData) -> &str {
 // Helper function to get payment method text
 fn get_payment_method_text(paystyle: i32) -> &'static str {
     match paystyle {
-        0 => "Pay at store",
-        1 => "Online payment",
-        _ => "Other",
+        0 => "Cash on Delivery",
+        1 => "Online Payment",
+        2 => "Credit Card",
+        _ => "Unknown Payment",
     }
 }
 
@@ -1141,11 +1366,11 @@ fn format_item_table_row(name: &str, qty: i32, _unit_price: f64, total_price: f6
     // 如果商品名太长，需要换行处理
     if display_width(name) > name_width {
         let mut result = String::new();
-        
+
         // 将长菜名分行显示
         let wrapped_lines = wrap_text_for_width(name, name_width);
         let lines: Vec<&str> = wrapped_lines.lines().collect();
-        
+
         // 第一行显示菜名开头和价格信息
         if !lines.is_empty() {
             result.push_str(&format!("{:<name_width$} {:>qty_width$} {:>total_width$}\n",
@@ -1647,9 +1872,9 @@ async fn manual_print_order(
     window: Window,
 ) -> Result<String, String> {
     let printers_arc = state.printers.clone();
-    
+
     println!("手动打印订单: {}", order_data.order_id);
-    
+
     // 调用打印函数
     match print_order(order_data.clone(), printers_arc, window).await {
         Ok(_) => Ok(format!("订单 {} 打印成功", order_data.order_id)),
@@ -1662,13 +1887,13 @@ async fn manual_print_order(
 async fn get_print_preview(order_data: OrderData, state: State<'_, AppState>) -> Result<String, String> {
     let printers = state.printers.lock().unwrap();
     let global_font_size = *state.global_font_size.lock().unwrap();
-    
+
     // 获取第一个启用的打印机的宽度，如果没有则使用80mm
     let width = printers.iter()
         .find(|p| p.is_enabled)
         .map(|p| p.width)
         .unwrap_or(80);
-    
+
     // 生成打印内容 - 使用全局字体大小设置
     generate_print_content(&order_data, width, global_font_size)
 }
@@ -1805,7 +2030,7 @@ async fn get_order_list(
 
         let status_code = json_value["status_code"].as_i64().unwrap_or(0);
         println!("📊 [ORDER_LIST] API状态码: {}", status_code);
-        
+
         if let Some(message) = json_value["message"].as_str() {
             println!("📝 [ORDER_LIST] API消息: {}", message);
         }
@@ -1815,7 +2040,7 @@ async fn get_order_list(
             if let Some(data) = json_value["data"].as_object() {
                 println!("✅ [ORDER_LIST] data字段存在，类型: object");
                 println!("🔍 [ORDER_LIST] data字段内容: {}", serde_json::to_string_pretty(data).unwrap_or_else(|_| "无法格式化".to_string()));
-                
+
                 if let Some(items) = data["items"].as_array() {
                     println!("✅ [ORDER_LIST] items字段存在，数量: {}", items.len());
                 let mut orders = Vec::new();
@@ -1833,13 +2058,13 @@ async fn get_order_list(
                         }
                     }
                     println!("✅ [ORDER_LIST] 成功解析 {} 个订单", orders.len());
-                    
+
                     // 添加订单详细信息用于调试
                     for (i, order) in orders.iter().enumerate() {
-                        println!("📋 [ORDER_LIST] 订单 {}: ID={}, 客户={}, 状态={}, 总额=${}", 
+                        println!("📋 [ORDER_LIST] 订单 {}: ID={}, 客户={}, 状态={}, 总额=${}",
                                 i + 1, order.order_id, order.recipient_name, order.order_status, order.total);
                     }
-                    
+
                 Ok(orders)
             } else {
                     println!("⚠️ [ORDER_LIST] items字段不存在或不是数组");
@@ -2081,7 +2306,7 @@ fn print_to_printer_enhanced_sync(printer_name: &str, content: &str) -> Result<(
             // 准备打印内容 - 针对中文优化
             let content_to_print = if *datatype_str == "RAW" {
                 // 对于RAW模式，只添加基础初始化，内容已经包含了编码设置
-                content.to_string()  
+                content.to_string()
             } else {
                 // 对于TEXT模式，保持原始内容
                 content.to_string()
@@ -2434,23 +2659,23 @@ async fn set_global_font_size(font_size: i32, state: State<'_, AppState>) -> Res
     if font_size < 0 || font_size > 2 {
         return Err("字体大小必须在0-2之间 (0=小, 1=中, 2=大)".to_string());
     }
-    
+
     *state.global_font_size.lock().unwrap() = font_size;
-    
+
     // 同时更新所有打印机的字体大小
     let mut printers = state.printers.lock().unwrap();
     for printer in printers.iter_mut() {
         printer.font_size = font_size;
     }
-    
-    info!("🎯 [FONT] 全局字体大小已设置为: {} ({})", font_size, 
+
+    info!("🎯 [FONT] 全局字体大小已设置为: {} ({})", font_size,
           match font_size {
               0 => "小",
-              1 => "中", 
+              1 => "中",
               2 => "大",
               _ => "未知"
           });
-    
+
     Ok(())
 }
 
@@ -2577,9 +2802,9 @@ async fn get_printer_encoding_info(printer_name: String) -> Result<PrinterEncodi
     info!("🔍 [ENCODING] 获取打印机编码信息: {}", printer_name);
 
     let name_lower = printer_name.to_lowercase();
-    
+
     // 根据打印机型号推断编码支持
-    let (supports_chinese, recommended_encoding, fallback_encodings, command_level) = 
+    let (supports_chinese, recommended_encoding, fallback_encodings, command_level) =
         if name_lower.contains("epson") {
             (true, "UTF8".to_string(), vec!["UTF8".to_string(), "GBK".to_string(), "BIG5".to_string()], 2)
         } else if name_lower.contains("xprinter") || name_lower.contains("gprinter") {
@@ -2618,19 +2843,19 @@ async fn test_printer_encoding_compatibility(
     // 生成带编码优化的打印内容
     let optimized_content = match encoding.as_str() {
         "UTF8" => {
-            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: UTF-8\n测试文本:\n{}\n\n\x1D\x56\x00", 
+            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: UTF-8\n测试文本:\n{}\n\n\x1D\x56\x00",
                     "\x1B\x45\x01UTF-8 编码测试\x1B\x45\x00", test_text)
         }
         "GBK" | "GB18030" => {
-            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: {}\n测试文本:\n{}\n\n\x1D\x56\x00", 
+            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: {}\n测试文本:\n{}\n\n\x1D\x56\x00",
                     "\x1B\x45\x01GBK 编码测试\x1B\x45\x00", encoding, test_text)
         }
         "BIG5" => {
-            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: Big5\n测试文本:\n{}\n\n\x1D\x56\x00", 
+            format!("\x1B@\x1C&\x1C\x43\x01{}\n\n测试编码: Big5\n测试文本:\n{}\n\n\x1D\x56\x00",
                     "\x1B\x45\x01Big5 编码测试\x1B\x45\x00", test_text)
         }
         _ => {
-            format!("\x1B@{}\n\n测试编码: {}\n测试文本:\n{}\n\n\x1D\x56\x00", 
+            format!("\x1B@{}\n\n测试编码: {}\n测试文本:\n{}\n\n\x1D\x56\x00",
                     "\x1B\x45\x01编码测试\x1B\x45\x00", encoding, test_text)
         }
     };
@@ -2639,7 +2864,7 @@ async fn test_printer_encoding_compatibility(
     let result = match print_to_printer(&printer_name, &optimized_content).await {
         Ok(_) => {
             info!("✅ [ENCODING] 编码测试成功: {} - {}", printer_name, encoding);
-            
+
             // 根据编码类型计算分数
             let score = match encoding.as_str() {
                 "UTF8" => 0.95,  // UTF8通常兼容性最好
@@ -2671,7 +2896,7 @@ async fn test_printer_encoding_compatibility(
         }
         Err(e) => {
             warn!("⚠️ [ENCODING] 编码测试失败: {} - {} - {}", printer_name, encoding, e);
-            
+
             // 尝试增强版打印
             #[cfg(target_os = "windows")]
             match print_to_printer_enhanced(&printer_name, &optimized_content).await {
@@ -2694,7 +2919,7 @@ async fn test_printer_encoding_compatibility(
                     }
                 }
             }
-            
+
             #[cfg(not(target_os = "windows"))]
             {
                 EncodingTestResult {
@@ -2724,10 +2949,10 @@ async fn test_all_encodings_for_printer(
 
     for encoding in encodings {
         info!("🔄 [ENCODING] 测试编码: {}", encoding);
-        
+
         // 添加延迟避免打印队列堵塞
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        
+
         match test_printer_encoding_compatibility(
             printer_name.clone(),
             test_text.clone(),
@@ -2812,7 +3037,7 @@ async fn generate_encoding_compatibility_report(
 
     // 生成建议
     let mut recommendations = Vec::new();
-    
+
     let best_encoding = test_results
         .iter()
         .filter(|r| r.success)
@@ -2888,7 +3113,7 @@ async fn print_order_with_encoding(
         }
         Err(e) => {
             warn!("⚠️ [ENCODING] 编码打印失败，尝试增强版: {}", e);
-            
+
             #[cfg(target_os = "windows")]
             match print_to_printer_enhanced(&printer_name, &optimized_content).await {
                 Ok(_) => {
@@ -2900,7 +3125,7 @@ async fn print_order_with_encoding(
                     Err(format!("编码打印失败: {} | 增强版: {}", e, enhanced_error))
                 }
             }
-            
+
             #[cfg(not(target_os = "windows"))]
             Err(format!("编码打印失败: {}", e))
         }
@@ -2918,7 +3143,7 @@ async fn select_optimal_encoding(
 
     // 分析文本字符类型
     let analysis = detect_chinese_character_type(text.clone()).await?;
-    
+
     // 获取打印机编码信息
     let printer_info = get_printer_encoding_info(printer_name.clone()).await?;
 
@@ -2955,7 +3180,7 @@ async fn select_optimal_encoding(
         _ => "UTF8".to_string(), // 默认UTF8
     };
 
-    info!("✅ [ENCODING] 智能选择结果: {} (字符类型: {}, 置信度: {:.1}%)", 
+    info!("✅ [ENCODING] 智能选择结果: {} (字符类型: {}, 置信度: {:.1}%)",
           optimal_encoding, analysis.character_type, analysis.confidence * 100.0);
 
     Ok(optimal_encoding)

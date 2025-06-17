@@ -202,34 +202,105 @@ class PrinterHybrid {
   // 新增：转换订单数据格式（前端格式 -> Rust引擎格式）
   convertOrderDataForRust(orderData) {
     try {
-      // 创建符合 Rust 引擎期望的数据结构
+      // 直接传递完整的订单数据，只做必要的字段名映射和默认值处理
       const convertedOrder = {
+        // 基本信息
         order_id: orderData.order_id || 'UNKNOWN',
-        rd_name: orderData.rd_name || orderData.restaurant_name || '餐厅名称',
+        rd_id: orderData.rd_id || 0,
+        user_id: orderData.user_id || '',
+        order_status: orderData.order_status || 0,
+        paystyle: orderData.paystyle !== undefined ? orderData.paystyle : 1,
+        delivery_style:
+          orderData.delivery_style !== undefined ? orderData.delivery_style : 1,
+        delivery_type: orderData.delivery_type || 0,
+        doordash_id: orderData.doordash_id || '',
+
+        // 客户信息
         recipient_name:
-          orderData.recipient_name || orderData.customer_name || '客户',
+          orderData.recipient_name || orderData.customer_name || 'Customer',
         recipient_address:
-          orderData.recipient_address || orderData.address || '地址',
-        total: orderData.total || orderData.total_amount || '0.00',
+          orderData.recipient_address || orderData.address || '',
+        recipient_phone: orderData.recipient_phone || orderData.phone || '',
+        recipient_distance:
+          orderData.recipient_distance || orderData.distance || '',
+        user_email: orderData.user_email || orderData.email || '',
+
+        // 餐厅信息
+        rd_name:
+          orderData.rd_name || orderData.restaurant_name || 'Restaurant Name',
+        rd_address: orderData.rd_address || orderData.restaurant_address || '',
+        rd_phone: orderData.rd_phone || orderData.restaurant_phone || '',
+
+        // 菜品信息
+        dishes_count:
+          orderData.dishes_count ||
+          (orderData.dishes_array ? orderData.dishes_array.length : 0),
+        dishes_id_list: orderData.dishes_id_list || '',
         dishes_array: [],
+
+        // 价格信息
+        sub_total:
+          orderData.sub_total ||
+          orderData.subtotal ||
+          orderData.total ||
+          '0.00',
+        discount_total:
+          orderData.discount_total || orderData.discount || '0.00',
+        exemption: orderData.exemption || '0.00',
+        tax_rate: orderData.tax_rate || '0.00',
+        tax_fee: orderData.tax_fee || orderData.tax || '0.00',
+        delivery_fee:
+          orderData.delivery_fee || orderData.delivery_cost || '0.00',
+        convenience_rate: orderData.convenience_rate || '0.00',
+        convenience_fee: orderData.convenience_fee || '0.00',
+        retail_delivery_fee: orderData.retail_delivery_fee || '0.00',
+        tip_fee: orderData.tip_fee || orderData.tip || '0.00',
+        total: orderData.total || orderData.total_amount || '0.00',
+        user_commission: orderData.user_commission || '0.00',
+
+        // 其他信息
+        cloud_print: orderData.cloud_print || 0,
+        order_notes: orderData.order_notes || orderData.notes || '',
+        serial_num: orderData.serial_num || 0,
+        order_pdf_url: orderData.order_pdf_url || '',
+
+        // 时间信息
+        create_time:
+          orderData.create_time ||
+          orderData.created_at ||
+          new Date().toISOString(),
+        delivery_time: orderData.delivery_time || orderData.delivery_date || '',
+        completion_time:
+          orderData.completion_time || orderData.completed_at || '',
       };
 
-      // 转换菜品数组
-      if (orderData.dishes_array) {
-        // 如果已经是正确格式
+      // 转换菜品数组，保持完整的菜品信息
+      if (orderData.dishes_array && Array.isArray(orderData.dishes_array)) {
         convertedOrder.dishes_array = orderData.dishes_array.map((dish) => ({
-          dishes_name: dish.dishes_name || dish.name || '菜品',
+          dishes_id: dish.dishes_id || dish.id || 0,
+          dishes_name: dish.dishes_name || dish.name || 'Item',
           amount: dish.amount || dish.quantity || 1,
-          price: dish.price || '0.00',
-          remark: dish.remark || dish.note || '',
+          price: dish.price || dish.total_price || '0.00',
+          unit_price: dish.unit_price || dish.price || '0.00',
+          remark: dish.remark || dish.note || dish.notes || '',
+          dishes_describe: dish.dishes_describe || dish.description || '',
+          dishes_specs_id: dish.dishes_specs_id || [],
+          dishes_series_id: dish.dishes_series_id || 0,
+          image_url: dish.image_url || '',
         }));
-      } else if (orderData.items) {
+      } else if (orderData.items && Array.isArray(orderData.items)) {
         // 从前端的 items 格式转换
         convertedOrder.dishes_array = orderData.items.map((item) => ({
-          dishes_name: item.name || '菜品',
+          dishes_id: item.id || 0,
+          dishes_name: item.name || 'Item',
           amount: item.quantity || 1,
-          price: item.price || '0.00',
+          price: item.total_price || item.price || '0.00',
+          unit_price: item.price || '0.00',
           remark: item.note || item.remark || '',
+          dishes_describe: item.description || '',
+          dishes_specs_id: [],
+          dishes_series_id: 0,
+          image_url: '',
         }));
       }
 

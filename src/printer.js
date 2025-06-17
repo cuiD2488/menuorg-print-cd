@@ -340,7 +340,7 @@ class PrinterUtils {
 
     // ============= Order Items Section =============
     content += '\x1B\x45\x01'; // Bold on
-    content += this.centerTextMixed('ORDER ITEMS', charWidth);
+    content += this.centerTextMixed('ITEM DETAILS', charWidth);
     content += '\x1B\x45\x00\n'; // Bold off
     content += '-'.repeat(charWidth) + '\n';
 

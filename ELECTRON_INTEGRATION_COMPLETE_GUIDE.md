@@ -27,7 +27,7 @@ npm run dev
 ### 2. 验证环境
 
 应用启动后：
-1. 检查状态栏显示 "Electron环境 - 可使用真实打印机API" 
+1. 检查状态栏显示 "Electron环境 - 可使用真实打印机API"
 2. 确认绿色指示灯表示Electron环境正常
 
 ### 3. 打开测试页面
@@ -44,7 +44,7 @@ npm run dev
 
 **58mm热敏打印机：**
 - XPrinter XP-58III
-- GPrinter GP-58130IVC  
+- GPrinter GP-58130IVC
 - EPSON TM-T20II
 
 **80mm热敏打印机：**
@@ -164,7 +164,7 @@ console.log('兼容性报告:', report);
 {
   printer_name: "XPrinter XP-58III",
   overall_score: 0.897,
-  grade: "优秀", 
+  grade: "优秀",
   encoding_scores: {
     "GBK": { average_score: 0.952, grade: "优秀", success: true },
     "UTF8": { average_score: 0.889, grade: "良好", success: true }
@@ -194,7 +194,9 @@ const optimalEncoding = await window.electronAPI.selectOptimalEncoding(
 
 console.log('推荐编码:', optimalEncoding); // 输出: "GBK"
 ```
-
+cargo clean
+cargo build --release
+Get-ChildItem target\release\printer-engine.exe | Select-Object Name, LastWriteTime, Length
 ### 指定编码打印
 
 ```javascript
@@ -241,22 +243,22 @@ class ThermalPrinterTester {
   // 1. 初始化并选择打印机
   async initialize() {
     console.log('🚀 初始化热敏打印机测试系统...');
-    
+
     // 获取打印机列表
     const printers = await window.electronAPI.getPrinters();
     console.log(`📟 检测到 ${printers.length} 台打印机:`, printers);
-    
+
     // 自动选择第一台热敏打印机
-    this.selectedPrinter = printers.find(p => 
+    this.selectedPrinter = printers.find(p =>
       p.name.toLowerCase().includes('xprinter') ||
       p.name.toLowerCase().includes('epson') ||
       p.name.toLowerCase().includes('thermal')
     ) || printers[0];
-    
+
     if (!this.selectedPrinter) {
       throw new Error('未检测到可用的打印机');
     }
-    
+
     console.log(`✅ 选择打印机: ${this.selectedPrinter.name}`);
     return this.selectedPrinter;
   }
@@ -264,7 +266,7 @@ class ThermalPrinterTester {
   // 2. 测试基础打印功能
   async testBasicPrinting() {
     console.log('🧪 测试基础打印功能...');
-    
+
     try {
       await window.electronAPI.testPrint(
         this.selectedPrinter.name,
@@ -282,10 +284,10 @@ class ThermalPrinterTester {
   // 3. 全面编码兼容性测试
   async testEncodingCompatibility() {
     console.log('🔄 开始全面编码兼容性测试...');
-    
+
     const testTexts = [
       "简体中文测试：老王川菜馆 - 麻婆豆腐 ￥18.99",
-      "繁體中文測試：老王川菜館 - 麻婆豆腐 ￥18.99", 
+      "繁體中文測試：老王川菜館 - 麻婆豆腐 ￥18.99",
       "混合文本测试：Restaurant Order - 老王川菜馆 $18.99",
       "符号测试：！@#￥%……&*（）——+",
       "地址测试：北京市朝阳区望京街道123号2B室"
@@ -295,17 +297,17 @@ class ThermalPrinterTester {
 
     for (const testText of testTexts) {
       console.log(`📝 测试文本: ${testText.substring(0, 20)}...`);
-      
+
       const results = await window.electronAPI.testAllEncodingsForPrinter(
         this.selectedPrinter.name,
         testText
       );
-      
+
       this.testResults.push({
         text: testText,
         results: results
       });
-      
+
       console.log(`✅ 文本测试完成，成功率: ${results.filter(r => r.success).length}/${results.length}`);
     }
 
@@ -315,20 +317,20 @@ class ThermalPrinterTester {
   // 4. 生成综合测试报告
   async generateComprehensiveReport() {
     console.log('📊 生成综合测试报告...');
-    
+
     if (this.testResults.length === 0) {
       throw new Error('没有测试数据，请先运行编码兼容性测试');
     }
 
     const reports = [];
-    
+
     for (let i = 0; i < this.testResults.length; i++) {
       const testData = this.testResults[i];
       const report = await window.electronAPI.generateEncodingCompatibilityReport(
         this.selectedPrinter.name,
         testData.results
       );
-      
+
       reports.push({
         test_text: testData.text,
         report: report
@@ -338,7 +340,7 @@ class ThermalPrinterTester {
     // 计算综合评分
     const overallScores = reports.map(r => r.report.overall_score);
     const averageScore = overallScores.reduce((a, b) => a + b, 0) / overallScores.length;
-    
+
     const comprehensiveReport = {
       printer: this.selectedPrinter.name,
       test_count: reports.length,
@@ -356,7 +358,7 @@ class ThermalPrinterTester {
   // 5. 实际订单打印测试
   async testRealOrderPrinting() {
     console.log('🖨️ 开始实际订单打印测试...');
-    
+
     const testOrder = {
       order_id: `TEST_${Date.now()}`,
       recipient_name: "张三",
@@ -370,7 +372,7 @@ class ThermalPrinterTester {
           remark: "不要太辣"
         },
         {
-          dishes_name: "宫保鸡丁", 
+          dishes_name: "宫保鸡丁",
           amount: 1,
           price: "22.99",
           remark: "多放花生米"
@@ -387,16 +389,16 @@ class ThermalPrinterTester {
         orderText,
         this.selectedPrinter.name
       );
-      
+
       console.log(`🤖 智能推荐编码: ${optimalEncoding}`);
-      
+
       // 执行打印
       const result = await window.electronAPI.printOrderWithEncoding(
         this.selectedPrinter.name,
         testOrder,
         optimalEncoding
       );
-      
+
       console.log('✅ 订单打印测试成功:', result);
       return {
         success: true,
@@ -404,7 +406,7 @@ class ThermalPrinterTester {
         encoding_used: optimalEncoding,
         result: result
       };
-      
+
     } catch (error) {
       console.error('❌ 订单打印测试失败:', error);
       return {
@@ -421,20 +423,20 @@ class ThermalPrinterTester {
     if (orderData.recipient_address) textParts.push(orderData.recipient_address);
     if (orderData.rd_name) textParts.push(orderData.rd_name);
     if (orderData.order_notes) textParts.push(orderData.order_notes);
-    
+
     if (orderData.dishes_array) {
       orderData.dishes_array.forEach(dish => {
         if (dish.dishes_name) textParts.push(dish.dishes_name);
         if (dish.remark) textParts.push(dish.remark);
       });
     }
-    
+
     return textParts.join(' ');
   }
 
   getGradeFromScore(score) {
     if (score >= 0.9) return '优秀';
-    if (score >= 0.8) return '良好'; 
+    if (score >= 0.8) return '良好';
     if (score >= 0.7) return '一般';
     if (score >= 0.5) return '较差';
     return '很差';
@@ -442,11 +444,11 @@ class ThermalPrinterTester {
 
   generateRecommendations(reports) {
     const recommendations = [];
-    
+
     const avgScores = reports.map(r => r.report.overall_score);
     const bestScore = Math.max(...avgScores);
     const worstScore = Math.min(...avgScores);
-    
+
     if (bestScore >= 0.9) {
       recommendations.push('打印机中文编码兼容性优秀，适合生产环境使用');
     } else if (bestScore >= 0.8) {
@@ -454,11 +456,11 @@ class ThermalPrinterTester {
     } else {
       recommendations.push('打印机中文编码兼容性一般，建议优化或更换');
     }
-    
+
     if (worstScore < 0.6) {
       recommendations.push('部分文本类型兼容性较差，建议针对性优化');
     }
-    
+
     // 统计最常推荐的编码
     const encodingCounts = {};
     reports.forEach(r => {
@@ -467,22 +469,22 @@ class ThermalPrinterTester {
         encodingCounts[bestEncoding] = (encodingCounts[bestEncoding] || 0) + 1;
       }
     });
-    
-    const mostRecommended = Object.keys(encodingCounts).reduce((a, b) => 
+
+    const mostRecommended = Object.keys(encodingCounts).reduce((a, b) =>
       encodingCounts[a] > encodingCounts[b] ? a : b
     );
-    
+
     if (mostRecommended) {
       recommendations.push(`总体推荐使用 ${mostRecommended} 编码`);
     }
-    
+
     return recommendations;
   }
 
   // 一键运行完整测试
   async runFullTest() {
     console.log('🎯 开始运行完整测试流程...');
-    
+
     const testReport = {
       start_time: new Date().toISOString(),
       steps: []
@@ -495,7 +497,7 @@ class ThermalPrinterTester {
         name: '初始化系统',
         start_time: new Date().toISOString()
       });
-      
+
       const printer = await this.initialize();
       testReport.steps[0].success = true;
       testReport.steps[0].result = printer;
@@ -507,7 +509,7 @@ class ThermalPrinterTester {
         name: '基础打印测试',
         start_time: new Date().toISOString()
       });
-      
+
       const basicTest = await this.testBasicPrinting();
       testReport.steps[1].success = basicTest;
       testReport.steps[1].end_time = new Date().toISOString();
@@ -518,7 +520,7 @@ class ThermalPrinterTester {
         name: '编码兼容性测试',
         start_time: new Date().toISOString()
       });
-      
+
       const encodingTests = await this.testEncodingCompatibility();
       testReport.steps[2].success = true;
       testReport.steps[2].result = encodingTests;
@@ -530,7 +532,7 @@ class ThermalPrinterTester {
         name: '生成综合报告',
         start_time: new Date().toISOString()
       });
-      
+
       const comprehensiveReport = await this.generateComprehensiveReport();
       testReport.steps[3].success = true;
       testReport.steps[3].result = comprehensiveReport;
@@ -542,7 +544,7 @@ class ThermalPrinterTester {
         name: '实际订单打印测试',
         start_time: new Date().toISOString()
       });
-      
+
       const printTest = await this.testRealOrderPrinting();
       testReport.steps[4].success = printTest.success;
       testReport.steps[4].result = printTest;
@@ -554,7 +556,7 @@ class ThermalPrinterTester {
 
       console.log('🎉 完整测试流程运行完成!');
       console.log('📊 测试报告:', testReport);
-      
+
       return testReport;
 
     } catch (error) {
@@ -562,7 +564,7 @@ class ThermalPrinterTester {
       testReport.error = error.message;
       testReport.end_time = new Date().toISOString();
       testReport.overall_success = false;
-      
+
       throw error;
     }
   }
@@ -571,11 +573,11 @@ class ThermalPrinterTester {
 // 使用示例
 async function runThermalPrinterTest() {
   const tester = new ThermalPrinterTester();
-  
+
   try {
     const report = await tester.runFullTest();
     console.log('✅ 测试完成，生成详细报告');
-    
+
     // 可以将报告导出为文件
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -584,7 +586,7 @@ async function runThermalPrinterTest() {
     a.download = `thermal_printer_test_report_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    
+
   } catch (error) {
     console.error('❌ 测试失败:', error);
   }
@@ -607,7 +609,7 @@ async function runThermalPrinterTest() {
 ```javascript
 async function robustPrint(orderData, printerName) {
   const fallbackEncodings = ['GBK', 'UTF8', 'GB18030'];
-  
+
   for (const encoding of fallbackEncodings) {
     try {
       const result = await window.electronAPI.printOrderWithEncoding(
@@ -619,7 +621,7 @@ async function robustPrint(orderData, printerName) {
       console.warn(`⚠️ ${encoding} 编码打印失败，尝试下一个编码`);
     }
   }
-  
+
   throw new Error('所有编码都打印失败');
 }
 ```
@@ -632,14 +634,14 @@ const encodingCache = new Map();
 
 async function getCachedOptimalEncoding(text, printerName) {
   const cacheKey = `${printerName}-${text.length}-${text.slice(0,20)}`;
-  
+
   if (encodingCache.has(cacheKey)) {
     return encodingCache.get(cacheKey);
   }
-  
+
   const encoding = await window.electronAPI.selectOptimalEncoding(text, printerName);
   encodingCache.set(cacheKey, encoding);
-  
+
   return encoding;
 }
 ```
@@ -704,7 +706,7 @@ class PrinterStatistics {
       errorLog: []
     };
   }
-  
+
   recordPrint(printerName, encoding, success, error = null) {
     this.stats.totalPrints++;
     if (success) {
@@ -717,24 +719,24 @@ class PrinterStatistics {
         error: error
       });
     }
-    
+
     this.stats.encodingUsage.set(
-      encoding, 
+      encoding,
       (this.stats.encodingUsage.get(encoding) || 0) + 1
     );
-    
+
     this.stats.printerUsage.set(
-      printerName, 
+      printerName,
       (this.stats.printerUsage.get(printerName) || 0) + 1
     );
   }
-  
+
   getSuccessRate() {
-    return this.stats.totalPrints > 0 
+    return this.stats.totalPrints > 0
       ? (this.stats.successfulPrints / this.stats.totalPrints * 100).toFixed(2)
       : 0;
   }
-  
+
   generateReport() {
     return {
       success_rate: this.getSuccessRate() + '%',
@@ -771,4 +773,4 @@ const report = await tester.runFullTest();
 console.log('🎉 测试完成!', report);
 ```
 
-系统已经为生产环境做好准备，支持各种常见的热敏打印机和中文编码场景！ 
+系统已经为生产环境做好准备，支持各种常见的热敏打印机和中文编码场景！
