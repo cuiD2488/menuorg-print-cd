@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
-    "dev": "electron . --dev",
+    "dev": "chcp 65001 >nul 2>&1 && set NODE_OPTIONS=--no-warnings && electron . --dev",
     "pack": "electron-builder --publish=never",
     "dist": "electron-builder --publish=always",
     "build-rust": "cargo build --release",

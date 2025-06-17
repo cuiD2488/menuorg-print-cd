@@ -1,6 +1,43 @@
 const PrinterUtils = require('./printer');
 const PrinterNative = require('./printer-native');
 
+// 安全的控制台输出函数
+function safeLog(...args) {
+  if (process.platform === 'win32') {
+    const message = args
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join(' ');
+
+    try {
+      const buffer = Buffer.from(message, 'utf8');
+      process.stdout.write(buffer);
+      process.stdout.write('\n');
+    } catch (error) {
+      console.log(...args);
+    }
+  } else {
+    console.log(...args);
+  }
+}
+
+function safeError(...args) {
+  if (process.platform === 'win32') {
+    const message = args
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join(' ');
+
+    try {
+      const buffer = Buffer.from(message, 'utf8');
+      process.stderr.write(buffer);
+      process.stderr.write('\n');
+    } catch (error) {
+      console.error(...args);
+    }
+  } else {
+    console.error(...args);
+  }
+}
+
 class PrinterHybrid {
   constructor() {
     this.nativeEngine = null;
@@ -13,9 +50,9 @@ class PrinterHybrid {
     try {
       this.nativeEngine = new PrinterNative();
       if (this.nativeEngine.isAvailable()) {
-        console.log('🚀 使用高性能 Rust 打印引擎');
+        safeLog('[RUST] 使用高性能 Rust 打印引擎');
       } else {
-        console.log('⚠️ Rust 引擎不可用，使用传统 Node.js 打印');
+        safeLog('[WARNING] Rust 引擎不可用，使用传统 Node.js 打印');
         this.nativeEngine = null;
       }
     } catch (error) {

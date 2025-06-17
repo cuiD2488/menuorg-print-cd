@@ -2,6 +2,46 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
+// 导入安全的控制台输出函数
+const { safeConsoleLog, safeConsoleError } = require('../main');
+
+// 临时解决方案：在这里定义安全输出函数
+function safeLog(...args) {
+  if (process.platform === 'win32') {
+    const message = args
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join(' ');
+
+    try {
+      const buffer = Buffer.from(message, 'utf8');
+      process.stdout.write(buffer);
+      process.stdout.write('\n');
+    } catch (error) {
+      console.log(...args);
+    }
+  } else {
+    console.log(...args);
+  }
+}
+
+function safeError(...args) {
+  if (process.platform === 'win32') {
+    const message = args
+      .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
+      .join(' ');
+
+    try {
+      const buffer = Buffer.from(message, 'utf8');
+      process.stderr.write(buffer);
+      process.stderr.write('\n');
+    } catch (error) {
+      console.error(...args);
+    }
+  } else {
+    console.error(...args);
+  }
+}
+
 class PrinterNative {
   constructor() {
     this.isInitialized = false;
@@ -21,14 +61,14 @@ class PrinterNative {
       );
 
       if (fs.existsSync(this.executablePath)) {
-        console.log('✅ 检测到 Rust 打印引擎:', this.executablePath);
+        safeLog('[SUCCESS] 检测到 Rust 打印引擎:', this.executablePath);
         this.isInitialized = true;
       } else {
-        console.log('⚠️ Rust 打印引擎未找到，路径:', this.executablePath);
-        console.log('💡 请先运行: cargo build --release');
+        safeLog('[WARNING] Rust 打印引擎未找到，路径:', this.executablePath);
+        safeLog('[INFO] 请先运行: cargo build --release');
       }
     } catch (error) {
-      console.error('❌ 检查 Rust 打印引擎失败:', error);
+      safeError('[ERROR] 检查 Rust 打印引擎失败:', error);
     }
   }
 
