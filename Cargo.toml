@@ -2,6 +2,10 @@
 name = "printer-engine"
 version = "0.1.0"
 edition = "2021"
+description = "高性能热敏打印机引擎，支持Win7/8/10+和32/64位架构"
+authors = ["Printer Team"]
+license = "MIT"
+readme = "README.md"
 
 [[bin]]
 name = "printer-engine"
@@ -29,8 +33,27 @@ winapi = { version = "0.3", features = [
     "errhandlingapi",
     "handleapi",
     "std",
+    "sysinfoapi",  # 添加系统信息API，用于版本检测
+    "minwinbase",  # 添加最小Windows基础API
 ] }
 
+# 为不同架构优化编译配置
 [profile.release]
 lto = true
 panic = "abort"
+# 优化老系统兼容性
+opt-level = 2  # 降低优化等级，提高兼容性
+debug = false
+strip = true
+
+# 开发配置，快速编译
+[profile.dev]
+opt-level = 0
+debug = true
+
+# 特定目标配置
+[target.'cfg(target_arch = "x86")'.dependencies]
+# 32位特定依赖（如果需要）
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+# 64位特定依赖（如果需要）
