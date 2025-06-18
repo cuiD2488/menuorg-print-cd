@@ -3,790 +3,970 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>中文编码增强版打印机测试</title>
+    <title>🔤 智能编码测试演示</title>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-          sans-serif;
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        margin: 20px;
+        line-height: 1.6;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 20px;
-        background-color: #f5f5f5;
-      }
-      .container {
         background: white;
-        border-radius: 8px;
-        padding: 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
       }
-      .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+
+      h1 {
+        color: #2c3e50;
         text-align: center;
-        margin: -20px -20px 20px -20px;
-        padding: 30px 20px;
-        border-radius: 8px 8px 0 0;
+        margin-bottom: 30px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
       }
-      .btn {
-        background: #4caf50;
+
+      .section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 2px solid #e1e8ed;
+        border-radius: 10px;
+        background: #f8f9fa;
+      }
+
+      .section h2 {
+        color: #34495e;
+        margin-top: 0;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 10px;
+      }
+
+      .test-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      @media (max-width: 768px) {
+        .test-group {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .test-input {
+        background: white;
+        border: 2px solid #bdc3c7;
+        border-radius: 8px;
+        padding: 15px;
+      }
+
+      .test-input label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #2c3e50;
+      }
+
+      .test-input input,
+      .test-input select,
+      .test-input textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+
+      .test-input textarea {
+        height: 80px;
+        resize: vertical;
+        font-family: monospace;
+      }
+
+      .button {
+        background: linear-gradient(135deg, #3498db, #2980b9);
         color: white;
         border: none;
-        padding: 10px 20px;
-        border-radius: 4px;
+        padding: 12px 25px;
+        border-radius: 8px;
         cursor: pointer;
+        font-size: 16px;
+        font-weight: bold;
+        transition: all 0.3s ease;
         margin: 5px;
-        font-size: 14px;
       }
-      .btn:hover {
-        background: #45a049;
+
+      .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
       }
-      .btn-secondary {
-        background: #2196f3;
+
+      .button.success {
+        background: linear-gradient(135deg, #27ae60, #2ecc71);
       }
-      .btn-secondary:hover {
-        background: #1976d2;
+
+      .button.warning {
+        background: linear-gradient(135deg, #f39c12, #e67e22);
       }
-      .btn-warning {
-        background: #ff9800;
+
+      .button.danger {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
       }
-      .btn-warning:hover {
-        background: #f57c00;
-      }
-      .printer-list {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 15px;
-        margin: 20px 0;
-      }
-      .printer-card {
-        border: 1px solid #ddd;
-        border-radius: 6px;
+
+      .result {
+        margin-top: 20px;
         padding: 15px;
-        background: #fafafa;
-      }
-      .printer-card.enabled {
-        border-color: #4caf50;
-        background: #f1f8e9;
-      }
-      .encoding-result {
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 4px;
-        padding: 12px;
-        margin: 10px 0;
+        border-radius: 8px;
         font-family: monospace;
-        font-size: 12px;
         white-space: pre-wrap;
         max-height: 300px;
         overflow-y: auto;
       }
-      .test-area {
-        margin: 20px 0;
-      }
-      .test-text {
-        width: 100%;
-        height: 100px;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        resize: vertical;
-      }
-      .status {
-        padding: 8px 12px;
-        border-radius: 4px;
-        font-weight: bold;
-        display: inline-block;
-        margin: 5px 0;
-      }
-      .status.success {
+
+      .result.success {
         background: #d4edda;
+        border: 2px solid #27ae60;
         color: #155724;
-        border: 1px solid #c3e6cb;
       }
-      .status.error {
+
+      .result.error {
         background: #f8d7da;
+        border: 2px solid #e74c3c;
         color: #721c24;
-        border: 1px solid #f5c6cb;
       }
-      .status.warning {
-        background: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeaa7;
+
+      .result.info {
+        background: #cce7ff;
+        border: 2px solid #3498db;
+        color: #004085;
       }
-      .progress {
-        width: 100%;
-        height: 20px;
-        background: #f0f0f0;
-        border-radius: 10px;
-        overflow: hidden;
-        margin: 10px 0;
-      }
-      .progress-bar {
-        height: 100%;
-        background: linear-gradient(90deg, #4caf50, #45a049);
-        width: 0%;
-        transition: width 0.3s ease;
-      }
-      .encoding-info {
+
+      .encoding-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 10px;
-        margin: 15px 0;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
       }
+
       .encoding-card {
         background: white;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        padding: 12px;
+        border: 2px solid #e1e8ed;
+        border-radius: 10px;
+        padding: 15px;
         text-align: center;
       }
-      .encoding-card.best {
-        border-color: #4caf50;
-        background: #f1f8e9;
+
+      .encoding-card.excellent {
+        border-color: #27ae60;
+        background: linear-gradient(135deg, #d4edda, #ffffff);
       }
+
+      .encoding-card.good {
+        border-color: #f39c12;
+        background: linear-gradient(135deg, #fff3cd, #ffffff);
+      }
+
+      .encoding-card.poor {
+        border-color: #e74c3c;
+        background: linear-gradient(135deg, #f8d7da, #ffffff);
+      }
+
       .score {
         font-size: 24px;
         font-weight: bold;
-        margin: 8px 0;
+        margin: 10px 0;
       }
-      .score.excellent {
-        color: #4caf50;
+
+      .demo-text {
+        background: #2c3e50;
+        color: #ecf0f1;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+        font-family: monospace;
+        border-left: 4px solid #3498db;
       }
-      .score.good {
-        color: #2196f3;
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
       }
-      .score.fair {
-        color: #ff9800;
+
+      .stat-item {
+        text-align: center;
+        padding: 15px;
+        background: white;
+        border-radius: 8px;
+        border: 2px solid #e1e8ed;
       }
-      .score.poor {
-        color: #f44336;
+
+      .stat-value {
+        font-size: 28px;
+        font-weight: bold;
+        color: #3498db;
+      }
+
+      .stat-label {
+        font-size: 14px;
+        color: #7f8c8d;
+        margin-top: 5px;
+      }
+
+      .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 10px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      .status-indicator.online {
+        background: #27ae60;
+        box-shadow: 0 0 10px rgba(39, 174, 96, 0.5);
+      }
+
+      .status-indicator.offline {
+        background: #e74c3c;
+      }
+
+      .status-indicator.testing {
+        background: #f39c12;
+        animation: pulse 1s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="header">
-        <h1>🖨️ 中文编码增强版打印机测试</h1>
-        <p>基于 main.rs 实现逻辑的 JavaScript 版本</p>
+      <h1>🔤 智能编码测试演示</h1>
+
+      <!-- 文本分析区域 -->
+      <div class="section">
+        <h2>📝 1. 文本编码分析</h2>
+        <div class="test-group">
+          <div class="test-input">
+            <label for="analyzeText">输入测试文本：</label>
+            <textarea
+              id="analyzeText"
+              placeholder="输入包含中文的文本，例如：你好世界！订单#12345，总计￥99.50"
+            >
+宫保鸡丁、麻婆豆腐、白米饭、可乐
+地址：北京市朝阳区望京街道123号2B室
+总计：￥128.50</textarea
+            >
+            <button class="button" onclick="analyzeTextEncoding()">
+              🔍 分析编码特征
+            </button>
+          </div>
+          <div class="test-input">
+            <label>分析结果：</label>
+            <div id="analysisResult" class="result info">
+              点击"分析编码特征"按钮开始分析...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 打印机检测区域 -->
+      <div class="section">
+        <h2>🖨️ 2. 打印机中文支持检测</h2>
+        <div class="test-group">
+          <div class="test-input">
+            <label for="printerSelect">选择打印机：</label>
+            <select id="printerSelect">
+              <option value="">加载中...</option>
+            </select>
+            <button class="button" onclick="refreshPrinters()">
+              🔄 刷新打印机列表
+            </button>
+            <button class="button success" onclick="testPrinterChinese()">
+              🧪 测试中文支持
+            </button>
+          </div>
+          <div class="test-input">
+            <label>打印机信息：</label>
+            <div id="printerInfo" class="result info">
+              选择打印机后显示详细信息...
+            </div>
+          </div>
+        </div>
+
         <div
-          class="alert"
-          id="browserAlert"
-          style="
-            display: none;
-            background: #e7f3ff;
-            border: 1px solid #b3d7ff;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-          "
+          id="encodingTestResults"
+          class="encoding-grid"
+          style="display: none"
         >
-          <strong>🌐 浏览器环境提示:</strong>
-          您正在浏览器中运行演示模式，所有打印功能将使用模拟数据。若要使用实际打印机，请在Electron应用中运行此系统。
+          <!-- 编码测试结果将在这里显示 -->
         </div>
       </div>
 
-      <!-- 打印机管理区域 -->
+      <!-- 编码兼容性测试 -->
       <div class="section">
-        <h2>📋 打印机管理</h2>
-        <button class="btn" onclick="initPrinterManager()">
-          初始化打印机管理器
-        </button>
-        <button class="btn btn-secondary" onclick="loadPrinters()">
-          刷新打印机列表
-        </button>
-        <button class="btn btn-warning" onclick="testAllPrintersEncoding()">
-          批量编码测试
-        </button>
+        <h2>🎯 3. 编码兼容性评估</h2>
+        <div class="test-input">
+          <button class="button" onclick="getEncodingCapability()">
+            📊 获取编码能力评估
+          </button>
+          <button class="button warning" onclick="runFullCompatibilityTest()">
+            🔬 运行完整兼容性测试
+          </button>
+        </div>
+        <div id="compatibilityResult" class="result info">
+          点击按钮开始兼容性评估...
+        </div>
 
-        <div id="printerList" class="printer-list"></div>
-      </div>
-
-      <!-- 编码检测测试区域 -->
-      <div class="section">
-        <h2>🔍 编码检测测试</h2>
-        <div class="test-area">
-          <label for="testText">测试文本：</label>
-          <textarea
-            id="testText"
-            class="test-text"
-            placeholder="输入要测试的中文文本..."
-          >
-简体中文测试：你好世界！订单#123，总计￥99.50
-繁體中文測試：您好世界！訂單#123，總計￥99.50
-混合文本测試：Hello 世界！Order#123，總計$99.50
-符号测试：【订单】※￥＄€∞±≠≤≥
-菜品：宫保鸡丁、麻婆豆腐、白米饭
-地址：北京市朝阳区望京街道123号2B室</textarea
-          >
-
-          <div>
-            <button class="btn" onclick="detectEncoding()">检测编码类型</button>
-            <button class="btn btn-secondary" onclick="testAllEncodings()">
-              测试所有编码
-            </button>
-            <button class="btn btn-warning" onclick="autoSelectEncoding()">
-              智能选择编码
-            </button>
+        <div class="stats" id="compatibilityStats" style="display: none">
+          <div class="stat-item">
+            <div class="stat-value" id="totalTests">0</div>
+            <div class="stat-label">总测试数</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="successfulTests">0</div>
+            <div class="stat-label">成功测试</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="overallScore">0%</div>
+            <div class="stat-label">总体兼容性</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="recommendedEncoding">-</div>
+            <div class="stat-label">推荐编码</div>
           </div>
         </div>
-
-        <div id="encodingResult" class="encoding-result"></div>
       </div>
 
-      <!-- 打印机编码兼容性测试 -->
+      <!-- 编码设置区域 -->
       <div class="section">
-        <h2>🧪 打印机编码兼容性测试</h2>
-        <div id="printerTestControls"></div>
-        <div id="testProgress" style="display: none">
-          <div class="progress">
-            <div id="progressBar" class="progress-bar"></div>
+        <h2>⚙️ 4. 编码设置</h2>
+        <div class="test-group">
+          <div class="test-input">
+            <label for="encodingPreference">首选编码：</label>
+            <select id="encodingPreference">
+              <option value="AUTO">自动检测</option>
+              <option value="GBK">GBK (推荐中国品牌)</option>
+              <option value="UTF8">UTF-8 (国际标准)</option>
+              <option value="GB18030">GB18030 (完整中文)</option>
+              <option value="BIG5">Big5 (繁体中文)</option>
+              <option value="ASCII">ASCII (纯英文)</option>
+            </select>
+            <label>备用编码顺序：</label>
+            <textarea
+              id="fallbackEncodings"
+              placeholder="输入备用编码，用逗号分隔，例如：GBK,UTF8,GB18030"
+            >
+GBK,UTF8,GB18030,ASCII</textarea
+            >
+            <button class="button" onclick="setEncodingPreference()">
+              💾 保存编码设置
+            </button>
           </div>
-          <div id="progressText">测试进行中...</div>
+          <div class="test-input">
+            <label>当前设置：</label>
+            <div id="currentSettings" class="result info">
+              编码设置将在这里显示...
+            </div>
+          </div>
         </div>
-        <div id="compatibilityResults"></div>
       </div>
 
-      <!-- 测试报告导出 -->
+      <!-- 实际打印测试 -->
       <div class="section">
-        <h2>📄 测试报告</h2>
-        <button class="btn" onclick="exportReport('json')">
-          导出 JSON 报告
-        </button>
-        <button class="btn btn-secondary" onclick="exportReport('csv')">
-          导出 CSV 报告
-        </button>
-        <button class="btn btn-warning" onclick="exportReport('txt')">
-          导出文本报告
-        </button>
-        <div id="reportStatus"></div>
+        <h2>🖨️ 5. 实际打印测试</h2>
+        <div class="demo-text">
+          测试订单内容： ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 订单
+          #20250115001 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 📞
+          客户信息 姓名: 张小明 电话: 138****5678 地址:
+          北京市朝阳区望京街道123号2B室 🍽️ 菜品明细 宫保鸡丁 x1 ¥28.00 麻婆豆腐
+          x1 ¥18.00 白米饭 x2 ¥4.00 可口可乐 x1 ¥5.00 💰 费用明细 商品小计:
+          ¥55.00 配送费: ¥3.00 包装费: ¥2.00
+          ────────────────────────────────────────── 订单总计: ¥60.00 📅
+          订单时间: 18:30 🚚 配送方式: 外卖配送
+        </div>
+
+        <div class="test-input">
+          <button
+            class="button success"
+            onclick="testPrintWithOptimalEncoding()"
+          >
+            🎯 使用最佳编码打印测试
+          </button>
+          <button class="button" onclick="testPrintWithAllEncodings()">
+            🔄 测试所有编码效果
+          </button>
+          <button class="button warning" onclick="generatePreview()">
+            👁️ 生成打印预览
+          </button>
+        </div>
+
+        <div id="printTestResult" class="result info">
+          选择测试方式开始打印测试...
+        </div>
+      </div>
+
+      <!-- 诊断工具 -->
+      <div class="section">
+        <h2>🔧 6. 编码诊断工具</h2>
+        <div class="test-input">
+          <button class="button" onclick="runDiagnostics()">
+            🩺 运行系统诊断
+          </button>
+          <button class="button danger" onclick="resetEncodingSettings()">
+            🔄 重置所有设置
+          </button>
+          <button class="button" onclick="exportDiagnosticReport()">
+            📋 导出诊断报告
+          </button>
+        </div>
+        <div id="diagnosticResult" class="result info">
+          点击"运行系统诊断"获取详细诊断信息...
+        </div>
       </div>
     </div>
 
-    <!-- 引入增强版打印机管理器 -->
-    <script src="renderer/js/printer.js"></script>
-
     <script>
-      let printerManager = null;
-      let lastTestResults = null;
+      // 全局状态
+      let currentPrinters = [];
+      let selectedPrinter = null;
+      let lastAnalysis = null;
+      let lastCapability = null;
 
-      // 初始化打印机管理器
-      async function initPrinterManager() {
-        try {
-          updateStatus('正在初始化打印机管理器...', 'warning');
+      // 页面加载时初始化
+      window.addEventListener('DOMContentLoaded', function () {
+        console.log('🚀 智能编码测试演示系统启动');
+        refreshPrinters();
+        loadCurrentSettings();
+      });
 
-          // 检测运行环境
-          const isBrowser = !window.electronAPI;
-          if (isBrowser) {
-            document.getElementById('browserAlert').style.display = 'block';
-            console.log('🌐 检测到浏览器环境，将使用模拟数据');
-          }
+      // 分析文本编码特征
+      async function analyzeTextEncoding() {
+        const text = document.getElementById('analyzeText').value;
+        const resultDiv = document.getElementById('analysisResult');
 
-          printerManager = new PrinterManager();
-          await printerManager.init();
-          updateStatus(
-            '✅ 打印机管理器初始化成功' + (isBrowser ? ' (演示模式)' : ''),
-            'success'
-          );
-          await loadPrinters();
-        } catch (error) {
-          updateStatus(`❌ 初始化失败: ${error.message}`, 'error');
-          console.error('初始化失败:', error);
-        }
-      }
-
-      // 加载打印机列表
-      async function loadPrinters() {
-        if (!printerManager) {
-          updateStatus('请先初始化打印机管理器', 'warning');
-          return;
-        }
-
-        try {
-          updateStatus('正在加载打印机列表...', 'warning');
-          const printers = await printerManager.loadPrinters();
-          displayPrinters(printers);
-          updateStatus(`✅ 已加载 ${printers.length} 台打印机`, 'success');
-        } catch (error) {
-          updateStatus(`❌ 加载打印机失败: ${error.message}`, 'error');
-          console.error('加载打印机失败:', error);
-        }
-      }
-
-      // 显示打印机列表
-      function displayPrinters(printers) {
-        const listElement = document.getElementById('printerList');
-        listElement.innerHTML = '';
-
-        printers.forEach((printer, index) => {
-          const encodingInfo = printerManager.getEncodingInfo(printer.name);
-          const card = document.createElement('div');
-          card.className = `printer-card ${printer.isEnabled ? 'enabled' : ''}`;
-          card.innerHTML = `
-                    <h4>${printer.name}</h4>
-                    <p><strong>状态:</strong> ${printer.status}</p>
-                    <p><strong>类型:</strong> ${
-                      printer.isThermal ? '热敏' : '普通'
-                    } (${printer.width}mm)</p>
-                    <p><strong>中文支持:</strong> ${
-                      printer.supportsChinese ? '✅ 是' : '❌ 否'
-                    }</p>
-                    <p><strong>推荐编码:</strong> ${
-                      printer.recommendedEncoding
-                    }</p>
-                    <p><strong>备用编码:</strong> ${printer.fallbackEncodings.join(
-                      ', '
-                    )}</p>
-                    <div>
-                        <button class="btn ${
-                          printer.isEnabled ? 'btn-warning' : ''
-                        }" 
-                                onclick="togglePrinter('${
-                                  printer.name
-                                }', ${!printer.isEnabled})">
-                            ${printer.isEnabled ? '禁用' : '启用'}
-                        </button>
-                        <button class="btn btn-secondary" 
-                                onclick="testSinglePrinter('${printer.name}')">
-                            编码测试
-                        </button>
-                    </div>
-                `;
-          listElement.appendChild(card);
-        });
-
-        // 更新测试控制面板
-        updateTestControls(printers);
-      }
-
-      // 更新测试控制面板
-      function updateTestControls(printers) {
-        const controlsElement = document.getElementById('printerTestControls');
-        const enabledPrinters = printers.filter((p) => p.isEnabled);
-
-        if (enabledPrinters.length === 0) {
-          controlsElement.innerHTML =
-            '<p class="status warning">请先启用至少一台打印机进行测试</p>';
-          return;
-        }
-
-        controlsElement.innerHTML = `
-                <p>已启用打印机 (${enabledPrinters.length}/${
-          printers.length
-        }):</p>
-                <div class="encoding-info">
-                    ${enabledPrinters
-                      .map(
-                        (printer) => `
-                        <div class="encoding-card">
-                            <strong>${printer.name}</strong><br>
-                            ${printer.recommendedEncoding}
-                        </div>
-                    `
-                      )
-                      .join('')}
-                </div>
-            `;
-      }
-
-      // 切换打印机启用状态
-      async function togglePrinter(printerName, enabled) {
-        if (!printerManager) return;
-
-        try {
-          await printerManager.togglePrinter(printerName, enabled);
-          updateStatus(
-            `✅ ${printerName} 已${enabled ? '启用' : '禁用'}`,
-            'success'
-          );
-          await loadPrinters(); // 刷新显示
-        } catch (error) {
-          updateStatus(`❌ 操作失败: ${error.message}`, 'error');
-        }
-      }
-
-      // 测试单个打印机编码
-      async function testSinglePrinter(printerName) {
-        if (!printerManager) return;
-
-        try {
-          updateStatus(
-            `正在测试打印机 ${printerName} 的编码兼容性...`,
-            'warning'
-          );
-          const printer = printerManager.printers.find(
-            (p) => p.name === printerName
-          );
-          const result = await printerManager.testPrinterEncodings(printer);
-
-          displayCompatibilityResult(printerName, result);
-          updateStatus(`✅ ${printerName} 编码测试完成`, 'success');
-        } catch (error) {
-          updateStatus(`❌ 测试失败: ${error.message}`, 'error');
-        }
-      }
-
-      // 批量测试所有打印机编码
-      async function testAllPrintersEncoding() {
-        if (!printerManager) return;
-
-        try {
-          showProgress(true);
-          updateStatus('正在批量测试所有启用打印机的编码兼容性...', 'warning');
-
-          const results = await printerManager.testAllPrintersEncoding();
-          lastTestResults = results;
-
-          displayBatchResults(results);
-          showProgress(false);
-          updateStatus('✅ 批量编码测试完成', 'success');
-        } catch (error) {
-          showProgress(false);
-          updateStatus(`❌ 批量测试失败: ${error.message}`, 'error');
-        }
-      }
-
-      // 显示兼容性测试结果
-      function displayCompatibilityResult(printerName, result) {
-        const resultsElement = document.getElementById('compatibilityResults');
-
-        const resultCard = document.createElement('div');
-        resultCard.className = 'container';
-        resultCard.innerHTML = `
-                <h3>🖨️ ${printerName} 编码兼容性报告</h3>
-                <div class="encoding-info">
-                    ${Object.entries(result.compatibilityReport.encodingScores)
-                      .map(
-                        ([encoding, scoreInfo]) => `
-                        <div class="encoding-card ${
-                          scoreInfo.averageScore >= 0.9 ? 'best' : ''
-                        }">
-                            <div><strong>${encoding}</strong></div>
-                            <div class="score ${getScoreClass(
-                              scoreInfo.averageScore
-                            )}">
-                                ${(scoreInfo.averageScore * 100).toFixed(1)}%
-                            </div>
-                            <div>${scoreInfo.grade}</div>
-                        </div>
-                    `
-                      )
-                      .join('')}
-                </div>
-                
-                <div class="status ${
-                  result.compatibilityReport.overallScore >= 0.8
-                    ? 'success'
-                    : result.compatibilityReport.overallScore >= 0.6
-                    ? 'warning'
-                    : 'error'
-                }">
-                    总体兼容性: ${(
-                      result.compatibilityReport.overallScore * 100
-                    ).toFixed(1)}%
-                </div>
-                
-                <div>
-                    <h4>建议:</h4>
-                    ${result.compatibilityReport.recommendations
-                      .map((rec) => `<p>• ${rec}</p>`)
-                      .join('')}
-                </div>
-                
-                ${
-                  result.compatibilityReport.warnings.length > 0
-                    ? `
-                    <div>
-                        <h4>警告:</h4>
-                        ${result.compatibilityReport.warnings
-                          .map(
-                            (warn) => `<p class="status warning">⚠️ ${warn}</p>`
-                          )
-                          .join('')}
-                    </div>
-                `
-                    : ''
-                }
-            `;
-
-        resultsElement.appendChild(resultCard);
-      }
-
-      // 显示批量测试结果
-      function displayBatchResults(results) {
-        const resultsElement = document.getElementById('compatibilityResults');
-        resultsElement.innerHTML = '';
-
-        // 显示总结报告
-        const summaryCard = document.createElement('div');
-        summaryCard.className = 'container';
-        summaryCard.innerHTML = `
-                <h3>📊 批量测试总结报告</h3>
-                <div class="encoding-info">
-                    <div class="encoding-card">
-                        <strong>总打印机数</strong><br>
-                        <div class="score">${
-                          results.summary.totalPrinters
-                        }</div>
-                    </div>
-                    <div class="encoding-card">
-                        <strong>测试成功</strong><br>
-                        <div class="score good">${
-                          results.summary.successfulTests
-                        }</div>
-                    </div>
-                    <div class="encoding-card">
-                        <strong>测试失败</strong><br>
-                        <div class="score ${
-                          results.summary.failedTests > 0 ? 'poor' : 'good'
-                        }">${results.summary.failedTests}</div>
-                    </div>
-                    <div class="encoding-card best">
-                        <strong>推荐编码</strong><br>
-                        <div class="score">${
-                          results.summary.bestOverallEncoding || 'N/A'
-                        }</div>
-                    </div>
-                </div>
-                
-                <div class="status ${
-                  results.summary.averageCompatibility >= 0.8
-                    ? 'success'
-                    : results.summary.averageCompatibility >= 0.6
-                    ? 'warning'
-                    : 'error'
-                }">
-                    平均兼容性: ${(
-                      results.summary.averageCompatibility * 100
-                    ).toFixed(1)}%
-                </div>
-                
-                <div>
-                    <h4>建议:</h4>
-                    ${results.summary.recommendations
-                      .map((rec) => `<p>• ${rec}</p>`)
-                      .join('')}
-                </div>
-            `;
-        resultsElement.appendChild(summaryCard);
-
-        // 显示各个打印机的详细结果
-        for (const [printerName, result] of Object.entries(
-          results.individual
-        )) {
-          if (result.error) {
-            const errorCard = document.createElement('div');
-            errorCard.className = 'container';
-            errorCard.innerHTML = `
-                        <h3>❌ ${printerName} 测试失败</h3>
-                        <div class="status error">${result.error}</div>
-                    `;
-            resultsElement.appendChild(errorCard);
-          } else {
-            displayCompatibilityResult(printerName, result);
-          }
-        }
-      }
-
-      // 编码检测功能
-      function detectEncoding() {
-        const text = document.getElementById('testText').value;
         if (!text.trim()) {
-          updateEncodingResult('请输入测试文本');
+          resultDiv.className = 'result error';
+          resultDiv.textContent = '❌ 请输入要分析的文本';
           return;
         }
 
-        const detector = new ChineseEncodingDetector();
-        const charType = detector.detectChineseType(text);
-
-        updateEncodingResult(`🔍 字符类型检测结果: ${charType}
-
-📝 文本分析:
-- 文本长度: ${text.length} 字符
-- 显示宽度: ${calculateDisplayWidth(text)} 单位
-- 字符类型: ${getCharTypeDescription(charType)}
-`);
-      }
-
-      // 测试所有编码
-      function testAllEncodings() {
-        const text = document.getElementById('testText').value;
-        if (!text.trim()) {
-          updateEncodingResult('请输入测试文本');
-          return;
-        }
-
-        const detector = new ChineseEncodingDetector();
-        const results = detector.testAllEncodings(text);
-
-        let output = '🧪 所有编码兼容性测试结果:\n\n';
-        results.forEach((result, index) => {
-          output += `${index + 1}. ${result.encoding}:\n`;
-          output += `   兼容性评分: ${(result.compatibilityScore * 100).toFixed(
-            1
-          )}%\n`;
-          output += `   编码大小: ${result.encodedSize} 字节\n`;
-          output += `   测试状态: ${result.success ? '✅ 成功' : '❌ 失败'}\n`;
-          output += `   错误数量: ${result.errorCount}\n\n`;
-        });
-
-        updateEncodingResult(output);
-      }
-
-      // 智能选择编码
-      function autoSelectEncoding() {
-        const text = document.getElementById('testText').value;
-        if (!text.trim()) {
-          updateEncodingResult('请输入测试文本');
-          return;
-        }
-
-        const detector = new ChineseEncodingDetector();
-        const charType = detector.detectChineseType(text);
-        const selectedEncoding = detector.autoSelectEncoding(text, {
-          recommendedEncoding: ChineseEncoding.AUTO,
-          fallbackEncodings: [
-            ChineseEncoding.GBK,
-            ChineseEncoding.UTF8,
-            ChineseEncoding.GB18030,
-            ChineseEncoding.BIG5,
-          ],
-        });
-
-        updateEncodingResult(`🎯 智能编码选择结果:
-
-检测的字符类型: ${charType}
-推荐编码: ${selectedEncoding}
-编码描述: ${getEncodingDescription(selectedEncoding)}
-
-选择原因: ${getEncodingReason(charType, selectedEncoding)}
-`);
-      }
-
-      // 导出报告
-      function exportReport(format) {
-        if (!lastTestResults) {
-          updateReportStatus(
-            '❌ 没有可导出的测试结果，请先运行批量测试',
-            'error'
-          );
-          return;
-        }
+        resultDiv.className = 'result info';
+        resultDiv.innerHTML =
+          '<div class="loading"></div>正在分析文本编码特征...';
 
         try {
-          if (printerManager) {
-            printerManager.exportEncodingReport(lastTestResults, format);
-            updateReportStatus(
-              `✅ ${format.toUpperCase()} 报告导出成功`,
-              'success'
-            );
-          } else {
-            updateReportStatus('❌ 打印机管理器未初始化', 'error');
-          }
-        } catch (error) {
-          updateReportStatus(`❌ 导出失败: ${error.message}`, 'error');
-        }
-      }
-
-      // 工具函数
-      function updateStatus(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
-        // 可以在页面上显示状态信息
-      }
-
-      function updateEncodingResult(text) {
-        document.getElementById('encodingResult').textContent = text;
-      }
-
-      function updateReportStatus(message, type) {
-        const statusElement = document.getElementById('reportStatus');
-        statusElement.innerHTML = `<div class="status ${type}">${message}</div>`;
-        setTimeout(() => {
-          statusElement.innerHTML = '';
-        }, 5000);
-      }
-
-      function showProgress(show) {
-        const progressElement = document.getElementById('testProgress');
-        progressElement.style.display = show ? 'block' : 'none';
-
-        if (show) {
-          let progress = 0;
-          const interval = setInterval(() => {
-            progress += Math.random() * 20;
-            if (progress >= 90) {
-              progress = 90;
-              clearInterval(interval);
+          const analysis = await window.__TAURI__.invoke(
+            'analyze_text_encoding',
+            {
+              text: text,
             }
-            document.getElementById('progressBar').style.width = progress + '%';
-            document.getElementById(
-              'progressText'
-            ).textContent = `测试进行中... ${Math.round(progress)}%`;
-          }, 500);
+          );
+
+          lastAnalysis = analysis;
+
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `✅ 编码分析完成
+
+📊 文本特征：
+   • 包含中文: ${analysis.has_chinese ? '✅ 是' : '❌ 否'}
+   • 包含简体字: ${analysis.has_simplified ? '✅ 是' : '❌ 否'}
+   • 包含繁体字: ${analysis.has_traditional ? '✅ 是' : '❌ 否'}
+   • 包含中文符号: ${analysis.has_symbols ? '✅ 是' : '❌ 否'}
+   • 检测置信度: ${(analysis.confidence * 100).toFixed(1)}%
+
+🎯 推荐编码: ${analysis.recommended_encoding}
+
+📈 字符统计:
+${Object.entries(analysis.character_counts)
+  .map(([key, value]) => `   • ${key}: ${value} 个`)
+  .join('\n')}`;
+
+          console.log('📝 文本分析结果:', analysis);
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = `❌ 分析失败: ${error}`;
+          console.error('分析文本编码失败:', error);
         }
       }
 
-      function getScoreClass(score) {
-        if (score >= 0.95) return 'excellent';
-        if (score >= 0.85) return 'good';
-        if (score >= 0.7) return 'fair';
-        return 'poor';
-      }
+      // 刷新打印机列表
+      async function refreshPrinters() {
+        const select = document.getElementById('printerSelect');
+        select.innerHTML = '<option value="">正在加载...</option>';
 
-      function getCharTypeDescription(charType) {
-        const descriptions = {
-          NONE: '无中文字符',
-          SYMBOLS_ONLY: '仅包含中文符号',
-          SIMPLIFIED: '简体中文',
-          TRADITIONAL: '繁体中文',
-          MIXED: '简繁混合',
-        };
-        return descriptions[charType] || '未知类型';
-      }
+        try {
+          const printers = await window.__TAURI__.invoke('get_printers');
+          currentPrinters = printers;
 
-      function getEncodingDescription(encoding) {
-        const descriptions = {
-          UTF8: 'UTF-8 - 通用Unicode编码，兼容性最好但文件较大',
-          GBK: 'GBK - 简体中文标准编码，适合大陆地区使用',
-          GB2312: 'GB2312 - 简体中文基础编码，字符集较少',
-          GB18030: 'GB18030 - 最新中文国标编码，字符集最全',
-          BIG5: 'Big5 - 繁体中文标准编码，适合港台地区使用',
-          AUTO: '自动检测 - 根据文本内容智能选择最佳编码',
-        };
-        return descriptions[encoding] || '未知编码';
-      }
-
-      function getEncodingReason(charType, encoding) {
-        if (charType === 'SIMPLIFIED' && encoding === 'GBK') {
-          return '简体中文文本，GBK编码兼容性最佳';
-        } else if (charType === 'TRADITIONAL' && encoding === 'BIG5') {
-          return '繁体中文文本，Big5编码兼容性最佳';
-        } else if (charType === 'MIXED' && encoding === 'UTF8') {
-          return '混合文本，UTF-8编码通用性最强';
-        } else if (encoding === 'UTF8') {
-          return '默认选择UTF-8，确保最大兼容性';
-        }
-        return '基于字符分析的智能选择';
-      }
-
-      function calculateDisplayWidth(text) {
-        let width = 0;
-        for (const char of text) {
-          if (char.charCodeAt(0) > 127) {
-            width += 2; // 中文字符占2个位置
+          select.innerHTML = '';
+          if (printers.length === 0) {
+            select.innerHTML = '<option value="">未发现打印机</option>';
           } else {
-            width += 1; // ASCII字符占1个位置
+            printers.forEach((printer) => {
+              const option = document.createElement('option');
+              option.value = printer.name;
+              option.textContent = `${printer.name} (${printer.width}mm, ${printer.printer_brand})`;
+              select.appendChild(option);
+            });
           }
+
+          console.log('🖨️ 发现打印机:', printers.length, '个');
+        } catch (error) {
+          select.innerHTML = '<option value="">加载失败</option>';
+          console.error('获取打印机列表失败:', error);
         }
-        return width;
       }
 
-      // 页面加载完成后自动初始化
-      window.addEventListener('load', () => {
-        console.log('🚀 中文编码增强版打印机测试页面已加载');
-        console.log(
-          '📋 可用功能: 编码检测、兼容性测试、智能编码选择、批量测试、报告导出'
+      // 测试打印机中文支持
+      async function testPrinterChinese() {
+        const selectedPrinterName =
+          document.getElementById('printerSelect').value;
+        const infoDiv = document.getElementById('printerInfo');
+        const resultsDiv = document.getElementById('encodingTestResults');
+
+        if (!selectedPrinterName) {
+          infoDiv.className = 'result error';
+          infoDiv.textContent = '❌ 请先选择一个打印机';
+          return;
+        }
+
+        selectedPrinter = currentPrinters.find(
+          (p) => p.name === selectedPrinterName
         );
+
+        infoDiv.className = 'result info';
+        infoDiv.innerHTML =
+          '<div class="loading"></div>正在测试打印机中文支持能力...';
+        resultsDiv.style.display = 'none';
+
+        try {
+          const capability = await window.__TAURI__.invoke(
+            'test_printer_chinese_support',
+            {
+              printerName: selectedPrinterName,
+            }
+          );
+
+          lastCapability = capability;
+
+          // 显示打印机信息
+          infoDiv.className = 'result success';
+          infoDiv.innerHTML = `✅ 中文支持测试完成
+
+🖨️ 打印机信息：
+   • 名称: ${capability.printer_name}
+   • 品牌: ${capability.brand}
+   • 中文支持: ${capability.supports_chinese ? '✅ 支持' : '❌ 不支持'}
+   • 总体兼容性: ${(capability.overall_compatibility * 100).toFixed(1)}%
+   • 推荐编码: ${capability.recommended_encoding}
+
+📋 备用编码: ${capability.fallback_encodings.join(', ')}`;
+
+          // 显示编码测试结果
+          displayEncodingResults(capability.tested_encodings);
+          resultsDiv.style.display = 'grid';
+
+          console.log('🧪 中文支持测试结果:', capability);
+        } catch (error) {
+          infoDiv.className = 'result error';
+          infoDiv.textContent = `❌ 测试失败: ${error}`;
+          console.error('测试打印机中文支持失败:', error);
+        }
+      }
+
+      // 显示编码测试结果
+      function displayEncodingResults(encodingResults) {
+        const resultsDiv = document.getElementById('encodingTestResults');
+        resultsDiv.innerHTML = '';
+
+        encodingResults.forEach((result) => {
+          const card = document.createElement('div');
+          const score = result.compatibility_score * 100;
+
+          let cardClass = 'encoding-card';
+          let statusIcon = '';
+
+          if (score >= 85) {
+            cardClass += ' excellent';
+            statusIcon = '🟢';
+          } else if (score >= 70) {
+            cardClass += ' good';
+            statusIcon = '🟡';
+          } else {
+            cardClass += ' poor';
+            statusIcon = '🔴';
+          }
+
+          card.className = cardClass;
+          card.innerHTML = `
+                    <h3>${statusIcon} ${result.encoding_name}</h3>
+                    <div class="score">${score.toFixed(1)}%</div>
+                    <div>状态: ${result.success ? '✅ 支持' : '❌ 不支持'}</div>
+                    <div>测试: ${result.test_content}</div>
+                    ${
+                      result.error_message
+                        ? `<div style="color: #e74c3c; font-size: 12px; margin-top: 10px;">错误: ${result.error_message}</div>`
+                        : ''
+                    }
+                `;
+
+          resultsDiv.appendChild(card);
+        });
+      }
+
+      // 获取编码能力评估
+      async function getEncodingCapability() {
+        const selectedPrinterName =
+          document.getElementById('printerSelect').value;
+        const resultDiv = document.getElementById('compatibilityResult');
+
+        if (!selectedPrinterName) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = '❌ 请先选择一个打印机';
+          return;
+        }
+
+        resultDiv.className = 'result info';
+        resultDiv.innerHTML = '<div class="loading"></div>正在评估编码能力...';
+
+        try {
+          const capability = await window.__TAURI__.invoke(
+            'get_printer_encoding_capability',
+            {
+              printerName: selectedPrinterName,
+            }
+          );
+
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `�� 编码能力评估结果
+
+🖨️ 打印机: ${capability.printer_name}
+🏷️ 品牌: ${capability.brand}
+🎯 推荐编码: ${capability.recommended_encoding}
+📈 总体兼容性: ${(capability.overall_compatibility * 100).toFixed(1)}%
+
+📋 编码支持详情:
+${capability.tested_encodings
+  .map(
+    (enc) =>
+      `   • ${enc.encoding_name}: ${(enc.compatibility_score * 100).toFixed(
+        1
+      )}% ${enc.success ? '✅' : '❌'}`
+  )
+  .join('\n')}`;
+
+          updateCompatibilityStats(capability);
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = `❌ 评估失败: ${error}`;
+          console.error('获取编码能力失败:', error);
+        }
+      }
+
+      // 更新兼容性统计
+      function updateCompatibilityStats(capability) {
+        const statsDiv = document.getElementById('compatibilityStats');
+        const totalTests = capability.tested_encodings.length;
+        const successfulTests = capability.tested_encodings.filter(
+          (t) => t.success
+        ).length;
+
+        document.getElementById('totalTests').textContent = totalTests;
+        document.getElementById('successfulTests').textContent =
+          successfulTests;
+        document.getElementById('overallScore').textContent = `${(
+          capability.overall_compatibility * 100
+        ).toFixed(1)}%`;
+        document.getElementById('recommendedEncoding').textContent =
+          capability.recommended_encoding;
+
+        statsDiv.style.display = 'grid';
+      }
+
+      // 运行完整兼容性测试
+      async function runFullCompatibilityTest() {
+        const selectedPrinterName =
+          document.getElementById('printerSelect').value;
+
+        if (!selectedPrinterName) {
+          alert('❌ 请先选择一个打印机');
+          return;
+        }
+
+        // 先运行文本分析
+        const testText =
+          document.getElementById('analyzeText').value ||
+          '中文测试：你好世界！订单#12345';
+        await analyzeTextEncoding();
+
+        // 再运行打印机测试
+        await testPrinterChinese();
+
+        // 最后获取编码能力
+        await getEncodingCapability();
+
+        alert('🎉 完整兼容性测试完成！请查看各个测试结果。');
+      }
+
+      // 设置编码偏好
+      async function setEncodingPreference() {
+        const selectedPrinterName =
+          document.getElementById('printerSelect').value;
+        const preferredEncoding =
+          document.getElementById('encodingPreference').value;
+        const fallbackEncodingsText =
+          document.getElementById('fallbackEncodings').value;
+        const resultDiv = document.getElementById('currentSettings');
+
+        if (!selectedPrinterName) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = '❌ 请先选择一个打印机';
+          return;
+        }
+
+        const fallbackEncodings = fallbackEncodingsText
+          .split(',')
+          .map((enc) => enc.trim())
+          .filter((enc) => enc.length > 0);
+
+        try {
+          await window.__TAURI__.invoke('set_printer_encoding_preference', {
+            printerName: selectedPrinterName,
+            preferredEncoding: preferredEncoding,
+            fallbackEncodings:
+              fallbackEncodings.length > 0 ? fallbackEncodings : null,
+          });
+
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `✅ 编码设置保存成功
+
+🖨️ 打印机: ${selectedPrinterName}
+🎯 首选编码: ${preferredEncoding}
+📋 备用编码: ${fallbackEncodings.join(', ')}
+
+设置已保存并立即生效。`;
+
+          console.log('💾 编码设置已保存');
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = `❌ 保存设置失败: ${error}`;
+          console.error('设置编码偏好失败:', error);
+        }
+      }
+
+      // 加载当前设置
+      async function loadCurrentSettings() {
+        const resultDiv = document.getElementById('currentSettings');
+        resultDiv.textContent = '当前编码设置将在选择打印机后显示...';
+      }
+
+      // 使用最佳编码打印测试
+      async function testPrintWithOptimalEncoding() {
+        const selectedPrinterName =
+          document.getElementById('printerSelect').value;
+        const resultDiv = document.getElementById('printTestResult');
+
+        if (!selectedPrinterName) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = '❌ 请先选择一个打印机';
+          return;
+        }
+
+        resultDiv.className = 'result info';
+        resultDiv.innerHTML =
+          '<div class="loading"></div>正在执行最佳编码打印测试...';
+
+        try {
+          await window.__TAURI__.invoke('test_print', {
+            printerName: selectedPrinterName,
+          });
+
+          resultDiv.className = 'result success';
+          resultDiv.textContent =
+            '✅ 最佳编码打印测试成功完成！请检查打印机输出结果。';
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = `❌ 打印测试失败: ${error}`;
+          console.error('打印测试失败:', error);
+        }
+      }
+
+      // 测试所有编码效果
+      async function testPrintWithAllEncodings() {
+        alert('🔄 多编码打印测试功能开发中...');
+      }
+
+      // 生成打印预览
+      async function generatePreview() {
+        const selectedPrinterName =
+          document.getElementById('printerSelect').value;
+        const resultDiv = document.getElementById('printTestResult');
+
+        if (!selectedPrinterName) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = '❌ 请先选择一个打印机';
+          return;
+        }
+
+        resultDiv.className = 'result info';
+        resultDiv.innerHTML = '<div class="loading"></div>正在生成打印预览...';
+
+        try {
+          const preview = await window.__TAURI__.invoke('generate_preview', {
+            printerName: selectedPrinterName,
+          });
+
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = `👁️ 打印预览生成成功
+
+${preview}
+
+📊 预览统计:
+   • 字符长度: ${preview.length}
+   • 行数: ${preview.split('\n').length}
+   • 使用编码: 自动检测最佳编码`;
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = `❌ 生成预览失败: ${error}`;
+          console.error('生成预览失败:', error);
+        }
+      }
+
+      // 运行系统诊断
+      async function runDiagnostics() {
+        const resultDiv = document.getElementById('diagnosticResult');
+
+        resultDiv.className = 'result info';
+        resultDiv.innerHTML = '<div class="loading"></div>正在运行系统诊断...';
+
+        try {
+          // 综合诊断信息
+          const printers = await window.__TAURI__.invoke('get_printers');
+
+          let diagnosticInfo = `🩺 系统诊断报告
+生成时间: ${new Date().toLocaleString()}
+
+📊 系统状态:
+   • 可用打印机: ${printers.length} 个
+   • 支持中文打印机: ${printers.filter((p) => p.supports_chinese).length} 个
+   
+🖨️ 打印机详情:
+${printers
+  .map(
+    (p) => `   • ${p.name}
+     - 品牌: ${p.printer_brand}
+     - 宽度: ${p.width}mm
+     - 中文支持: ${p.supports_chinese ? '✅' : '❌'}
+     - 首选编码: ${p.preferred_encoding}
+     - 备用编码: ${p.fallback_encodings.join(', ')}`
+  )
+  .join('\n')}
+
+🔤 编码支持状态:
+   • GBK: ${
+     printers.filter((p) => p.fallback_encodings.includes('GBK')).length
+   } 个打印机支持
+   • UTF-8: ${
+     printers.filter((p) => p.fallback_encodings.includes('UTF8')).length
+   } 个打印机支持
+   • GB18030: ${
+     printers.filter((p) => p.fallback_encodings.includes('GB18030')).length
+   } 个打印机支持
+
+💡 建议:
+${generateRecommendations(printers)}`;
+
+          resultDiv.className = 'result success';
+          resultDiv.innerHTML = diagnosticInfo;
+        } catch (error) {
+          resultDiv.className = 'result error';
+          resultDiv.textContent = `❌ 诊断失败: ${error}`;
+          console.error('系统诊断失败:', error);
+        }
+      }
+
+      // 生成建议
+      function generateRecommendations(printers) {
+        const recommendations = [];
+
+        const chinesePrinters = printers.filter((p) => p.supports_chinese);
+        if (chinesePrinters.length === 0) {
+          recommendations.push('⚠️ 未检测到支持中文的打印机，建议检查驱动程序');
+        }
+
+        const gbkPrinters = printers.filter((p) =>
+          p.fallback_encodings.includes('GBK')
+        );
+        if (gbkPrinters.length > 0) {
+          recommendations.push('✅ 检测到GBK兼容打印机，中文打印效果应该良好');
+        }
+
+        const unknownBrands = printers.filter(
+          (p) => p.printer_brand === 'Unknown' || p.printer_brand === ''
+        );
+        if (unknownBrands.length > 0) {
+          recommendations.push('💡 有未识别品牌的打印机，建议手动配置编码设置');
+        }
+
+        return recommendations.length > 0
+          ? recommendations.join('\n   ')
+          : '✅ 系统配置良好，无需特殊调整';
+      }
+
+      // 重置编码设置
+      async function resetEncodingSettings() {
+        if (confirm('⚠️ 确定要重置所有编码设置吗？这将恢复到默认配置。')) {
+          alert('🔄 重置功能开发中...');
+        }
+      }
+
+      // 导出诊断报告
+      async function exportDiagnosticReport() {
+        alert('📋 导出诊断报告功能开发中...');
+      }
+
+      // 错误处理
+      window.addEventListener('error', function (event) {
+        console.error('页面错误:', event.error);
+      });
+
+      // 页面卸载时的清理
+      window.addEventListener('beforeunload', function () {
+        console.log('📝 保存会话状态...');
       });
     </script>
   </body>

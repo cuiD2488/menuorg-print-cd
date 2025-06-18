@@ -197,6 +197,7 @@ console.log('推荐编码:', optimalEncoding); // 输出: "GBK"
 cargo clean
 cargo build --release
 Get-ChildItem target\release\printer-engine.exe | Select-Object Name, LastWriteTime, Length
+cargo run -- preview-order 测试排版
 ### 指定编码打印
 
 ```javascript

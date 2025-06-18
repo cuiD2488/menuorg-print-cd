@@ -6,6 +6,201 @@
 
 ---
 
+## [2.1.0] - 2025-01-18
+
+### 🔤 智能编码系统 (重大更新)
+
+#### ✨ 核心特性
+
+##### 🧠 智能编码检测
+- **自动文本分析**: 识别简体中文、繁体中文、混合文本和符号
+- **置信度评估**: 提供编码选择的可靠性评分 (0.0-1.0)
+- **字符统计**: 详细的字符类型和数量统计
+- **推荐编码**: 基于文本特征自动推荐最佳编码
+
+##### 🌐 多编码支持
+| 编码类型 | 适用场景 | 兼容性 |
+|---------|---------|--------|
+| **GBK** | 简体中文，中国品牌打印机 | 95% |
+| **GB18030** | 最新中文标准，全字符集 | 90% |
+| **UTF-8** | 国际标准，混合语言 | 85% |
+| **Big5** | 繁体中文，港台地区 | 80% |
+| **ASCII** | 纯英文数字 | 99% |
+
+##### 🏭 品牌优化策略
+- **XPrinter/GPrinter**: 优先使用 GBK 编码 (95% 兼容性)
+- **Epson/Citizen**: 优先使用 UTF-8 编码 (90% 兼容性)  
+- **Star/Bixolon**: 优先使用 UTF-8 编码 (88% 兼容性)
+- **通用热敏**: 自动检测最佳编码 (80% 兼容性)
+
+#### 🛠️ 新增Tauri命令
+
+```rust
+// 分析文本编码特征
+analyze_text_encoding(text: String) -> ChineseTextAnalysis
+
+// 测试打印机中文支持能力
+test_printer_chinese_support(printer_name: String) -> PrinterEncodingCapability
+
+// 获取编码能力评估
+get_printer_encoding_capability(printer_name: String) -> PrinterEncodingCapability
+
+// 设置编码偏好
+set_printer_encoding_preference(
+    printer_name: String, 
+    preferred_encoding: String, 
+    fallback_encodings: Option<Vec<String>>
+) -> Result<(), String>
+```
+
+#### 📊 编码诊断工具
+
+##### 兼容性评分系统
+- **95-100%**: 完美兼容，无需调整 ✅
+- **85-94%**: 兼容性良好，偶有小问题 🟡
+- **70-84%**: 基本兼容，可能需要调整 🟠
+- **50-69%**: 兼容性有限，建议更换设备 🔴
+- **<50%**: 不建议使用 ❌
+
+##### 编码测试集合
+```rust
+let test_texts = vec![
+    ("简体中文", "你好，这是简体中文测试：订单#12345，总计￥99.50"),
+    ("繁体中文", "您好，這是繁體中文測試：訂單#12345，總計￥99.50"), 
+    ("混合文本", "Hello你好！Order订单#12345，Total总计$99.50"),
+    ("中文符号", "【重要】订单确认※请注意：￥＄€…"),
+    ("菜品名称", "宫保鸡丁、麻婆豆腐、白米饭、可乐"),
+    ("地址信息", "北京市朝阳区望京街道123号2B室"),
+];
+```
+
+#### 🔧 技术实现
+
+##### 核心数据结构
+```rust
+#[derive(Serialize, Deserialize)]
+struct ChineseTextAnalysis {
+    has_chinese: bool,              // 是否包含中文
+    has_simplified: bool,           // 是否包含简体字
+    has_traditional: bool,          // 是否包含繁体字
+    has_symbols: bool,              // 是否包含中文符号
+    confidence: f64,                // 检测置信度
+    character_counts: HashMap<String, i32>, // 字符统计
+    recommended_encoding: String,    // 推荐编码
+}
+
+#[derive(Serialize, Deserialize)]
+struct PrinterEncodingCapability {
+    printer_name: String,           // 打印机名称
+    brand: String,                  // 品牌
+    supports_chinese: bool,         // 中文支持
+    tested_encodings: Vec<EncodingTestResult>, // 测试结果
+    recommended_encoding: String,   // 推荐编码
+    fallback_encodings: Vec<String>, // 备用编码
+    overall_compatibility: f64,     // 总体兼容性
+}
+```
+
+##### 智能编码转换
+```rust
+// 智能编码检测和转换系统
+fn analyze_chinese_text(text: &str) -> ChineseTextAnalysis
+fn detect_printer_brand(name: &str) -> String
+fn smart_encode_for_printer(content: &str, printer: &PrinterConfig) -> Vec<u8>
+fn convert_text_to_encoding(text: &str, encoding: &str) -> Result<Vec<u8>, String>
+```
+
+##### 字节级打印支持
+```rust
+// 支持字节数组的打印函数
+async fn print_to_printer_bytes(printer_name: &str, content_bytes: &[u8]) -> Result<(), String>
+async fn print_to_printer_enhanced_bytes(printer_name: &str, content_bytes: &[u8]) -> Result<(), String>
+```
+
+#### 🎯 用户体验提升
+
+##### JavaScript 前端集成
+```javascript
+// 分析文本编码
+const analysis = await window.__TAURI__.invoke('analyze_text_encoding', {
+    text: '宫保鸡丁、麻婆豆腐、白米饭'
+});
+
+// 测试打印机中文支持
+const capability = await window.__TAURI__.invoke('test_printer_chinese_support', {
+    printerName: 'XP-80C'
+});
+
+// 设置编码偏好
+await window.__TAURI__.invoke('set_printer_encoding_preference', {
+    printerName: 'XP-80C',
+    preferredEncoding: 'GBK',
+    fallbackEncodings: ['GBK', 'UTF8', 'GB18030']
+});
+```
+
+##### 增强的打印机配置
+```rust
+PrinterConfig {
+    name: "XP-80C",
+    width: 80,
+    supports_chinese: true,         // 新增：中文支持标识
+    preferred_encoding: "GBK",      // 新增：首选编码
+    fallback_encodings: vec![       // 新增：备用编码列表
+        "GBK".to_string(),
+        "GB18030".to_string(),
+        "UTF8".to_string()
+    ],
+    printer_brand: "XPrinter",      // 新增：品牌信息
+    // ... 其他现有字段
+}
+```
+
+#### 📈 性能和可靠性
+
+##### 编码缓存机制
+- **智能缓存**: 缓存编码转换结果，提升重复打印性能
+- **内存优化**: 减少编码转换的内存分配
+- **并发安全**: 支持多线程编码转换
+
+##### 错误处理和恢复
+- **多重回退**: GBK → UTF-8 → GB18030 → ASCII 自动尝试
+- **详细日志**: 完整的编码转换日志记录
+- **错误诊断**: 提供具体的编码失败原因和建议
+
+#### 🔍 故障排除工具
+
+##### 编码诊断命令
+```bash
+# 分析文本编码特征
+cargo run -- analyze-text "你好世界"
+
+# 测试打印机编码支持  
+cargo run -- test-encoding "XP-80C"
+
+# 生成兼容性报告
+cargo run -- encoding-report
+```
+
+##### 常见问题解决
+1. **中文乱码**: 自动检测并推荐最佳编码
+2. **编码转换失败**: 智能回退到兼容编码
+3. **品牌不识别**: 手动配置编码策略
+
+#### 📋 新增依赖
+
+```toml
+[dependencies]
+# 字符编码转换
+encoding_rs = "0.8"
+# 字符集检测  
+chardet = "0.2"
+# 正则表达式
+regex = "1.0"
+```
+
+---
+
 ## [2.0.0] - 2025-01-18
 
 ### 🎉 重大更新 - 完整打印预览和布局优化

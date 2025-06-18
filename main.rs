@@ -9,6 +9,9 @@ use futures_util::{StreamExt, SinkExt};
 use log::{info, debug, warn, error};
 use std::fs;
 use std::path::PathBuf;
+use encoding_rs::{Encoding, UTF_8, GBK, GB18030, BIG5, EUC_JP, SHIFT_JIS};
+use regex::Regex;
+use std::collections::HashMap;
 
 #[cfg(target_os = "windows")]
 use winapi::um::winspool::{EnumPrintersW, PRINTER_INFO_2W, PRINTER_ENUM_LOCAL, PRINTER_ENUM_CONNECTIONS, OpenPrinterW, ClosePrinter, StartDocPrinterW, StartPagePrinter, EndPagePrinter, EndDocPrinter, WritePrinter, DOC_INFO_1W};
@@ -196,6 +199,66 @@ struct PrinterConfig {
     is_default: bool,
     is_enabled: bool, // 是否启用用于订单打印
     font_size: i32, // 字体大小：0=小(默认), 1=中, 2=大
+    // 新增编码相关配置
+    #[serde(default)]
+    supports_chinese: bool, // 是否支持中文
+    #[serde(default = "default_encoding")]
+    preferred_encoding: String, // 首选编码
+    #[serde(default)]
+    fallback_encodings: Vec<String>, // 备用编码列表
+    #[serde(default)]
+    printer_brand: String, // 打印机品牌
+}
+
+// 默认编码函数
+fn default_encoding() -> String {
+    "AUTO".to_string()
+}
+
+// 热敏打印机编码策略
+#[derive(Clone, Debug)]
+enum ThermalPrinterEncoding {
+    Auto,        // 自动检测
+    UTF8,        // UTF-8 (通用)
+    GBK,         // GBK (简体中文)
+    GB18030,     // GB18030 (最新中文标准)
+    BIG5,        // Big5 (繁体中文)
+    GB2312,      // GB2312 (早期简体中文)
+    ASCII,       // 纯ASCII
+}
+
+// 中文字符类型检测结果
+#[derive(Clone, Debug, Serialize)]
+struct ChineseTextAnalysis {
+    has_chinese: bool,
+    has_simplified: bool,
+    has_traditional: bool,
+    has_symbols: bool,
+    confidence: f64,
+    character_counts: HashMap<String, i32>,
+    recommended_encoding: String,
+}
+
+// 编码测试结果
+#[derive(Clone, Debug, Serialize)]
+struct EncodingTestResult {
+    encoding_name: String,
+    success: bool,
+    compatibility_score: f64,
+    test_content: String,
+    error_message: Option<String>,
+}
+
+// 打印机编码能力信息
+#[derive(Clone, Debug, Serialize)]
+struct PrinterEncodingCapability {
+    printer_name: String,
+    brand: String,
+    supports_chinese: bool,
+    tested_encodings: Vec<EncodingTestResult>,
+    recommended_encoding: String,
+    fallback_encodings: Vec<String>,
+    overall_compatibility: f64,
 }
 
 // 应用状态管理
@@ -530,10 +593,13 @@ async fn print_order(order: OrderData, printers_arc: Arc<Mutex<Vec<PrinterConfig
     let mut print_errors = Vec::new();
 
     for printer in enabled_printers {
-        match generate_print_content(&order, printer.width, printer.font_size) {
+        match generate_print_content_with_encoding(&order, printer.width, printer.font_size, Some(&printer)) {
             Ok(content) => {
+                // 使用智能编码转换
+                let encoded_bytes = smart_encode_for_printer(&content, &printer);
+
                 // 调用实际的打印机API
-                match print_to_printer(&printer.name, &content).await {
+                match print_to_printer_bytes(&printer.name, &encoded_bytes).await {
                     Ok(_) => {
                         println!("Successfully printed to {} (width: {}mm)", printer.name, printer.width);
                         print_success_count += 1;
@@ -549,7 +615,7 @@ async fn print_order(order: OrderData, printers_arc: Arc<Mutex<Vec<PrinterConfig
 
                         // 尝试增强版打印
                         #[cfg(target_os = "windows")]
-                        match print_to_printer_enhanced(&printer.name, &content).await {
+                        match print_to_printer_enhanced_bytes(&printer.name, &encoded_bytes).await {
                             Ok(_) => {
                                 println!("增强版打印成功: {} (width: {}mm)", printer.name, printer.width);
                 print_success_count += 1;
@@ -610,30 +676,307 @@ async fn print_order(order: OrderData, printers_arc: Arc<Mutex<Vec<PrinterConfig
     Ok(())
 }
 
-// 中文字符编码处理函数 - 针对热敏打印机优化
-fn encode_chinese_text(text: &str) -> String {
-    // 注意：大多数热敏打印机需要GBK编码，但这里我们保持UTF-8
-    // 在RAW模式打印时会在打印函数中进行适当的编码转换
-    text.to_string()
+// ==================== 智能编码检测和转换系统 ====================
+
+// 分析中文文本特征
+fn analyze_chinese_text(text: &str) -> ChineseTextAnalysis {
+    let mut simplified_count = 0;
+    let mut traditional_count = 0;
+    let mut symbol_count = 0;
+    let mut ascii_count = 0;
+    let mut other_count = 0;
+
+    // 常见简体字
+    let simplified_chars = [
+        '你', '我', '他', '们', '的', '是', '在', '有', '和', '对', '就', '会', '说', '要', '来', '到',
+        '这', '那', '可', '以', '了', '不', '个', '人', '订', '单', '打', '印', '餐', '厅', '菜', '品',
+        '地', '址', '电', '话', '号', '码', '时', '间', '总', '计', '小', '计', '费', '用', '配', '送'
+    ];
+
+    // 常见繁体字
+    let traditional_chars = [
+        '您', '們', '個', '來', '這', '那', '會', '說', '對', '時', '間', '點', '錢', '訂', '單',
+        '測', '試', '餐', '廳', '電', '話', '總', '計', '費', '用', '配', '送', '點', '選', '擇'
+    ];
+
+    // 中文符号
+    let chinese_symbols = [
+        '￥', '＄', '€', '【', '】', '《', '》', '（', '）', '「', '」', '、', '。', '，', '；',
+        '：', '？', '！', '※', '～', '·', '…', '"', '"', ''', '''
+    ];
+
+    for ch in text.chars() {
+        if ch.is_ascii() {
+            ascii_count += 1;
+        } else if simplified_chars.contains(&ch) {
+            simplified_count += 1;
+        } else if traditional_chars.contains(&ch) {
+            traditional_count += 1;
+        } else if chinese_symbols.contains(&ch) {
+            symbol_count += 1;
+        } else if is_cjk_character(ch) {
+            // 其他中日韩字符
+            other_count += 1;
+        }
+    }
+
+    let total_chars = text.chars().count() as i32;
+    let chinese_chars = simplified_count + traditional_count + other_count;
+    let has_chinese = chinese_chars > 0;
+    let has_simplified = simplified_count > 0;
+    let has_traditional = traditional_count > 0;
+    let has_symbols = symbol_count > 0;
+
+    // 计算置信度
+    let confidence = if total_chars > 0 {
+        (chinese_chars + symbol_count) as f64 / total_chars as f64
+    } else {
+        0.0
+    };
+
+    // 推荐编码
+    let recommended_encoding = if !has_chinese && !has_symbols {
+        "ASCII".to_string()
+    } else if simplified_count > traditional_count * 2 {
+        "GBK".to_string()  // 简体中文优先使用GBK
+    } else if traditional_count > simplified_count {
+        "BIG5".to_string()  // 繁体中文使用Big5
+    } else if has_chinese || has_symbols {
+        "UTF8".to_string()  // 混合内容使用UTF-8
+    } else {
+        "UTF8".to_string()  // 默认UTF-8
+    };
+
+    let mut character_counts = HashMap::new();
+    character_counts.insert("simplified".to_string(), simplified_count);
+    character_counts.insert("traditional".to_string(), traditional_count);
+    character_counts.insert("symbols".to_string(), symbol_count);
+    character_counts.insert("ascii".to_string(), ascii_count);
+    character_counts.insert("other".to_string(), other_count);
+
+    ChineseTextAnalysis {
+        has_chinese,
+        has_simplified,
+        has_traditional,
+        has_symbols,
+        confidence,
+        character_counts,
+        recommended_encoding,
+    }
 }
 
-// 简化的内容处理函数 - 直接传输原始字符串
-fn prepare_chinese_content(text: &str) -> String {
-    // 只移除控制字符，保留所有可打印字符和换行
-    text.chars()
-        .filter(|c| !c.is_control() || matches!(*c, '\n' | '\r' | '\t'))
-        .collect()
+// 检查是否为CJK字符
+fn is_cjk_character(ch: char) -> bool {
+    let code = ch as u32;
+    (code >= 0x4E00 && code <= 0x9FFF) ||  // CJK统一汉字
+    (code >= 0x3400 && code <= 0x4DBF) ||  // CJK扩展A
+    (code >= 0x3000 && code <= 0x303F) ||  // CJK符号和标点
+    (code >= 0xFF00 && code <= 0xFFEF)     // 全角ASCII
 }
 
-// 简化的混合内容处理函数 - 与上面保持一致
+// 智能编码转换 - 根据打印机类型和文本内容选择最佳编码
+fn smart_encode_for_printer(text: &str, printer_config: &PrinterConfig) -> Vec<u8> {
+    info!("🔍 [ENCODING] 开始智能编码转换");
+    info!("🔍 [ENCODING] 打印机: {}", printer_config.name);
+    info!("🔍 [ENCODING] 品牌: {}", printer_config.printer_brand);
+    info!("🔍 [ENCODING] 首选编码: {}", printer_config.preferred_encoding);
+
+    // 分析文本特征
+    let analysis = analyze_chinese_text(text);
+    info!("✅ [ENCODING] 文本分析完成: 中文={}, 简体={}, 繁体={}, 符号={}, 置信度={:.2}",
+          analysis.has_chinese, analysis.has_simplified, analysis.has_traditional,
+          analysis.has_symbols, analysis.confidence);
+
+    // 确定目标编码
+    let target_encoding = determine_optimal_encoding(&analysis, printer_config);
+    info!("🎯 [ENCODING] 选择编码: {}", target_encoding);
+
+    // 执行编码转换
+    match convert_text_to_encoding(text, &target_encoding) {
+        Ok(bytes) => {
+            info!("✅ [ENCODING] 编码转换成功: {} -> {} 字节", text.chars().count(), bytes.len());
+            bytes
+        }
+        Err(e) => {
+            warn!("⚠️ [ENCODING] 编码转换失败: {}, 使用UTF-8备用方案", e);
+            text.as_bytes().to_vec()
+        }
+    }
+}
+
+// 确定最优编码策略
+fn determine_optimal_encoding(analysis: &ChineseTextAnalysis, printer_config: &PrinterConfig) -> String {
+    // 如果用户明确指定了编码且不是AUTO，就使用用户指定的
+    if printer_config.preferred_encoding != "AUTO" && !printer_config.preferred_encoding.is_empty() {
+        return printer_config.preferred_encoding.clone();
+    }
+
+    // 根据打印机品牌和文本特征智能选择
+    let brand = printer_config.printer_brand.to_lowercase();
+
+    if !analysis.has_chinese && !analysis.has_symbols {
+        // 纯英文，使用ASCII
+        return "ASCII".to_string();
+    }
+
+    // 根据打印机品牌优化编码选择
+    match brand.as_str() {
+        brand if brand.contains("xprinter") || brand.contains("gprinter") => {
+            // 中国品牌热敏打印机，优先使用国标编码
+            if analysis.has_simplified {
+                "GBK".to_string()
+            } else if analysis.has_traditional {
+                "BIG5".to_string()
+            } else {
+                "GBK".to_string()  // 默认GBK，兼容性好
+            }
+        }
+        brand if brand.contains("epson") || brand.contains("citizen") => {
+            // 日系品牌，UTF-8兼容性通常较好
+            "UTF8".to_string()
+        }
+        brand if brand.contains("star") || brand.contains("bixolon") => {
+            // 韩系品牌，UTF-8兼容性好
+            "UTF8".to_string()
+        }
+        _ => {
+            // 其他品牌或未知品牌，根据文本内容选择
+            if analysis.has_simplified && analysis.simplified_count > analysis.traditional_count {
+                "GBK".to_string()
+            } else if analysis.has_traditional {
+                "BIG5".to_string()
+            } else {
+                "UTF8".to_string()  // 默认UTF-8
+            }
+        }
+    }
+}
+
+// 执行编码转换
+fn convert_text_to_encoding(text: &str, encoding: &str) -> Result<Vec<u8>, String> {
+    match encoding.to_uppercase().as_str() {
+        "ASCII" => {
+            // ASCII编码：只保留ASCII字符，非ASCII字符用?替代
+            let ascii_text: String = text.chars().map(|c| {
+                if c.is_ascii() { c } else { '?' }
+            }).collect();
+            Ok(ascii_text.as_bytes().to_vec())
+        }
+        "UTF8" | "UTF-8" => {
+            // UTF-8编码（默认）
+            Ok(text.as_bytes().to_vec())
+        }
+        "GBK" => {
+            // GBK编码
+            let (encoded, _, had_errors) = GBK.encode(text);
+            if had_errors {
+                warn!("⚠️ [ENCODING] GBK编码有错误，可能存在不兼容字符");
+            }
+            Ok(encoded.into_owned())
+        }
+        "GB18030" => {
+            // GB18030编码
+            let (encoded, _, had_errors) = GB18030.encode(text);
+            if had_errors {
+                warn!("⚠️ [ENCODING] GB18030编码有错误，可能存在不兼容字符");
+            }
+            Ok(encoded.into_owned())
+        }
+        "BIG5" => {
+            // Big5编码
+            let (encoded, _, had_errors) = BIG5.encode(text);
+            if had_errors {
+                warn!("⚠️ [ENCODING] Big5编码有错误，可能存在不兼容字符");
+            }
+            Ok(encoded.into_owned())
+        }
+        _ => {
+            // 不支持的编码，回退到UTF-8
+            warn!("⚠️ [ENCODING] 不支持的编码 {}，回退到UTF-8", encoding);
+            Ok(text.as_bytes().to_vec())
+        }
+    }
+}
+
+// 改进的内容处理函数 - 支持智能编码
 fn prepare_mixed_content(text: &str) -> String {
-    // 统一处理，让打印机自己识别编码
+    // 基本清理：移除控制字符，保留可打印字符和必要的格式字符
     text.chars()
         .filter(|c| !c.is_control() || matches!(*c, '\n' | '\r' | '\t'))
         .collect()
+}
+
+// 检测打印机品牌
+fn detect_printer_brand(printer_name: &str) -> String {
+    let name = printer_name.to_lowercase();
+
+    if name.contains("xprinter") {
+        "XPrinter".to_string()
+    } else if name.contains("gprinter") {
+        "GPrinter".to_string()
+    } else if name.contains("epson") {
+        "Epson".to_string()
+    } else if name.contains("citizen") {
+        "Citizen".to_string()
+    } else if name.contains("star") {
+        "Star".to_string()
+    } else if name.contains("bixolon") {
+        "Bixolon".to_string()
+    } else if name.contains("zebra") {
+        "Zebra".to_string()
+    } else if name.contains("hp") {
+        "HP".to_string()
+    } else if name.contains("canon") {
+        "Canon".to_string()
+    } else if name.contains("thermal") || name.contains("receipt") || name.contains("pos") {
+        "Generic Thermal".to_string()
+    } else {
+        "Unknown".to_string()
+    }
+}
+
+// 生成带编码优化的ESC/POS内容
+fn generate_optimized_escpos_content(base_content: &str, encoding: &str) -> String {
+    let mut content = String::new();
+
+    // ESC/POS初始化
+    content.push_str("\x1B@"); // ESC @ - 初始化打印机
+
+    // 根据编码类型添加相应的字符集设置命令
+    match encoding.to_uppercase().as_str() {
+        "GBK" | "GB18030" => {
+            // 设置中文字符集 - GBK/GB18030
+            content.push_str("\x1C&");     // FS &
+            content.push_str("\x1C\x43\x00"); // FS C 0 - 选择字符代码表
+        }
+        "BIG5" => {
+            // 设置繁体中文字符集 - Big5
+            content.push_str("\x1C&");     // FS &
+            content.push_str("\x1C\x43\x01"); // FS C 1 - 选择字符代码表
+        }
+        "UTF8" | "UTF-8" => {
+            // UTF-8模式设置
+            content.push_str("\x1C&");     // FS &
+            content.push_str("\x1C\x43\x08"); // FS C 8 - UTF-8代码表
+        }
+        _ => {
+            // 默认设置
+            content.push_str("\x1C&");     // FS &
+        }
+    }
+
+    // 添加基础内容
+    content.push_str(base_content);
+
+    content
 }
 
 fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Result<String, String> {
+    generate_print_content_with_encoding(order, width, font_size, None)
+}
+
+// 支持指定编码的打印内容生成函数
+fn generate_print_content_with_encoding(order: &OrderData, width: i32, font_size: i32, printer_config: Option<&PrinterConfig>) -> Result<String, String> {
     let mut content = String::new();
 
     // ESC/POS 初始化命令
@@ -645,6 +988,36 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
         1 => content.push_str("\x1D\x21\x10"), // 宽度1x，高度2x
         2 => content.push_str("\x1D\x21\x11"), // 宽度2x，高度2x
         _ => content.push_str("\x1D\x21\x00"), // 默认为正常大小
+    }
+
+    // 如果有打印机配置，则添加编码特定的ESC/POS命令
+    if let Some(config) = printer_config {
+        let encoding = determine_optimal_encoding(
+            &analyze_chinese_text(&format!("{} {} {}", order.rd_name, order.recipient_name,
+                order.dishes_array.iter().map(|d| &d.dishes_name).collect::<Vec<_>>().join(" "))),
+            config
+        );
+
+        info!("🎯 [PRINT] 为打印机 {} 使用编码: {}", config.name, encoding);
+
+        // 添加编码特定的ESC/POS命令
+        match encoding.as_str() {
+            "GBK" | "GB18030" => {
+                content.push_str("\x1C&");         // FS &
+                content.push_str("\x1C\x43\x00");  // FS C 0 - GBK代码表
+            }
+            "BIG5" => {
+                content.push_str("\x1C&");         // FS &
+                content.push_str("\x1C\x43\x01");  // FS C 1 - Big5代码表
+            }
+            "UTF8" => {
+                content.push_str("\x1C&");         // FS &
+                content.push_str("\x1C\x43\x08");  // FS C 8 - UTF-8代码表
+            }
+            _ => {
+                content.push_str("\x1C&");         // FS & - 默认设置
+            }
+        }
     }
 
     // 设置行间距
@@ -1577,9 +1950,12 @@ fn get_system_printers() -> Result<Vec<PrinterConfig>, String> {
 
                 println!("🔍 [SYSTEM] 打印机名称: {}", name);
 
-                // 判断打印机类型和宽度
-                let (width, is_thermal) = classify_printer(&name);
-                println!("🔍 [SYSTEM] 分类结果: 宽度={}mm, 热敏打印机={}", width, is_thermal);
+                // 判断打印机类型、宽度和编码配置
+                let (width, is_thermal, supports_chinese, preferred_encoding, fallback_encodings) = classify_printer(&name);
+                let printer_brand = detect_printer_brand(&name);
+
+                println!("🔍 [SYSTEM] 分类结果: 宽度={}mm, 热敏打印机={}, 中文支持={}, 品牌={}, 首选编码={}",
+                         width, is_thermal, supports_chinese, printer_brand, preferred_encoding);
 
                 // 检查是否为默认打印机
                 let is_default = (printer_info.Attributes & 0x00000004) != 0; // PRINTER_ATTRIBUTE_DEFAULT
@@ -1591,6 +1967,10 @@ fn get_system_printers() -> Result<Vec<PrinterConfig>, String> {
                     is_default,
                     is_enabled: false, // 默认禁用，用户需要手动选择
                     font_size: 0, // 默认小号字体
+                    supports_chinese,
+                    preferred_encoding,
+                    fallback_encodings,
+                    printer_brand,
                 });
 
                 println!("✅ [SYSTEM] 打印机 {} 添加完成", name);
@@ -1611,12 +1991,54 @@ fn get_system_printers() -> Result<Vec<PrinterConfig>, String> {
     Ok(Vec::new())
 }
 
-// 根据打印机名称分类判断宽度
-fn classify_printer(name: &str) -> (i32, bool) {
+// 根据打印机名称分类判断宽度和编码配置
+fn classify_printer(name: &str) -> (i32, bool, bool, String, Vec<String>) {
     let name_lower = name.to_lowercase();
 
+    // 检测品牌
+    let brand = detect_printer_brand(name);
+
+    // 确定是否支持中文
+    let supports_chinese = name_lower.contains("xprinter") ||
+                          name_lower.contains("gprinter") ||
+                          name_lower.contains("epson") ||
+                          name_lower.contains("citizen") ||
+                          name_lower.contains("star") ||
+                          name_lower.contains("bixolon") ||
+                          name_lower.contains("thermal") ||
+                          name_lower.contains("receipt") ||
+                          name_lower.contains("pos");
+
+    // 根据品牌确定首选编码和备用编码
+    let (preferred_encoding, fallback_encodings) = match brand.to_lowercase().as_str() {
+        brand if brand.contains("xprinter") || brand.contains("gprinter") => {
+            // 中国品牌，优先GBK
+            ("GBK".to_string(), vec!["GBK".to_string(), "GB18030".to_string(), "UTF8".to_string()])
+        }
+        brand if brand.contains("epson") => {
+            // Epson通常UTF-8支持较好
+            ("UTF8".to_string(), vec!["UTF8".to_string(), "GBK".to_string(), "BIG5".to_string()])
+        }
+        brand if brand.contains("citizen") || brand.contains("star") => {
+            // 日系品牌
+            ("UTF8".to_string(), vec!["UTF8".to_string(), "GBK".to_string()])
+        }
+        brand if brand.contains("bixolon") => {
+            // 韩系品牌
+            ("UTF8".to_string(), vec!["UTF8".to_string(), "GBK".to_string()])
+        }
+        _ => {
+            // 通用热敏打印机或未知品牌
+            if supports_chinese {
+                ("AUTO".to_string(), vec!["GBK".to_string(), "UTF8".to_string(), "GB18030".to_string()])
+            } else {
+                ("UTF8".to_string(), vec!["UTF8".to_string(), "ASCII".to_string()])
+            }
+        }
+    };
+
     // 检查是否为热敏打印机和宽度
-    if name_lower.contains("58") || name_lower.contains("58mm") {
+    let (width, is_thermal) = if name_lower.contains("58") || name_lower.contains("58mm") {
         (58, true)
     } else if name_lower.contains("80") || name_lower.contains("80mm") {
         (80, true)
@@ -1626,7 +2048,9 @@ fn classify_printer(name: &str) -> (i32, bool) {
     } else {
         // 其他类型打印机，默认80mm宽度
         (80, false)
-    }
+    };
+
+    (width, is_thermal, supports_chinese, preferred_encoding, fallback_encodings)
 }
 
 // 获取打印机列表
@@ -1709,7 +2133,8 @@ async fn test_print(printer_name: String, state: State<'_, AppState>) -> Result<
     };
 
     if let Some(printer) = printer_config {
-        info!("✅ [TEST] 找到目标打印机: {} (宽度: {}mm)", printer.name, printer.width);
+        info!("✅ [TEST] 找到目标打印机: {} (宽度: {}mm, 品牌: {}, 中文支持: {})",
+              printer.name, printer.width, printer.printer_brand, printer.supports_chinese);
 
         info!("🧪 [TEST] 生成包含中文的测试订单数据...");
         let test_order = OrderData {
@@ -1792,15 +2217,18 @@ async fn test_print(printer_name: String, state: State<'_, AppState>) -> Result<
         println!("✅ [TEST] 测试订单数据生成完成");
         println!("🧪 [TEST] 正在生成打印内容...");
 
-        let content = generate_print_content(&test_order, printer.width, printer.font_size)?;
+        let content = generate_print_content_with_encoding(&test_order, printer.width, printer.font_size, Some(&printer))?;
+        
+        // 使用智能编码转换
+        let encoded_bytes = smart_encode_for_printer(&content, &printer);
 
-        println!("✅ [TEST] 打印内容生成完成，长度: {} 字符", content.len());
+        println!("✅ [TEST] 打印内容生成完成，字符长度: {}, 编码后字节: {}", content.len(), encoded_bytes.len());
         println!("🧪 [TEST] 打印内容预览 (前100字符):");
         println!("{}", &content[..std::cmp::min(100, content.len())]);
         println!("🧪 [TEST] 开始调用打印机API...");
 
         // 实际调用打印机
-        match print_to_printer(&printer.name, &content).await {
+        match print_to_printer_bytes(&printer.name, &encoded_bytes).await {
             Ok(_) => {
                 println!("🎉 [TEST] 测试打印成功完成! 打印机: {}", printer.name);
         Ok(())
@@ -1810,7 +2238,7 @@ async fn test_print(printer_name: String, state: State<'_, AppState>) -> Result<
 
                 // 尝试增强版打印
                 #[cfg(target_os = "windows")]
-                match print_to_printer_enhanced(&printer.name, &content).await {
+                match print_to_printer_enhanced_bytes(&printer.name, &encoded_bytes).await {
                     Ok(_) => {
                         println!("🎉 [TEST] 增强版测试打印成功! 打印机: {}", printer.name);
                         Ok(())
@@ -2225,10 +2653,157 @@ async fn print_to_printer(printer_name: &str, content: &str) -> Result<(), Strin
     }).await.map_err(|e| format!("Task execution failed: {}", e))?
 }
 
+// 支持字节数组的同步打印函数
+#[cfg(target_os = "windows")]
+fn print_to_printer_bytes_sync(printer_name: &str, content_bytes: &[u8]) -> Result<(), String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    info!("🖨️ [BYTES] 开始字节模式打印到打印机: {}", printer_name);
+    debug!("🖨️ [BYTES] 打印内容长度: {} 字节", content_bytes.len());
+
+    let wide_printer_name: Vec<u16> = OsStr::new(printer_name).encode_wide().chain(std::iter::once(0)).collect();
+    let wide_document_name: Vec<u16> = OsStr::new("Order Print (Chinese)").encode_wide().chain(std::iter::once(0)).collect();
+
+    debug!("🖨️ [BYTES] 转换打印机名称为宽字符: 成功");
+
+    unsafe {
+        let mut printer_handle: HANDLE = ptr::null_mut();
+
+        debug!("🖨️ [BYTES] 正在打开打印机...");
+        let open_result = OpenPrinterW(
+            wide_printer_name.as_ptr() as *mut u16,
+            &mut printer_handle,
+            ptr::null_mut(),
+        );
+
+        if open_result == 0 {
+            let error_code = GetLastError();
+            error!("❌ [BYTES] 打开打印机失败: {}, 错误代码: {}", printer_name, error_code);
+            return Err(format!("Failed to open printer {}: Error {}", printer_name, error_code));
+        }
+
+        debug!("✅ [BYTES] 打印机打开成功, 句柄: {:?}", printer_handle);
+
+        let wide_datatype: Vec<u16> = OsStr::new("RAW").encode_wide().chain(std::iter::once(0)).collect();
+
+        let mut doc_info = DOC_INFO_1W {
+            pDocName: wide_document_name.as_ptr() as *mut u16,
+            pOutputFile: ptr::null_mut(),
+            pDatatype: wide_datatype.as_ptr() as *mut u16,
+        };
+
+        println!("🖨️ [BYTES] 正在开始打印文档...");
+        let doc_id = StartDocPrinterW(printer_handle, 1, &mut doc_info as *mut _ as *mut _);
+        if doc_id == 0 {
+            let error_code = GetLastError();
+            println!("❌ [BYTES] 开始文档失败, 错误代码: {}", error_code);
+            ClosePrinter(printer_handle);
+            return Err(format!("Failed to start document: Error {}", error_code));
+        }
+
+        println!("✅ [BYTES] 文档开始成功, 文档ID: {}", doc_id);
+
+        println!("🖨️ [BYTES] 正在开始打印页面...");
+        let page_result = StartPagePrinter(printer_handle);
+        if page_result == 0 {
+            let error_code = GetLastError();
+            println!("❌ [BYTES] 开始页面失败, 错误代码: {}", error_code);
+            EndDocPrinter(printer_handle);
+            ClosePrinter(printer_handle);
+            return Err(format!("Failed to start page: Error {}", error_code));
+        }
+
+        println!("✅ [BYTES] 页面开始成功");
+
+        let mut bytes_written: DWORD = 0;
+
+        println!("🖨️ [BYTES] 正在写入打印数据... ({} 字节)", content_bytes.len());
+
+        let write_result = WritePrinter(
+            printer_handle,
+            content_bytes.as_ptr() as *mut _,
+            content_bytes.len() as DWORD,
+            &mut bytes_written,
+        );
+
+        if write_result == 0 {
+            let error_code = GetLastError();
+            println!("❌ [BYTES] 写入打印机失败, 错误代码: {}", error_code);
+            EndPagePrinter(printer_handle);
+            EndDocPrinter(printer_handle);
+            ClosePrinter(printer_handle);
+            return Err(format!("Failed to write to printer: Error {}", error_code));
+        }
+
+        println!("✅ [BYTES] 写入成功, 已写入字节数: {} / {}", bytes_written, content_bytes.len());
+
+        println!("🖨️ [BYTES] 正在结束页面...");
+        let end_page_result = EndPagePrinter(printer_handle);
+        if end_page_result == 0 {
+            let error_code = GetLastError();
+            println!("❌ [BYTES] 结束页面失败, 错误代码: {}", error_code);
+            EndDocPrinter(printer_handle);
+            ClosePrinter(printer_handle);
+            return Err(format!("Failed to end page: Error {}", error_code));
+        }
+
+        println!("✅ [BYTES] 页面结束成功");
+
+        println!("🖨️ [BYTES] 正在结束文档...");
+        let end_doc_result = EndDocPrinter(printer_handle);
+        if end_doc_result == 0 {
+            let error_code = GetLastError();
+            println!("❌ [BYTES] 结束文档失败, 错误代码: {}", error_code);
+            ClosePrinter(printer_handle);
+            return Err(format!("Failed to end document: Error {}", error_code));
+        }
+
+        println!("✅ [BYTES] 文档结束成功");
+
+        println!("🖨️ [BYTES] 正在关闭打印机句柄...");
+        ClosePrinter(printer_handle);
+
+        println!("🎉 [BYTES] 字节模式打印完成! 打印机: {}", printer_name);
+
+        Ok(())
+    }
+}
+
+// 字节数组异步包装器
+#[cfg(target_os = "windows")]
+async fn print_to_printer_bytes(printer_name: &str, content_bytes: &[u8]) -> Result<(), String> {
+    let printer_name = printer_name.to_string();
+    let content_bytes = content_bytes.to_vec();
+
+    tokio::task::spawn_blocking(move || {
+        print_to_printer_bytes_sync(&printer_name, &content_bytes)
+    }).await.map_err(|e| format!("Task execution failed: {}", e))?
+}
+
 // 非Windows系统的占位实现
 #[cfg(not(target_os = "windows"))]
 async fn print_to_printer(printer_name: &str, content: &str) -> Result<(), String> {
     println!("Printing to {} (Linux/macOS simulation):\n{}", printer_name, content);
+    Ok(())
+}
+
+// 非Windows系统的字节数组占位实现
+#[cfg(not(target_os = "windows"))]
+async fn print_to_printer_bytes(printer_name: &str, content_bytes: &[u8]) -> Result<(), String> {
+    println!("Printing {} bytes to {} (Linux/macOS simulation)", content_bytes.len(), printer_name);
+    // 尝试将字节转换为UTF-8字符串用于显示
+    match std::str::from_utf8(content_bytes) {
+        Ok(content) => println!("Content preview:\n{}", &content[..std::cmp::min(200, content.len())]),
+        Err(_) => println!("Binary content, {} bytes", content_bytes.len()),
+    }
+    Ok(())
+}
+
+// 非Windows系统的增强版字节数组占位实现
+#[cfg(not(target_os = "windows"))]
+async fn print_to_printer_enhanced_bytes(printer_name: &str, content_bytes: &[u8]) -> Result<(), String> {
+    println!("Enhanced printing {} bytes to {} (Linux/macOS simulation)", content_bytes.len(), printer_name);
     Ok(())
 }
 
@@ -2377,6 +2952,137 @@ async fn print_to_printer_enhanced(printer_name: &str, content: &str) -> Result<
     tokio::task::spawn_blocking(move || {
         print_to_printer_enhanced_sync(&printer_name, &content)
     }).await.map_err(|e| format!("Task execution failed: {}", e))?
+}
+
+// 增强版字节数组异步包装器
+#[cfg(target_os = "windows")]
+async fn print_to_printer_enhanced_bytes(printer_name: &str, content_bytes: &[u8]) -> Result<(), String> {
+    let printer_name = printer_name.to_string();
+    let content_bytes = content_bytes.to_vec();
+
+    tokio::task::spawn_blocking(move || {
+        print_to_printer_enhanced_bytes_sync(&printer_name, &content_bytes)
+    }).await.map_err(|e| format!("Task execution failed: {}", e))?
+}
+
+// 增强版字节数组同步打印函数
+#[cfg(target_os = "windows")]
+fn print_to_printer_enhanced_bytes_sync(printer_name: &str, content_bytes: &[u8]) -> Result<(), String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    info!("🖨️ [ENHANCED_BYTES] 开始增强版字节模式打印到打印机: {}", printer_name);
+    debug!("🖨️ [ENHANCED_BYTES] 打印内容长度: {} 字节", content_bytes.len());
+
+    let wide_printer_name: Vec<u16> = OsStr::new(printer_name).encode_wide().chain(std::iter::once(0)).collect();
+    let wide_document_name: Vec<u16> = OsStr::new("Order Print (Enhanced Chinese)").encode_wide().chain(std::iter::once(0)).collect();
+
+    unsafe {
+        let mut printer_handle: HANDLE = ptr::null_mut();
+
+        info!("🖨️ [ENHANCED_BYTES] 正在打开打印机...");
+        let open_result = OpenPrinterW(
+            wide_printer_name.as_ptr() as *mut u16,
+            &mut printer_handle,
+            ptr::null_mut(),
+        );
+
+        if open_result == 0 {
+            let error_code = GetLastError();
+            error!("❌ [ENHANCED_BYTES] 打开打印机失败: {}, 错误代码: {}", printer_name, error_code);
+            return Err(format!("Failed to open printer {}: Error {}", printer_name, error_code));
+        }
+
+        info!("✅ [ENHANCED_BYTES] 打印机打开成功, 句柄: {:?}", printer_handle);
+
+        // 尝试多种数据类型
+        let datatypes = ["RAW", "TEXT", ""];
+        let mut last_error = String::new();
+
+        for (i, datatype_str) in datatypes.iter().enumerate() {
+            info!("🔄 [ENHANCED_BYTES] 尝试数据类型 {}/{}: '{}'", i + 1, datatypes.len(), datatype_str);
+
+            let wide_datatype: Vec<u16> = if datatype_str.is_empty() {
+                vec![0]
+            } else {
+                OsStr::new(datatype_str).encode_wide().chain(std::iter::once(0)).collect()
+            };
+
+            let mut doc_info = DOC_INFO_1W {
+                pDocName: wide_document_name.as_ptr() as *mut u16,
+                pOutputFile: ptr::null_mut(),
+                pDatatype: if datatype_str.is_empty() { ptr::null_mut() } else { wide_datatype.as_ptr() as *mut u16 },
+            };
+
+            let doc_id = StartDocPrinterW(printer_handle, 1, &mut doc_info as *mut _ as *mut _);
+            if doc_id == 0 {
+                let error_code = GetLastError();
+                last_error = format!("数据类型 '{}' 开始文档失败，错误代码: {}", datatype_str, error_code);
+                warn!("⚠️ [ENHANCED_BYTES] {}", last_error);
+                continue;
+            }
+
+            info!("✅ [ENHANCED_BYTES] 文档开始成功, 数据类型: '{}', 文档ID: {}", datatype_str, doc_id);
+
+            let page_result = StartPagePrinter(printer_handle);
+            if page_result == 0 {
+                let error_code = GetLastError();
+                warn!("⚠️ [ENHANCED_BYTES] 开始页面失败，错误代码: {}，尝试直接写入...", error_code);
+            } else {
+                info!("✅ [ENHANCED_BYTES] 页面开始成功");
+            }
+
+            let mut bytes_written: DWORD = 0;
+
+            info!("🖨️ [ENHANCED_BYTES] 正在写入打印数据... ({} 字节)", content_bytes.len());
+
+            let write_result = WritePrinter(
+                printer_handle,
+                content_bytes.as_ptr() as *mut _,
+                content_bytes.len() as DWORD,
+                &mut bytes_written,
+            );
+
+            if write_result == 0 {
+                let error_code = GetLastError();
+                last_error = format!("写入打印机失败，错误代码: {}", error_code);
+                warn!("⚠️ [ENHANCED_BYTES] {}", last_error);
+
+                if page_result != 0 {
+                    EndPagePrinter(printer_handle);
+                }
+                EndDocPrinter(printer_handle);
+                continue;
+            }
+
+            info!("✅ [ENHANCED_BYTES] 写入成功, 已写入字节数: {} / {}", bytes_written, content_bytes.len());
+
+            if page_result != 0 {
+                let end_page_result = EndPagePrinter(printer_handle);
+                if end_page_result == 0 {
+                    let error_code = GetLastError();
+                    warn!("⚠️ [ENHANCED_BYTES] 结束页面失败, 错误代码: {}", error_code);
+                } else {
+                    info!("✅ [ENHANCED_BYTES] 页面结束成功");
+                }
+            }
+
+            let end_doc_result = EndDocPrinter(printer_handle);
+            if end_doc_result == 0 {
+                let error_code = GetLastError();
+                warn!("⚠️ [ENHANCED_BYTES] 结束文档失败, 错误代码: {}", error_code);
+            } else {
+                info!("✅ [ENHANCED_BYTES] 文档结束成功");
+            }
+
+            ClosePrinter(printer_handle);
+            info!("🎉 [ENHANCED_BYTES] 增强版字节模式打印完成! 打印机: {}, 数据类型: {}", printer_name, datatype_str);
+            return Ok(());
+        }
+
+        ClosePrinter(printer_handle);
+        Err(format!("所有打印方式都失败了。最后错误: {}", last_error))
+    }
 }
 
 // 同步版本的命令行打印（用于线程安全）
@@ -3186,6 +3892,265 @@ async fn select_optimal_encoding(
     Ok(optimal_encoding)
 }
 
+// ==================== 新增的智能编码Tauri命令 ====================
+
+// 分析文本编码特征
+#[tauri::command]
+async fn analyze_text_encoding(text: String) -> Result<ChineseTextAnalysis, String> {
+    info!("📝 [ANALYZE] 开始分析文本编码特征");
+    info!("📝 [ANALYZE] 文本长度: {} 字符", text.chars().count());
+    
+    let analysis = analyze_chinese_text(&text);
+    
+    info!("✅ [ANALYZE] 分析完成: 中文={}, 简体={}, 繁体={}, 符号={}, 推荐编码={}",
+          analysis.has_chinese, analysis.has_simplified, analysis.has_traditional, 
+          analysis.has_symbols, analysis.recommended_encoding);
+    
+    Ok(analysis)
+}
+
+// 测试打印机中文支持能力
+#[tauri::command]
+async fn test_printer_chinese_support(
+    printer_name: String,
+    state: State<'_, AppState>
+) -> Result<PrinterEncodingCapability, String> {
+    info!("🧪 [CHINESE_TEST] 开始测试打印机中文支持: {}", printer_name);
+    
+    // 获取打印机配置
+    let printer_config = {
+        let printers = state.printers.lock().unwrap();
+        printers.iter().find(|p| p.name == printer_name).cloned()
+    };
+    
+    let printer = printer_config.ok_or_else(|| format!("打印机 {} 未找到", printer_name))?;
+    
+    // 测试文本集合
+    let test_texts = vec![
+        ("简体中文", "你好，这是简体中文测试：订单#12345，总计￥99.50"),
+        ("繁体中文", "您好，這是繁體中文測試：訂單#12345，總計￥99.50"), 
+        ("混合文本", "Hello你好！Order订单#12345，Total总计$99.50"),
+        ("中文符号", "【重要】订单确认※请注意：￥＄€…"),
+        ("菜品名称", "宫保鸡丁、麻婆豆腐、白米饭、可乐"),
+        ("地址信息", "北京市朝阳区望京街道123号2B室"),
+    ];
+    
+    let mut tested_encodings = Vec::new();
+    let encodings_to_test = &printer.fallback_encodings;
+    
+    for encoding in encodings_to_test {
+        info!("🔄 [CHINESE_TEST] 测试编码: {}", encoding);
+        
+        let mut total_score = 0.0;
+        let mut test_count = 0;
+        let mut error_messages = Vec::new();
+        
+        for (test_name, test_text) in &test_texts {
+            match test_single_encoding(&printer, test_text, encoding).await {
+                Ok(score) => {
+                    total_score += score;
+                    test_count += 1;
+                    info!("✅ [CHINESE_TEST] {} - {} 编码测试成功，得分: {:.2}", test_name, encoding, score);
+                }
+                Err(e) => {
+                    error_messages.push(format!("{}: {}", test_name, e));
+                    warn!("❌ [CHINESE_TEST] {} - {} 编码测试失败: {}", test_name, encoding, e);
+                }
+            }
+        }
+        
+        let average_score = if test_count > 0 { total_score / test_count as f64 } else { 0.0 };
+        let success = test_count > 0;
+        
+        tested_encodings.push(EncodingTestResult {
+            encoding_name: encoding.clone(),
+            success,
+            compatibility_score: average_score,
+            test_content: format!("测试了 {} 种文本类型", test_texts.len()),
+            error_message: if error_messages.is_empty() { None } else { Some(error_messages.join("; ")) },
+        });
+    }
+    
+    // 计算总体兼容性
+    let successful_tests: Vec<_> = tested_encodings.iter().filter(|t| t.success).collect();
+    let overall_compatibility = if !successful_tests.is_empty() {
+        successful_tests.iter().map(|t| t.compatibility_score).sum::<f64>() / successful_tests.len() as f64
+    } else {
+        0.0
+    };
+    
+    // 选择最佳编码
+    let recommended_encoding = successful_tests
+        .iter()
+        .max_by(|a, b| a.compatibility_score.partial_cmp(&b.compatibility_score).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|t| t.encoding_name.clone())
+        .unwrap_or_else(|| "UTF8".to_string());
+    
+    let capability = PrinterEncodingCapability {
+        printer_name: printer.name.clone(),
+        brand: printer.printer_brand.clone(),
+        supports_chinese: printer.supports_chinese,
+        tested_encodings,
+        recommended_encoding,
+        fallback_encodings: printer.fallback_encodings.clone(),
+        overall_compatibility,
+    };
+    
+    info!("🎉 [CHINESE_TEST] 测试完成: {} 总体兼容性 {:.1}%, 推荐编码 {}", 
+          printer_name, overall_compatibility * 100.0, capability.recommended_encoding);
+    
+    Ok(capability)
+}
+
+// 单个编码测试辅助函数
+async fn test_single_encoding(printer: &PrinterConfig, test_text: &str, encoding: &str) -> Result<f64, String> {
+    // 模拟编码转换测试
+    match convert_text_to_encoding(test_text, encoding) {
+        Ok(bytes) => {
+            // 基于编码结果计算得分
+            let original_len = test_text.len();
+            let encoded_len = bytes.len();
+            
+            // 计算编码效率得分
+            let efficiency_score = if encoded_len > 0 && original_len > 0 {
+                1.0 - (encoded_len as f64 / (original_len as f64 * 3.0)).min(1.0) // UTF-8最多3倍
+            } else {
+                0.0
+            };
+            
+            // 基于编码类型和打印机品牌调整得分
+            let brand_bonus = match (encoding, printer.printer_brand.to_lowercase().as_str()) {
+                ("GBK" | "GB18030", brand) if brand.contains("xprinter") || brand.contains("gprinter") => 0.2,
+                ("UTF8", brand) if brand.contains("epson") || brand.contains("citizen") => 0.15,
+                ("BIG5", _) if test_text.contains("您") || test_text.contains("這") => 0.1,
+                _ => 0.0,
+            };
+            
+            let final_score = (0.7 + efficiency_score * 0.3 + brand_bonus).min(1.0);
+            Ok(final_score)
+        }
+        Err(e) => Err(format!("编码转换失败: {}", e)),
+    }
+}
+
+// 获取打印机编码能力信息
+#[tauri::command]
+async fn get_printer_encoding_capability(
+    printer_name: String,
+    state: State<'_, AppState>
+) -> Result<PrinterEncodingCapability, String> {
+    info!("📊 [CAPABILITY] 获取打印机编码能力: {}", printer_name);
+    
+    let printer_config = {
+        let printers = state.printers.lock().unwrap();
+        printers.iter().find(|p| p.name == printer_name).cloned()
+    };
+    
+    let printer = printer_config.ok_or_else(|| format!("打印机 {} 未找到", printer_name))?;
+    
+    // 基于已知信息估算编码能力
+    let mut estimated_encodings = Vec::new();
+    
+    for encoding in &printer.fallback_encodings {
+        let score = estimate_encoding_compatibility(encoding, &printer.printer_brand);
+        estimated_encodings.push(EncodingTestResult {
+            encoding_name: encoding.clone(),
+            success: score > 0.5,
+            compatibility_score: score,
+            test_content: "基于品牌和编码类型的估算".to_string(),
+            error_message: None,
+        });
+    }
+    
+    let overall_compatibility = if !estimated_encodings.is_empty() {
+        estimated_encodings.iter().map(|e| e.compatibility_score).sum::<f64>() / estimated_encodings.len() as f64
+    } else {
+        0.5 // 默认中等兼容性
+    };
+    
+    let capability = PrinterEncodingCapability {
+        printer_name: printer.name.clone(),
+        brand: printer.printer_brand.clone(),
+        supports_chinese: printer.supports_chinese,
+        tested_encodings: estimated_encodings,
+        recommended_encoding: printer.preferred_encoding.clone(),
+        fallback_encodings: printer.fallback_encodings.clone(),
+        overall_compatibility,
+    };
+    
+    info!("✅ [CAPABILITY] 编码能力评估完成: {} 兼容性 {:.1}%", printer_name, overall_compatibility * 100.0);
+    
+    Ok(capability)
+}
+
+// 估算编码兼容性得分
+fn estimate_encoding_compatibility(encoding: &str, brand: &str) -> f64 {
+    let brand_lower = brand.to_lowercase();
+    
+    match encoding.to_uppercase().as_str() {
+        "UTF8" | "UTF-8" => {
+            if brand_lower.contains("epson") || brand_lower.contains("citizen") || brand_lower.contains("star") {
+                0.9 // 日系品牌UTF-8兼容性好
+            } else {
+                0.8 // 其他品牌UTF-8普遍兼容
+            }
+        }
+        "GBK" => {
+            if brand_lower.contains("xprinter") || brand_lower.contains("gprinter") {
+                0.95 // 中国品牌GBK兼容性最好
+            } else if brand_lower.contains("thermal") || brand_lower.contains("pos") {
+                0.85 // 通用热敏打印机GBK兼容性好
+            } else {
+                0.7 // 其他品牌GBK兼容性一般
+            }
+        }
+        "GB18030" => {
+            if brand_lower.contains("xprinter") || brand_lower.contains("gprinter") {
+                0.9 // 中国品牌GB18030兼容性好
+            } else {
+                0.6 // 其他品牌支持有限
+            }
+        }
+        "BIG5" => {
+            if brand_lower.contains("epson") {
+                0.8 // Epson对Big5支持较好
+            } else {
+                0.6 // 其他品牌支持一般
+            }
+        }
+        "ASCII" => 0.95, // ASCII几乎所有打印机都支持
+        _ => 0.5, // 未知编码默认中等兼容性
+    }
+}
+
+// 设置打印机编码偏好
+#[tauri::command]
+async fn set_printer_encoding_preference(
+    printer_name: String,
+    preferred_encoding: String,
+    fallback_encodings: Option<Vec<String>>,
+    state: State<'_, AppState>
+) -> Result<(), String> {
+    info!("⚙️ [PREF] 设置打印机编码偏好: {} -> {}", printer_name, preferred_encoding);
+    
+    let mut printers = state.printers.lock().unwrap();
+    
+    if let Some(printer) = printers.iter_mut().find(|p| p.name == printer_name) {
+        printer.preferred_encoding = preferred_encoding.clone();
+        
+        if let Some(fallbacks) = fallback_encodings {
+            printer.fallback_encodings = fallbacks;
+        }
+        
+        info!("✅ [PREF] 编码偏好设置成功: {} 首选={}, 备用={:?}", 
+              printer_name, preferred_encoding, printer.fallback_encodings);
+        
+        Ok(())
+    } else {
+        Err(format!("打印机 {} 未找到", printer_name))
+    }
+}
+
 fn main() {
     // 初始化日志系统
     if let Err(e) = init_logger() {
@@ -3223,7 +4188,12 @@ fn main() {
             test_all_encodings_for_printer,
             generate_encoding_compatibility_report,
             print_order_with_encoding,
-            select_optimal_encoding
+            select_optimal_encoding,
+            // 新增的智能编码命令
+            analyze_text_encoding,
+            test_printer_chinese_support,
+            get_printer_encoding_capability,
+            set_printer_encoding_preference
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
