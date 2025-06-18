@@ -73,6 +73,18 @@ enum Commands {
     },
     /// 交互式模式
     Interactive,
+    /// 诊断打印机问题
+    DiagnosePrinter {
+        /// 打印机名称
+        #[arg(short, long)]
+        printer: String,
+    },
+    /// 检查打印队列状态
+    CheckQueue {
+        /// 打印机名称
+        #[arg(short, long)]
+        printer: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -210,6 +222,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Commands::Interactive => {
                     interactive_mode()?;
                 }
+                Commands::DiagnosePrinter { printer } => {
+                    diagnose_printer(&printer)?;
+                }
+                Commands::CheckQueue { printer } => {
+                    check_queue(&printer)?;
+                }
             }
         }
         None => {
@@ -230,13 +248,15 @@ fn show_welcome_and_menu() -> Result<(), Box<dyn std::error::Error>> {
     println!("📋 可用命令:");
     println!("  1. list-printers  - 获取系统打印机列表");
     println!("  2. test-print     - 测试打印功能");
-    println!("  3. preview-order  - 预览订单排版");
-    println!("  4. interactive    - 进入交互式模式");
+    println!("  3. interactive    - 进入交互式模式");
+    println!("  4. diagnose-printer - 诊断打印机问题");
+    println!("  5. check-queue      - 检查打印队列状态");
     println!();
     println!("💡 使用示例:");
     println!("  printer-engine.exe list-printers");
-    println!("  printer-engine.exe preview-order");
     println!("  printer-engine.exe interactive");
+    println!("  printer-engine.exe diagnose-printer --printer \"打印机名称\"");
+    println!("  printer-engine.exe check-queue --printer \"打印机名称\"");
     println!("  printer-engine.exe --help");
     println!();
     println!("🔧 当前状态:");
@@ -278,9 +298,10 @@ fn interactive_mode() -> Result<(), Box<dyn std::error::Error>> {
         println!("请选择操作:");
         println!("  1. 获取打印机列表");
         println!("  2. 测试打印");
-        println!("  3. 预览订单排版");
-        println!("  4. 退出");
-        print!("请输入选择 (1-4): ");
+        println!("  3. 诊断打印机问题");
+        println!("  4. 检查打印队列状态");
+        println!("  5. 退出");
+        print!("请输入选择 (1-5): ");
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -366,64 +387,101 @@ fn interactive_mode() -> Result<(), Box<dyn std::error::Error>> {
                         println!();
                     }
                     "3" => {
-                        println!("\n🖨️ 预览订单排版...");
-                        print!("请输入纸张宽度 (58 或 80, 默认80): ");
-                        io::stdout().flush()?;
-
-                        let mut width_input = String::new();
-                        match std::io::stdin().read_line(&mut width_input) {
-                            Ok(_) => {
-                                let width = if width_input.trim().is_empty() {
-                                    80
+                        println!("\n🔍 诊断打印机问题...");
+                        match get_system_printers() {
+                            Ok(printers) => {
+                                if printers.is_empty() {
+                                    println!("⚠️ 未找到任何打印机");
                                 } else {
-                                    width_input.trim().parse::<i32>().unwrap_or(80)
-                                };
-
-                                if width == 58 || width == 80 {
-                                    print!("请输入字体大小 (0=小号, 1=中号, 2=大号, 默认0): ");
+                                    println!("请选择要诊断的打印机:");
+                                    for (i, printer) in printers.iter().enumerate() {
+                                        println!("  {}. {}", i + 1, printer);
+                                    }
+                                    print!("请输入编号: ");
                                     io::stdout().flush()?;
 
-                                    let mut font_size_input = String::new();
-                                    match std::io::stdin().read_line(&mut font_size_input) {
+                                    let mut input = String::new();
+                                    match std::io::stdin().read_line(&mut input) {
                                         Ok(_) => {
-                                            let font_size = if font_size_input.trim().is_empty() {
-                                                0
-                                            } else {
-                                                font_size_input.trim().parse::<i32>().unwrap_or(0)
-                                            };
+                                            if let Ok(index) = input.trim().parse::<usize>() {
+                                                if index > 0 && index <= printers.len() {
+                                                    let printer = &printers[index - 1];
+                                                    println!("🔍 开始诊断打印机: '{}'...", printer);
 
-                                            if font_size >= 0 && font_size <= 2 {
-                                                println!("使用示例订单数据进行预览...");
-                                                let order_data = create_sample_order_data();
-
-                                                match preview_order_layout(&order_data, width, font_size) {
-                                                    Ok(_) => println!("✅ 预览完成！"),
-                                                    Err(e) => println!("❌ 预览失败: {}", e),
+                                                    match diagnose_printer(printer) {
+                                                        Ok(_) => {},
+                                                        Err(e) => println!("❌ 诊断过程出错: {}", e),
+                                                    }
+                                                } else {
+                                                    println!("❌ 无效的选择");
                                                 }
                                             } else {
-                                                println!("❌ 字体大小必须在0-2之间");
+                                                println!("❌ 请输入有效数字");
                                             }
                                         }
                                         Err(e) => {
                                             println!("❌ 读取输入失败: {}", e);
                                         }
                                     }
-                                } else {
-                                    println!("❌ 纸张宽度必须是58或80");
                                 }
                             }
                             Err(e) => {
-                                println!("❌ 读取输入失败: {}", e);
+                                println!("❌ 获取打印机失败: {}", e);
                             }
                         }
                         println!();
                     }
                     "4" => {
+                        println!("\n📊 检查打印队列状态...");
+                        match get_system_printers() {
+                            Ok(printers) => {
+                                if printers.is_empty() {
+                                    println!("⚠️ 未找到任何打印机");
+                                } else {
+                                    println!("请选择要检查队列的打印机:");
+                                    for (i, printer) in printers.iter().enumerate() {
+                                        println!("  {}. {}", i + 1, printer);
+                                    }
+                                    print!("请输入编号: ");
+                                    io::stdout().flush()?;
+
+                                    let mut input = String::new();
+                                    match std::io::stdin().read_line(&mut input) {
+                                        Ok(_) => {
+                                            if let Ok(index) = input.trim().parse::<usize>() {
+                                                if index > 0 && index <= printers.len() {
+                                                    let printer = &printers[index - 1];
+                                                    println!("📊 检查打印机 '{}' 的队列状态...", printer);
+
+                                                    match check_queue(printer) {
+                                                        Ok(_) => {},
+                                                        Err(e) => println!("❌ 检查过程出错: {}", e),
+                                                    }
+                                                } else {
+                                                    println!("❌ 无效的选择");
+                                                }
+                                            } else {
+                                                println!("❌ 请输入有效数字");
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!("❌ 读取输入失败: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                println!("❌ 获取打印机失败: {}", e);
+                            }
+                        }
+                        println!();
+                    }
+                    "5" => {
                         println!("👋 再见！");
                         break;
                     }
                     _ => {
-                        println!("❌ 无效选择 '{}'，请输入 1-4\n", choice);
+                        println!("❌ 无效选择 '{}'，请输入 1-5\n", choice);
                     }
                 }
             }
@@ -1204,4 +1262,268 @@ fn format_remark_with_wrap(remark: &str, width: usize, prefix: &str) -> String {
     }
 
     result
+}
+
+fn diagnose_printer(printer_name: &str) -> Result<(), String> {
+    println!("🔍 开始诊断打印机: {}", printer_name);
+    println!("========================================");
+
+    // 1. 检查打印机是否存在
+    println!("📋 步骤 1: 检查打印机是否存在...");
+    match get_system_printers() {
+        Ok(printers) => {
+            if printers.contains(&printer_name.to_string()) {
+                println!("✅ 打印机 '{}' 已找到", printer_name);
+            } else {
+                println!("❌ 打印机 '{}' 未找到", printer_name);
+                println!("📋 可用打印机列表:");
+                for (i, printer) in printers.iter().enumerate() {
+                    println!("  {}. {}", i + 1, printer);
+                }
+                return Err("打印机不存在".to_string());
+            }
+        }
+        Err(e) => {
+            println!("❌ 无法获取打印机列表: {}", e);
+            return Err("无法获取打印机列表".to_string());
+        }
+    }
+
+    // 2. 测试打开打印机
+    println!("\n📋 步骤 2: 测试打开打印机...");
+    #[cfg(windows)]
+    {
+        let wide_printer_name: Vec<u16> = OsStr::new(printer_name)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        unsafe {
+            let mut printer_handle: HANDLE = ptr::null_mut();
+            let open_result = OpenPrinterW(
+                wide_printer_name.as_ptr() as *mut u16,
+                &mut printer_handle,
+                ptr::null_mut(),
+            );
+
+            if open_result == 0 {
+                let error_code = GetLastError();
+                println!("❌ 无法打开打印机，错误代码: {}", error_code);
+                println!("💡 可能的原因:");
+                match error_code {
+                    5 => println!("   - 访问被拒绝：可能需要管理员权限"),
+                    1801 => println!("   - 打印机名称无效"),
+                    1812 => println!("   - 指定的打印机或打印机驱动程序与系统不兼容"),
+                    _ => println!("   - 打印机可能离线、出纸、或驱动程序问题"),
+                }
+                println!("🔧 建议解决方案:");
+                println!("   1. 右键程序 -> 以管理员身份运行");
+                println!("   2. 检查打印机是否在线");
+                println!("   3. 重新安装打印机驱动");
+                println!("   4. 检查打印机是否设置为默认打印机");
+                return Err(format!("无法打开打印机，错误代码: {}", error_code));
+            } else {
+                println!("✅ 打印机打开成功，句柄: {:?}", printer_handle);
+                ClosePrinter(printer_handle);
+            }
+        }
+    }
+
+    // 3. 测试简单打印
+    println!("\n📋 步骤 3: 测试简单打印...");
+    let simple_test = "Test Print\nSimple ASCII Text\n123456789\n";
+    match print_raw_content(printer_name, simple_test) {
+        Ok(_) => {
+            println!("✅ 简单打印测试成功");
+            println!("💡 如果打印机没有出纸，可能是以下原因:");
+            println!("   1. 打印机缺纸或卡纸");
+            println!("   2. 打印机处于离线状态");
+            println!("   3. 打印机正在处理其他任务");
+            println!("   4. 热敏打印机需要特殊的ESC/POS命令");
+        }
+        Err(e) => {
+            println!("❌ 简单打印测试失败: {}", e);
+            return Err(format!("简单打印测试失败: {}", e));
+        }
+    }
+
+    // 4. 测试ESC/POS命令
+    println!("\n📋 步骤 4: 测试ESC/POS热敏打印命令...");
+    let escpos_test = "\x1B@\x1B\x45\x01TEST\x1B\x45\x00\n\x1D\x56\x00";
+    match print_raw_content(printer_name, escpos_test) {
+        Ok(_) => {
+            println!("✅ ESC/POS命令测试成功");
+        }
+        Err(e) => {
+            println!("⚠️ ESC/POS命令测试失败: {}", e);
+            println!("💡 这可能表明打印机不是热敏打印机或不支持ESC/POS");
+        }
+    }
+
+    // 5. 测试中文打印
+    println!("\n📋 步骤 5: 测试中文打印...");
+    let chinese_test = "\x1B@中文测试\n测试完成\n\x1D\x56\x00";
+    match print_raw_content(printer_name, chinese_test) {
+        Ok(_) => {
+            println!("✅ 中文打印测试成功");
+        }
+        Err(e) => {
+            println!("⚠️ 中文打印测试失败: {}", e);
+        }
+    }
+
+    // 6. 检查打印机状态和配置建议
+    println!("\n📋 步骤 6: 配置建议...");
+    println!("🔧 为了确保打印正常，请检查:");
+    println!("   ✓ 打印机电源是否开启");
+    println!("   ✓ 打印机是否有纸");
+    println!("   ✓ 打印机盖子是否关闭");
+    println!("   ✓ USB/网络连接是否正常");
+    println!("   ✓ 打印机驱动是否正确安装");
+    println!("   ✓ 打印机是否处于在线状态");
+
+    println!("\n🎯 如果上述测试都成功但仍然没有打印输出:");
+    println!("   1. 尝试打印测试页：控制面板 -> 打印机 -> 右键打印机 -> 打印测试页");
+    println!("   2. 检查打印队列是否有卡住的任务");
+    println!("   3. 重启打印机服务：services.msc -> Print Spooler -> 重启");
+    println!("   4. 更换打印机驱动或使用通用/文本驱动");
+
+    println!("\n🎉 诊断完成！");
+    Ok(())
+}
+
+fn check_queue(printer_name: &str) -> Result<(), String> {
+    println!("🔍 开始检查打印队列状态: {}", printer_name);
+    println!("========================================");
+
+    // 1. 检查打印机是否存在
+    println!("📋 步骤 1: 检查打印机是否存在...");
+    match get_system_printers() {
+        Ok(printers) => {
+            if printers.contains(&printer_name.to_string()) {
+                println!("✅ 打印机 '{}' 已找到", printer_name);
+            } else {
+                println!("❌ 打印机 '{}' 未找到", printer_name);
+                println!("📋 可用打印机列表:");
+                for (i, printer) in printers.iter().enumerate() {
+                    println!("  {}. {}", i + 1, printer);
+                }
+                return Err("打印机不存在".to_string());
+            }
+        }
+        Err(e) => {
+            println!("❌ 无法获取打印机列表: {}", e);
+            return Err("无法获取打印机列表".to_string());
+        }
+    }
+
+    // 2. 检查打印队列状态
+    println!("\n📋 步骤 2: 检查打印队列状态...");
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+
+        // 查询打印队列
+        let output = Command::new("powershell")
+            .args(&["-Command", &format!("Get-PrintJob -PrinterName '{}'", printer_name)])
+            .output();
+
+        match output {
+            Ok(cmd_output) => {
+                let stdout = String::from_utf8_lossy(&cmd_output.stdout);
+                let stderr = String::from_utf8_lossy(&cmd_output.stderr);
+
+                if stdout.trim().is_empty() && stderr.contains("No print jobs") || stderr.contains("does not exist") {
+                    println!("✅ 打印队列为空");
+                } else if !stdout.trim().is_empty() {
+                    println!("⚠️ 打印队列中有待处理的任务:");
+                    println!("{}", stdout);
+
+                    // 询问是否清空队列
+                    use std::io::{self, Write};
+                    print!("是否要清空打印队列? (y/N): ");
+                    io::stdout().flush().unwrap();
+
+                    let mut input = String::new();
+                    if let Ok(_) = std::io::stdin().read_line(&mut input) {
+                        if input.trim().to_lowercase() == "y" || input.trim().to_lowercase() == "yes" {
+                            println!("🗑️ 正在清空打印队列...");
+                            let clear_result = Command::new("powershell")
+                                .args(&["-Command", &format!("Get-PrintJob -PrinterName '{}' | Remove-PrintJob", printer_name)])
+                                .output();
+
+                            match clear_result {
+                                Ok(_) => println!("✅ 打印队列已清空"),
+                                Err(e) => println!("❌ 清空队列失败: {}", e),
+                            }
+                        }
+                    }
+                } else {
+                    println!("⚠️ 无法确定队列状态: {}", stderr);
+                }
+            }
+            Err(e) => {
+                println!("❌ 无法检查打印队列: {}", e);
+
+                // 备用方法：使用wmic
+                println!("🔄 尝试备用方法...");
+                let backup_output = Command::new("wmic")
+                    .args(&["printjob", "where", &format!("name='{}'", printer_name), "get", "jobid,document"])
+                    .output();
+
+                match backup_output {
+                    Ok(cmd_output) => {
+                        let stdout = String::from_utf8_lossy(&cmd_output.stdout);
+                        if stdout.lines().count() > 1 {
+                            println!("⚠️ 检测到打印任务");
+                        } else {
+                            println!("✅ 打印队列为空");
+                        }
+                    }
+                    Err(_) => {
+                        println!("⚠️ 无法通过任何方法检查打印队列");
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. 检查打印机状态
+    println!("\n📋 步骤 3: 检查打印机服务状态...");
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+
+        let output = Command::new("sc")
+            .args(&["query", "spooler"])
+            .output();
+
+        match output {
+            Ok(cmd_output) => {
+                let stdout = String::from_utf8_lossy(&cmd_output.stdout);
+                if stdout.contains("RUNNING") {
+                    println!("✅ 打印假脱机服务正在运行");
+                } else {
+                    println!("❌ 打印假脱机服务未运行");
+                    println!("💡 可以尝试运行: net start spooler");
+                }
+            }
+            Err(e) => {
+                println!("⚠️ 无法检查打印假脱机服务状态: {}", e);
+            }
+        }
+    }
+
+    println!("\n💡 常见解决方案:");
+    println!("1. 重启打印假脱机服务:");
+    println!("   net stop spooler && net start spooler");
+    println!("2. 清理打印队列文件:");
+    println!("   del /q /s C:\\Windows\\System32\\spool\\PRINTERS\\*");
+    println!("3. 检查打印机设置:");
+    println!("   - 设置为默认打印机");
+    println!("   - 确保打印机在线");
+    println!("   - 检查纸张和墨盒");
+
+    println!("\n🎉 检查完成！");
+    Ok(())
 }

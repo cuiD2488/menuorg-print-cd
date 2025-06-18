@@ -1063,11 +1063,17 @@ class PrinterManager {
       if (window.electronAPI && window.electronAPI.printOrder) {
         // Electron环境：使用混合打印引擎
         console.log(`🔌 [打印] 使用Electron API打印`);
-        await window.electronAPI.printOrder(orderData, width, fontSize);
+        // 修复：添加打印机名称参数
+        await window.electronAPI.printOrder(
+          printer.name,
+          orderData,
+          width,
+          fontSize
+        );
       } else {
         // 浏览器环境：使用模拟打印
         console.log(`🌐 [打印] 使用模拟打印`);
-        await this.mockPrintOrder(printerName, width, fontSize, printer.name);
+        await this.mockPrintOrder(orderData, width, fontSize, printer.name);
       }
 
       console.log(`✅ [打印] 打印机 ${printer.name} 打印成功`);

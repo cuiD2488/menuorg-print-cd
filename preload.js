@@ -5,8 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   testPrint: (printerName, width, fontSize) =>
     ipcRenderer.invoke('test-print', printerName, width, fontSize),
-  printOrder: (orderData, width, fontSize) =>
-    ipcRenderer.invoke('print-order', orderData, width, fontSize),
+  printOrder: (printerName, orderData, width, fontSize) =>
+    ipcRenderer.invoke('print-order', printerName, orderData, width, fontSize),
 
   // 打印预览和设置
   printPreview: (orderData, settings) =>

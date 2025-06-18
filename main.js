@@ -346,15 +346,29 @@ const hybridPrinter = new PrinterHybrid();
 
 ipcMain.handle(
   'print-order',
-  async (event, orderData, width = 80, fontSize = 0) => {
+  async (event, printerName, orderData, width = 80, fontSize = 0) => {
     try {
       console.log('🖨️ 开始打印订单:', {
+        printerName,
         orderId: orderData.order_id,
         width,
         fontSize,
       });
 
-      // 获取配置中的选中打印机
+      // 如果指定了打印机名称，直接使用该打印机
+      if (printerName) {
+        console.log('🎯 使用指定打印机:', printerName);
+        const result = await hybridPrinter.printOrder(
+          printerName,
+          orderData,
+          width,
+          fontSize
+        );
+        console.log('✅ 打印成功:', printerName);
+        return result;
+      }
+
+      // 如果没有指定打印机，回退到配置中的选中打印机
       const config = getConfig();
       const selectedPrinters = config.selectedPrinters || [];
 
