@@ -31,6 +31,25 @@ class OrderPrintApp {
     const container = document.getElementById('printerList');
     const selectedPrinters = this.printerManager.getSelectedPrinters();
 
+    // 添加引擎状态调试信息
+    try {
+      const engineStatus = await window.electronAPI.getEngineStatus();
+      console.log('🔧 [调试] 打印引擎状态:', engineStatus);
+
+      // 在控制台显示详细状态
+      if (engineStatus.error) {
+        console.error('❌ [调试] 引擎错误:', engineStatus.error);
+      } else {
+        console.log(`🚀 [调试] 当前引擎: ${engineStatus.currentEngine}`);
+        console.log(`🦀 [调试] Rust 可用: ${engineStatus.rustAvailable}`);
+        console.log(
+          `📦 [调试] Node.js 回退: ${engineStatus.fallbackAvailable}`
+        );
+      }
+    } catch (error) {
+      console.error('❌ [调试] 获取引擎状态失败:', error);
+    }
+
     if (printers.length === 0) {
       container.innerHTML = `
         <div class="no-printers">

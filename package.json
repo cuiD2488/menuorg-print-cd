@@ -38,18 +38,12 @@
       "preload.js",
       "renderer/**/*",
       "src/**/*",
-      "target/release/*.dll",
-      "target/release/*.exe",
       "package.json"
     ],
-    "extraFiles": [
+    "extraResources": [
       {
-        "from": "target/release",
-        "to": ".",
-        "filter": [
-          "*.dll",
-          "*.exe"
-        ]
+        "from": "target/release/printer-engine.exe",
+        "to": "printer-engine.exe"
       }
     ]
   },

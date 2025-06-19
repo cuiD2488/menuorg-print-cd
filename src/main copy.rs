@@ -71,14 +71,6 @@ pub struct PrintResult {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-// pub struct OrderData {
-//     pub order_id: String,
-//     pub rd_name: String,
-//     pub recipient_name: String,
-//     pub recipient_address: String,
-//     pub dishes_array: Vec<DishItem>,
-//     pub total: String,
-// }
 pub struct OrderData {
     pub order_id: String,
     pub rd_id: i64,
@@ -129,10 +121,33 @@ pub struct OrderData {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DishItem {
-    pub dishes_name: String,
-    pub amount: i32,
     pub price: String,
+    pub amount: i32,
     pub remark: String,
+    pub dishes_id: i64,
+    pub unit_price: String,
+    pub dishes_name: String,
+    pub dishes_describe: String,
+    pub dishes_specs_id: Vec<DishSpec>,
+    pub dishes_series_id: i64,
+    pub image_url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DishSpec {
+    pub specs_id: i32,
+    pub value_info: Vec<SpecValue>,
+    pub dishes_id: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SpecValue {
+    pub name: String,
+    pub count: i32,
+    pub money: String,
+    pub value_id: i32,
+    pub dishes_id: i64,
+    pub specs_id: i32,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -169,6 +184,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{}", json_output);
                 }
                 Commands::TestPrint { printer, width, font_size } => {
+                    // 创建测试用的订单数据
+                    let test_order = create_test_order_data();
                     let test_content = generate_test_content(width, font_size);
                     let result = print_raw_content(&printer, &test_content);
 
@@ -319,7 +336,8 @@ fn interactive_mode() -> Result<(), Box<dyn std::error::Error>> {
                                                     let printer = &printers[index - 1];
                                                     println!("🖨️ 向 '{}' 发送测试打印...", printer);
 
-                                                    let test_content = generate_test_content(80, 0);
+                                                    let test_order = create_test_order_data();
+                                                    let test_content = generate_test_content( 80, 0);
                                                     match print_raw_content(printer, &test_content) {
                                                         Ok(_) => println!("✅ 测试打印发送成功！"),
                                                         Err(e) => println!("❌ 测试打印失败: {}", e),
@@ -402,176 +420,70 @@ fn print_order_internal(printer_name: &str, order_data: &OrderData, width: i32, 
 }
 
 fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Result<String, String> {
+    let char_width = if width == 80 { 48 } else { 32 };
     let mut content = String::new();
 
     // ESC/POS 初始化命令
     content.push_str("\x1B@"); // 初始化打印机
+    content.push_str("\x1C\x26"); // 启用汉字模式
+    content.push_str("\x1C\x43\x01"); // 选择汉字字符模式
 
     // 设置字体大小
     match font_size {
-        0 => content.push_str("\x1D\x22\x04"), // 正常大小
-        1 => content.push_str("\x1D\x22\x10"), // 宽度1x，高度2x
-        2 => content.push_str("\x1D\x22\x11"), // 宽度2x，高度2x
-        _ => content.push_str("\x1D\x22\x04"), // 默认为正常大小
+        0 => content.push_str("\x1D\x21\x00"), // 小号
+        1 => content.push_str("\x1D\x21\x10"), // 中号
+        2 => content.push_str("\x1D\x21\x11"), // 大号
+        _ => content.push_str("\x1D\x21\x00"), // 默认
     }
 
-    // 设置行间距
-    content.push_str("\x1B\x33\x28"); // 设置行间距
-
-    let char_width = if width == 80 { 48 } else { 32 }; // 字符宽度
-
-    // ============= 餐厅信息 =============
-    // content.push_str(&"=".repeat(char_width));
-    // content.push_str("\n");
-    // content.push_str("\x1B\x45\x01"); // 加粗
-    // content.push_str(&center_text_mixed(&order.rd_name, char_width));
-    // content.push_str("\x1B\x45\x00"); // 关闭加粗
-    // content.push_str("\n");
-    // content.push_str(&"=".repeat(char_width));
-    // content.push_str("\n\n");
-
-    // ============= 订单基本信息 =============
-    content.push_str(&center_text_mixed(&format!("Order #: {}", order.order_id), char_width));
+    // 头部信息
+    content.push_str("=".repeat(char_width as usize).as_str());
     content.push_str("\n");
-
-    // 基本信息表格 create_time
-    content.push_str(&format_table_row("Order Date:", &order.create_time, char_width));
-    content.push_str(&format_table_row("Pickup Time:", &order.delivery_time, char_width));
-    content.push_str(&format_table_row("Payment:", &order.payment_method, char_width));
-    content.push_str(&format_table_row("Customer:", &prepare_mixed_content(&order.recipient_name), char_width));
-    content.push_str(&format_table_row("Phone:", &order.recipient_phone, char_width));
-
-    // 取餐方式
-    let delivery_info = if order.delivery_style == 1 {
-        "Delivery"
-    } else {
-        "Pickup"
-    };
-    content.push_str(&format_table_row("Type:", delivery_info, char_width));
-
-    // 如果是外送，显示地址
-    if order.delivery_style == 1 && !order.recipient_address.is_empty() {
-        content.push_str(&format_table_row("Address:", &order.recipient_address, char_width));
-    }
-
-    content.push_str("\n");
-    content.push_str(&"-".repeat(char_width));
-    content.push_str("\n");
-
-    // ============= 商品明细 =============
-    // 表格标题
-    let header = format_table_header("Item Name", "Qty", "Total", "", char_width);
-    content.push_str(&header);
-    content.push_str(&"-".repeat(char_width));
-    content.push_str("\n");
-
-    for item in &order.dishes_array {
-        let price: f64 = item.price.parse().unwrap_or(0.0);
-
-        // 商品行 - 中文菜名
-        content.push_str(&format_item_table_row(
-            &prepare_mixed_content(&item.dishes_name),
-            item.amount,
-            price,
-            price,
-            char_width
-        ));
-
-        // 英文描述 - 应用智能换行 TODO:
-        // if !item.dishes_description.is_empty() {
-        //     content.push_str(&format_description_with_wrap(&item.dishes_description, char_width, "  "));
-        // }
-
-        // 特殊要求 - 应用智能换行
-        // if !item.remark.is_empty() {
-        //     content.push_str(&format_remark_with_wrap(&item.remark, char_width, "  Note: "));
-        // }
-
-        // 增加商品间的行距
-        content.push_str("\n");
-    }
-
-    content.push_str("\n");
-    content.push_str(&"-".repeat(char_width));
-    content.push_str("\n");
-
-    // ============= PAYMENT SUMMARY =============
     content.push_str("\x1B\x45\x01"); // 加粗
-    content.push_str(&center_text_mixed("PAYMENT SUMMARY", char_width));
+    content.push_str(&center_text(&order.rd_name, char_width as usize));
     content.push_str("\x1B\x45\x00"); // 关闭加粗
     content.push_str("\n");
-    content.push_str(&"-".repeat(char_width));
+    content.push_str("=".repeat(char_width as usize).as_str());
+    content.push_str("\n\n");
+
+    // 订单信息
+    content.push_str(&format!("Order #: {}\n", order.order_id));
+    content.push_str(&format!("Customer: {}\n", order.recipient_name));
+    if !order.recipient_address.is_empty() {
+        content.push_str(&format!("Address: {}\n", order.recipient_address));
+    }
     content.push_str("\n");
 
-    // 费用明细
-    let subtotal: f64 = order.sub_total.parse().unwrap_or(0.0);
-    let discount: f64 = order.discount_total.parse().unwrap_or(0.0);
-    let tax_fee: f64 = order.tax_fee.parse().unwrap_or(0.0);
-    let tax_rate: f64 = order.tax_rate.parse().unwrap_or(0.0);
-    let delivery_fee: f64 = order.delivery_fee.parse().unwrap_or(0.0);
-    let service_fee: f64 = order.convenience_fee.parse().unwrap_or(0.0);
-    let service_rate: f64 = order.convenience_rate.parse().unwrap_or(0.0);
-    let tip: f64 = order.tip_fee.parse().unwrap_or(0.0);
-    let total: f64 = order.total.parse().unwrap_or(0.0);
-
-    // 小计
-    content.push_str(&format_fee_line("Subtotal", subtotal, char_width));
-
-    // 折扣
-    if discount > 0.0 {
-        content.push_str(&format_fee_line("Discount", -discount, char_width));
-    }
-
-    // 税费
-    if tax_fee > 0.0 {
-        let tax_label = if tax_rate > 0.0 {
-            format!("Tax ({:.1}%)", tax_rate)
-        } else {
-            "Tax".to_string()
-        };
-        content.push_str(&format_fee_line(&tax_label, tax_fee, char_width));
-    }
-
-    // 配送费
-    if delivery_fee > 0.0 {
-        content.push_str(&format_fee_line("Delivery Fee", delivery_fee, char_width));
-    }
-
-    // 服务费
-    if service_fee > 0.0 {
-        let service_label = if service_rate > 0.0 {
-            format!("Service Fee ({:.1}%)", service_rate)
-        } else {
-            "Service Fee".to_string()
-        };
-        content.push_str(&format_fee_line(&service_label, service_fee, char_width));
-    }
-
-    // 小费
-    if tip > 0.0 {
-        content.push_str(&format_fee_line("Tip", tip, char_width));
-    }
-    content.push_str(&format_fee_line("TOTAL", total, char_width));
-
-    content.push_str("\n");
+    // 商品列表
+    content.push_str("-".repeat(char_width as usize).as_str());
+    content.push_str("\nITEMS:\n");
+    content.push_str("-".repeat(char_width as usize).as_str());
     content.push_str("\n");
 
-    // 总计 (加粗显示)
-    // content.push_str("\x1B\x45\x01"); // 加粗
-    // content.push_str(&format_fee_line("TOTAL", total, char_width));
-    // content.push_str("\x1B\x45\x00"); // 关闭加粗
+    for dish in &order.dishes_array {
+        content.push_str(&format!("{} x{}\n", dish.dishes_name, dish.amount));
+        if !dish.remark.is_empty() {
+            content.push_str(&format!("  Note: {}\n", dish.remark));
+        }
+        content.push_str(&format!("  ${}\n\n", dish.price));
+    }
 
-    content.push_str("\n\n\n\n"); // 空行，为切纸预留空间
-    content.push_str("\n\n\n\n"); // 空行，为切纸预留空间
-    content.push_str("\n\n\n\n"); // 空行，为切纸预留空间
+    // 总计
+    content.push_str("-".repeat(char_width as usize).as_str());
+    content.push_str("\n");
+    content.push_str("\x1B\x45\x01"); // 加粗
+    content.push_str(&format!("TOTAL: ${}\n", order.total));
+    content.push_str("\x1B\x45\x00"); // 关闭加粗
+    content.push_str("=".repeat(char_width as usize).as_str());
+    content.push_str("\n\n");
 
-    // 单次自动切纸命令
-    content.push_str("\x1D\x56\x00"); // GS V 0 - 全切
+    // 切纸命令
+    content.push_str("\x1D\x56\x00");
 
     Ok(content)
 }
 
-fn generate_test_content(width: i32, font_size: i32) -> String {
+fn generate_test_content( width: i32, font_size: i32) -> String {
     let char_width = if width == 80 { 48 } else { 32 };
     let mut content = String::new();
 
@@ -584,7 +496,7 @@ fn generate_test_content(width: i32, font_size: i32) -> String {
         2 => content.push_str("\x1D\x21\x11"),
         _ => content.push_str("\x1D\x21\x00"),
     }
-
+// 旧
     content.push_str("=".repeat(char_width as usize).as_str());
     content.push_str("\n");
     content.push_str(&center_text("TEST PRINT", char_width as usize));
@@ -597,6 +509,34 @@ fn generate_test_content(width: i32, font_size: i32) -> String {
     content.push_str(&format!("Width: {}mm\n", width));
     content.push_str(&format!("Font Size: {}\n", font_size));
     content.push_str("\n\n\n");
+// 旧
+    //  // 设置行间距
+    //  content.push_str("\x1B\x33\x20"); // 设置行间距
+
+    //  let char_width = if width == 80 { 48 } else { 32 }; // 字符宽度
+
+    //  // ============= 餐厅信息 =============
+    //  content.push_str(&"=".repeat(char_width));
+    //  content.push_str("\n");
+    //  content.push_str("\x1B\x45\x01"); // 加粗
+    // //  content.push_str(&center_text_mixed(&order.rd_name, char_width));
+    //  content.push_str("\x1B\x45\x00"); // 关闭加粗
+    //  content.push_str("\n");
+    //  content.push_str(&"=".repeat(char_width));
+    //  content.push_str("\n\n");
+
+     // ============= 订单基本信息 =============
+    //  content.push_str(&center_text_mixed(&format!("Order #: {}", order.order_id), char_width));
+    //  content.push_str("\n");
+    //  content.push_str(&center_text_mixed(&format!("Serial: {}", order.serial_num), char_width));
+    //  content.push_str("\n\n");
+
+    //  // 基本信息表格
+    //  content.push_str(&format_table_row("Order Date:", &order.order_date, char_width));
+    //  content.push_str(&format_table_row("Pickup Time:", &order.pickup_time, char_width));
+    //  content.push_str(&format_table_row("Payment:", &order.payment_method, char_width));
+    //  content.push_str(&format_table_row("Customer:", &prepare_mixed_content(&order.recipient_name), char_width));
+    //  content.push_str(&format_table_row("Phone:", &order.recipient_phone, char_width));
 
     // 切纸
     content.push_str("\x1D\x56\x00");
@@ -611,6 +551,113 @@ fn center_text(text: &str, width: usize) -> String {
     } else {
         let padding = (width - text_width) / 2;
         format!("{}{}\n", " ".repeat(padding), text)
+    }
+}
+
+// 计算显示宽度 (中文字符占2个宽度，英文字符占1个宽度)
+fn display_width(text: &str) -> usize {
+    text.chars().map(|c| if c.is_ascii() { 1 } else { 2 }).sum()
+}
+
+// 居中对齐混合文本 (支持中英文)
+fn center_text_mixed(text: &str, width: usize) -> String {
+    let text_width = display_width(text);
+    if text_width >= width {
+        format!("{}\n", text)
+    } else {
+        let padding = (width - text_width) / 2;
+        format!("{}{}\n", " ".repeat(padding), text)
+    }
+}
+
+// 表格行格式化 (左对齐标签，右对齐数值)
+fn format_table_row(label: &str, value: &str, width: usize) -> String {
+    let label_width = display_width(label);
+    let value_width = display_width(value);
+
+    if label_width + value_width + 2 > width {
+        // 如果一行放不下，换行显示
+        format!("{}\n  {}\n", label, value)
+    } else {
+        let spaces = width - label_width - value_width;
+        format!("{}{}{}\n", label, " ".repeat(spaces), value)
+    }
+}
+
+// 准备混合内容 (处理中英文)
+fn prepare_mixed_content(text: &str) -> String {
+    text.to_string()
+}
+
+// 创建测试用的订单数据
+fn create_test_order_data() -> OrderData {
+    OrderData {
+        order_id: "TEST12345".to_string(),
+        rd_id: 12345,
+        user_id: "test_user".to_string(),
+        order_status: 11,
+        paystyle: 1,
+        delivery_style: 0,
+        delivery_type: 0,
+        doordash_id: "".to_string(),
+        recipient_name: "Test Customer".to_string(),
+        recipient_address: "123 Test Street, Test City".to_string(),
+        recipient_phone: "123-456-7890".to_string(),
+        recipient_distance: "1.5".to_string(),
+        rd_name: "Test Restaurant".to_string(),
+        rd_address: "456 Restaurant Ave".to_string(),
+        rd_phone: "098-765-4321".to_string(),
+        dishes_count: 2,
+        dishes_id_list: "[1, 2]".to_string(),
+        dishes_array: vec![
+            DishItem {
+                price: "12.99".to_string(),
+                amount: 1,
+                remark: "Extra sauce".to_string(),
+                dishes_id: 1,
+                unit_price: "12.99".to_string(),
+                dishes_name: "Test Burger".to_string(),
+                dishes_describe: "Delicious test burger".to_string(),
+                dishes_specs_id: vec![],
+                dishes_series_id: 100,
+                image_url: "".to_string(),
+            },
+            DishItem {
+                price: "8.99".to_string(),
+                amount: 2,
+                remark: "".to_string(),
+                dishes_id: 2,
+                unit_price: "4.50".to_string(),
+                dishes_name: "Test Fries".to_string(),
+                dishes_describe: "Crispy test fries".to_string(),
+                dishes_specs_id: vec![],
+                dishes_series_id: 101,
+                image_url: "".to_string(),
+            },
+        ],
+        discount_dishes_info: serde_json::json!({}),
+        sub_total: "21.98".to_string(),
+        user_commission: "1.10".to_string(),
+        discount_total: "0.00".to_string(),
+        exemption: "0.00".to_string(),
+        tax_rate: "0.0800".to_string(),
+        tax_fee: "1.76".to_string(),
+        delivery_fee: "2.99".to_string(),
+        convenience_rate: "0.000000".to_string(),
+        convenience_fee: "0.00".to_string(),
+        retail_delivery_fee: "0.00".to_string(),
+        tip_fee: "4.40".to_string(),
+        total: "31.13".to_string(),
+        cloud_print: 0,
+        order_notes: "Test order notes".to_string(),
+        serial_num: 1,
+        order_pdf_url: "".to_string(),
+        user_email: "test@example.com".to_string(),
+        create_time: "2024-01-15 12:30:45".to_string(),
+        delivery_time: "2024-01-15 13:00:00".to_string(),
+        order_date: "2024-01-15".to_string(),
+        pickup_time: "13:00".to_string(),
+        payment_method: "Credit Card".to_string(),
     }
 }
 
@@ -701,192 +748,4 @@ fn print_raw_content(printer_name: &str, content: &str) -> Result<(), String> {
 fn print_raw_content(printer_name: &str, content: &str) -> Result<(), String> {
     println!("模拟打印到 {}: {}", printer_name, content);
     Ok(())
-}
-
-// 表格行格式化 (左对齐标签，右对齐数值)
-fn format_table_row(label: &str, value: &str, width: usize) -> String {
-    let label_width = display_width(label);
-    let value_width = display_width(value);
-
-    if label_width + value_width + 2 > width {
-        // 如果一行放不下，换行显示
-        format!("{}\n  {}\n", label, value)
-    } else {
-        let spaces = width - label_width - value_width;
-        format!("{}{}{}\n", label, " ".repeat(spaces), value)
-    }
-}
-
-// 准备混合内容 (处理中英文)
-fn prepare_mixed_content(text: &str) -> String {
-    text.to_string()
-}
-
-// 居中对齐混合文本 (支持中英文)
-fn center_text_mixed(text: &str, width: usize) -> String {
-    let text_width = display_width(text);
-    if text_width >= width {
-        format!("{}\n", text)
-    } else {
-        let padding = (width - text_width) / 2;
-        format!("{}{}\n", " ".repeat(padding), text)
-    }
-}
-
-// 商品表格行 - 简化版本
-fn format_item_table_row(name: &str, qty: i32, _unit_price: f64, total_price: f64, width: usize) -> String {
-    // 简化表格：只显示菜名、数量、总价
-    let name_width = (width * 70 / 100).max(20);  // 菜名占70%宽度
-    let qty_width = 4;    // 数量宽度
-    let total_width = width.saturating_sub(name_width + qty_width + 2); // 总价宽度
-
-    let qty_str = format!("{}", qty);
-    let total_str = if total_price == 0.0 { "+0.00".to_string() } else { format!("{:.2}", total_price) };
-
-    // 如果商品名太长，需要换行处理
-    if display_width(name) > name_width {
-        let mut result = String::new();
-
-        // 将长菜名分行显示
-        let wrapped_lines = wrap_text_for_width(name, name_width);
-        let lines: Vec<&str> = wrapped_lines.lines().collect();
-
-        // 第一行显示菜名开头和价格信息
-        if !lines.is_empty() {
-            result.push_str(&format!("{:<name_width$} {:>qty_width$} {:>total_width$}\n",
-                truncate_for_width(lines[0], name_width),
-                qty_str,
-                total_str,
-                name_width = name_width,
-                qty_width = qty_width,
-                total_width = total_width
-            ));
-        }
-
-        // 后续行只显示菜名的剩余部分
-        for line in lines.iter().skip(1) {
-            result.push_str(&format!("{:<name_width$}\n",
-                truncate_for_width(line, name_width),
-                name_width = name_width
-            ));
-        }
-
-        result
-    } else {
-        // 菜名长度适中，单行显示
-        format!("{:<name_width$} {:>qty_width$} {:>total_width$}\n",
-            pad_for_width(name, name_width),
-            qty_str,
-            total_str,
-            name_width = name_width,
-            qty_width = qty_width,
-            total_width = total_width
-        )
-    }
-}
-
-// 费用行格式化 (右下角对齐)
-fn format_fee_line(label: &str, amount: f64, width: usize) -> String {
-    let amount_str = if amount < 0.0 {
-        format!("-${:.2}", -amount)
-    } else {
-        format!("${:.2}", amount)
-    };
-
-    let label_width = display_width(label);
-    let amount_width = display_width(&amount_str);
-
-    if label_width + amount_width + 2 > width {
-        format!("{}\n{}{}\n",
-            label,
-            " ".repeat(width.saturating_sub(amount_width)),
-            amount_str
-        )
-    } else {
-        let spaces = width - label_width - amount_width;
-        format!("{}{}{}\n", label, " ".repeat(spaces), amount_str)
-    }
-}
-
-// 计算显示宽度（中文字符算2个宽度）
-fn display_width(text: &str) -> usize {
-    text.chars().map(|c| {
-        if c.is_ascii() {
-            1
-        } else {
-            2 // 中文字符占2个宽度
-        }
-    }).sum()
-}
-
-// 文本换行处理
-fn wrap_text_for_width(text: &str, width: usize) -> String {
-    let mut result = String::new();
-    let mut current_line = String::new();
-    let mut current_width = 0;
-
-    for ch in text.chars() {
-        let char_width = if ch.is_ascii() { 1 } else { 2 };
-
-        if current_width + char_width > width && !current_line.is_empty() {
-            result.push_str(&current_line);
-            result.push('\n');
-            current_line.clear();
-            current_width = 0;
-        }
-
-        current_line.push(ch);
-        current_width += char_width;
-    }
-
-    if !current_line.is_empty() {
-        result.push_str(&current_line);
-    }
-
-    result
-}
-
-// 截断文本到指定宽度
-fn truncate_for_width(text: &str, max_width: usize) -> String {
-    let mut result = String::new();
-    let mut current_width = 0;
-
-    for ch in text.chars() {
-        let char_width = if ch.is_ascii() { 1 } else { 2 };
-
-        if current_width + char_width > max_width {
-            break;
-        }
-
-        result.push(ch);
-        current_width += char_width;
-    }
-
-    result
-}
-
-// 填充文本到指定宽度
-fn pad_for_width(text: &str, target_width: usize) -> String {
-    let text_width = display_width(text);
-    if text_width >= target_width {
-        text.to_string()
-    } else {
-        format!("{}{}", text, " ".repeat(target_width - text_width))
-    }
-}
-
-// 表格头部格式化
-fn format_table_header(item_name: &str, qty: &str, total: &str, _extra: &str, width: usize) -> String {
-    let name_width = (width * 70 / 100).max(20);
-    let qty_width = 4;
-    let total_width = width.saturating_sub(name_width + qty_width + 2);
-
-    format!("{:<name_width$} {:>qty_width$} {:>total_width$}\n",
-        item_name,
-        qty,
-        total,
-        name_width = name_width,
-        qty_width = qty_width,
-        total_width = total_width
-    )
 }

@@ -74,4 +74,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 智能选择最佳编码
   selectOptimalEncoding: (text, printerName) =>
     ipcRenderer.invoke('select-optimal-encoding', text, printerName),
+
+  // 调试相关
+  getEngineStatus: () => ipcRenderer.invoke('get-engine-status'),
 });

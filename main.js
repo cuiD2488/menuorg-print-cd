@@ -344,6 +344,24 @@ ipcMain.handle('select-optimal-encoding', async (event, text, printerName) => {
 // 创建混合打印引擎实例
 const hybridPrinter = new PrinterHybrid();
 
+// 新增：获取引擎状态的调试处理程序
+ipcMain.handle('get-engine-status', async () => {
+  try {
+    console.log('🔍 获取打印引擎状态...');
+    const status = hybridPrinter.getEngineInfo();
+    console.log('📊 引擎状态:', status);
+    return status;
+  } catch (error) {
+    console.error('❌ 获取引擎状态失败:', error);
+    return {
+      error: error.message,
+      rustAvailable: false,
+      currentEngine: 'Error',
+      fallbackAvailable: false,
+    };
+  }
+});
+
 ipcMain.handle(
   'print-order',
   async (event, orderData, width = 80, fontSize = 0) => {

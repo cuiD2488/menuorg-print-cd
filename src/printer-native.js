@@ -51,21 +51,70 @@ class PrinterNative {
 
   checkExecutable() {
     try {
-      // 查找 Rust 可执行文件
-      this.executablePath = path.join(
-        __dirname,
-        '..',
-        'target',
-        'release',
-        'printer-engine.exe'
-      );
+      // 检测是否是打包后的应用
+      const isPackaged =
+        require('electron') &&
+        require('electron').app &&
+        require('electron').app.isPackaged;
 
-      if (fs.existsSync(this.executablePath)) {
-        safeLog('[SUCCESS] 检测到 Rust 打印引擎:', this.executablePath);
-        this.isInitialized = true;
+      let basePath;
+      if (isPackaged) {
+        // 打包后的路径：extraResources 被放在 resources 目录下
+        basePath = process.resourcesPath;
+        safeLog('[INFO] 检测到打包环境，资源路径:', basePath);
       } else {
-        safeLog('[WARNING] Rust 打印引擎未找到，路径:', this.executablePath);
-        safeLog('[INFO] 请先运行: cargo build --release');
+        // 开发环境路径
+        basePath = path.join(__dirname, '..');
+        safeLog('[INFO] 检测到开发环境，基础路径:', basePath);
+      }
+
+      // 查找 Rust 可执行文件的多个可能位置
+      const possiblePaths = [
+        // 打包后的路径（extraResources 配置）
+        path.join(basePath, 'printer-engine.exe'),
+        // 备用路径1 - 在 app 目录下
+        path.join(basePath, 'app', 'printer-engine.exe'),
+        // 备用路径2 - 在 resources 子目录下
+        path.join(basePath, 'resources', 'printer-engine.exe'),
+        // 开发环境路径
+        path.join(basePath, 'target', 'release', 'printer-engine.exe'),
+        // 应用程序同级目录
+        path.join(path.dirname(process.execPath), 'printer-engine.exe'),
+        // 当前工作目录
+        path.join(process.cwd(), 'printer-engine.exe'),
+      ];
+
+      safeLog('[DEBUG] 搜索 Rust 可执行文件的路径:');
+      possiblePaths.forEach((p, i) => safeLog(`[DEBUG] ${i + 1}. ${p}`));
+
+      for (const testPath of possiblePaths) {
+        if (fs.existsSync(testPath)) {
+          this.executablePath = testPath;
+          safeLog('[SUCCESS] 检测到 Rust 打印引擎:', this.executablePath);
+          this.isInitialized = true;
+          return;
+        }
+      }
+
+      // 如果都没找到，记录详细信息以便调试
+      safeLog('[WARNING] Rust 打印引擎未找到');
+      safeLog('[DEBUG] isPackaged:', isPackaged);
+      safeLog('[DEBUG] 当前工作目录:', process.cwd());
+      safeLog('[DEBUG] __dirname:', __dirname);
+      safeLog('[DEBUG] process.execPath:', process.execPath);
+      safeLog('[DEBUG] process.resourcesPath:', process.resourcesPath);
+
+      // 列出实际存在的文件以便调试
+      if (basePath && fs.existsSync(basePath)) {
+        try {
+          const files = fs.readdirSync(basePath);
+          safeLog(
+            '[DEBUG] 资源目录内容:',
+            files.filter((f) => f.endsWith('.exe'))
+          );
+        } catch (e) {
+          safeLog('[DEBUG] 无法读取资源目录:', e.message);
+        }
       }
     } catch (error) {
       safeError('[ERROR] 检查 Rust 打印引擎失败:', error);
