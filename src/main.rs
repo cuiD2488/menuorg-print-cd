@@ -409,14 +409,14 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
 
     // 设置字体大小
     match font_size {
-        0 => content.push_str("\x1D\x22\x04"), // 正常大小
+        0 => content.push_str("\x1D\x22\x06"), // 正常大小
         1 => content.push_str("\x1D\x22\x10"), // 宽度1x，高度2x
         2 => content.push_str("\x1D\x22\x11"), // 宽度2x，高度2x
-        _ => content.push_str("\x1D\x22\x04"), // 默认为正常大小
+        _ => content.push_str("\x1D\x22\x06"), // 默认为正常大小
     }
 
     // 设置行间距
-    content.push_str("\x1B\x33\x28"); // 设置行间距
+    content.push_str("\x1B\x36\x30"); // 设置行间距
 
     let char_width = if width == 80 { 48 } else { 32 }; // 字符宽度
 
@@ -436,13 +436,17 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
 
     // 基本信息表格 create_time
     content.push_str(&format_table_row("Order Date:", &order.create_time, char_width));
+     content.push_str("\n");
     content.push_str(&format_table_row("Pickup Time:", &order.delivery_time, char_width));
+     content.push_str("\n");
     content.push_str(&format_table_row("Payment:", &order.payment_method, char_width));
+     content.push_str("\n");
     content.push_str(&format_table_row("Customer:", &prepare_mixed_content(&order.recipient_name), char_width));
+     content.push_str("\n");
     content.push_str(&format_table_row("Phone:", &order.recipient_phone, char_width));
 
     // 取餐方式
-    let delivery_info = if order.delivery_style == 1 {
+    let delivery_info = if order.delivery_type == 1 {
         "Delivery"
     } else {
         "Pickup"
@@ -450,9 +454,10 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
     content.push_str(&format_table_row("Type:", delivery_info, char_width));
 
     // 如果是外送，显示地址
-    if order.delivery_style == 1 && !order.recipient_address.is_empty() {
+    if order.delivery_type == 1 && !order.recipient_address.is_empty() {
         content.push_str(&format_table_row("Address:", &order.recipient_address, char_width));
     }
+
 
     content.push_str("\n");
     content.push_str(&"-".repeat(char_width));
@@ -497,11 +502,11 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
 
     // ============= PAYMENT SUMMARY =============
     content.push_str("\x1B\x45\x01"); // 加粗
-    content.push_str(&center_text_mixed("PAYMENT SUMMARY", char_width));
+    // content.push_str(&center_text_mixed("PAYMENT SUMMARY", char_width));
     content.push_str("\x1B\x45\x00"); // 关闭加粗
-    content.push_str("\n");
-    content.push_str(&"-".repeat(char_width));
-    content.push_str("\n");
+    // content.push_str("\n");
+    // content.push_str(&"-".repeat(char_width));
+    // content.push_str("\n");
 
     // 费用明细
     let subtotal: f64 = order.sub_total.parse().unwrap_or(0.0);
