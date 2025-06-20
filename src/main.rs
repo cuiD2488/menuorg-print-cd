@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use serde::{Deserialize, Serialize};
 use clap::{Parser, Subcommand};
+use encoding_rs::{GBK, UTF_8};
 
 #[cfg(windows)]
 use winapi::um::winspool::{
@@ -407,6 +408,11 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
     // ESC/POS 初始化命令
     content.push_str("\x1B@"); // 初始化打印机
 
+    // 设置中文字符编码模式
+    content.push_str("\x1C\x26"); // FS & - 选择中文字符模式
+    content.push_str("\x1C\x43\x01"); // FS C 1 - 选择GBK编码页
+    content.push_str("\x1B\x39\x01"); // ESC 9 1 - 开启中文字符打印模式
+
     // 设置字体大小
     match font_size {
         0 => content.push_str("\x1D\x22\x06"), // 正常大小
@@ -432,6 +438,8 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
 
     // ============= 订单基本信息 =============
     content.push_str(&center_text_mixed(&format!("Order #: {}", order.order_id), char_width));
+    // content.push_str(&format_table_row("Order #:", &order.order_id, char_width));
+
     content.push_str("\n");
 
     // 基本信息表格 create_time
@@ -583,6 +591,11 @@ fn generate_test_content(width: i32, font_size: i32) -> String {
     // ESC/POS 初始化
     content.push_str("\x1B@");
 
+    // 设置中文字符编码模式
+    content.push_str("\x1C\x26"); // FS & - 选择中文字符模式
+    content.push_str("\x1C\x43\x01"); // FS C 1 - 选择GBK编码页
+    content.push_str("\x1B\x39\x01"); // ESC 9 1 - 开启中文字符打印模式
+
     match font_size {
         0 => content.push_str("\x1D\x21\x00"),
         1 => content.push_str("\x1D\x21\x10"),
@@ -674,8 +687,13 @@ fn print_raw_content(printer_name: &str, content: &str) -> Result<(), String> {
             return Err(format!("Failed to start page: Error {}", error_code));
         }
 
-        // 写入内容
-        let content_bytes = content.as_bytes();
+        // 编码转换：UTF-8 -> GBK
+        let (encoded_content, _, had_errors) = GBK.encode(content);
+        if had_errors {
+            println!("Warning: Some characters could not be encoded to GBK");
+        }
+
+        let content_bytes = encoded_content.as_ref();
         let mut bytes_written: DWORD = 0;
 
         let write_result = WritePrinter(
