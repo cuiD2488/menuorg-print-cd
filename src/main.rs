@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use serde::{Deserialize, Serialize};
 use clap::{Parser, Subcommand};
-use encoding_rs::{GBK, UTF_8};
+use encoding_rs::{GBK, GB18030, BIG5, SHIFT_JIS, EUC_KR, WINDOWS_1252, UTF_8};
 
 #[cfg(windows)]
 use winapi::um::winspool::{
@@ -20,10 +20,49 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::ptr;
 
+// 添加编码枚举
+#[derive(Debug, Clone)]
+pub enum PrinterEncoding {
+    GBK,        // 中国大陆 - 简体中文
+    GB18030,    // 中国大陆 - 扩展中文
+    BIG5,       // 台湾/香港 - 繁体中文
+    ShiftJIS,   // 日本
+    EucKr,      // 韩国
+    Windows1252, // 西欧 (类似ISO-8859-1)
+    Utf8,       // Unicode (少数现代打印机支持)
+}
+
+impl PrinterEncoding {
+    pub fn from_str(s: &str) -> Self {
+        match s.to_uppercase().as_str() {
+            "GBK" => PrinterEncoding::GBK,
+            "GB18030" => PrinterEncoding::GB18030,
+            "BIG5" => PrinterEncoding::BIG5,
+            "SHIFT_JIS" | "SHIFTJIS" | "SJIS" => PrinterEncoding::ShiftJIS,
+            "EUC_KR" | "EUCKR" => PrinterEncoding::EucKr,
+            "ISO_8859_1" | "ISO88591" | "LATIN1" | "WINDOWS_1252" => PrinterEncoding::Windows1252,
+            "UTF8" | "UTF-8" => PrinterEncoding::Utf8,
+            _ => PrinterEncoding::GBK, // 默认GBK
+        }
+    }
+
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            PrinterEncoding::GBK => "GBK",
+            PrinterEncoding::GB18030 => "GB18030",
+            PrinterEncoding::BIG5 => "BIG5",
+            PrinterEncoding::ShiftJIS => "Shift_JIS",
+            PrinterEncoding::EucKr => "EUC-KR",
+            PrinterEncoding::Windows1252 => "Windows-1252",
+            PrinterEncoding::Utf8 => "UTF-8",
+        }
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "printer-engine")]
-#[command(about = "🦀 MenuorgPrint - 高性能打印引擎")]
-#[command(version = "1.0.0")]
+#[command(about = "🦀 MenuorgPrint - 高性能多编码打印引擎")]
+#[command(version = "1.1.0")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -47,6 +86,9 @@ enum Commands {
         /// 字体大小 (0-2)
         #[arg(short, long, default_value = "0")]
         font_size: i32,
+        /// 编码格式 (GBK, GB18030, BIG5, Shift_JIS, EUC_KR, Windows_1252, UTF8)
+        #[arg(short, long, default_value = "GBK")]
+        encoding: String,
     },
     /// 测试打印
     TestPrint {
@@ -59,9 +101,14 @@ enum Commands {
         /// 字体大小 (0-2)
         #[arg(short, long, default_value = "0")]
         font_size: i32,
+        /// 编码格式 (GBK, GB18030, BIG5, Shift_JIS, EUC_KR, Windows_1252, UTF8)
+        #[arg(short, long, default_value = "GBK")]
+        encoding: String,
     },
     /// 交互式模式
     Interactive,
+    /// 显示支持的编码列表
+    ListEncodings,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -72,14 +119,6 @@ pub struct PrintResult {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-// pub struct OrderData {
-//     pub order_id: String,
-//     pub rd_name: String,
-//     pub recipient_name: String,
-//     pub recipient_address: String,
-//     pub dishes_array: Vec<DishItem>,
-//     pub total: String,
-// }
 pub struct OrderData {
     pub order_id: String,
     pub rd_id: i64,
@@ -149,9 +188,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let json_output = serde_json::to_string(&printers)?;
                     println!("{}", json_output);
                 }
-                Commands::PrintOrder { printer, order, width, font_size } => {
+                Commands::PrintOrder { printer, order, width, font_size, encoding } => {
                     let order_data: OrderData = serde_json::from_str(&order)?;
-                    let result = print_order_internal(&printer, &order_data, width, font_size);
+                    let printer_encoding = PrinterEncoding::from_str(&encoding);
+                    let result = print_order_internal(&printer, &order_data, width, font_size, printer_encoding);
 
                     let print_result = match result {
                         Ok(_) => PrintResult {
@@ -169,9 +209,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let json_output = serde_json::to_string(&print_result)?;
                     println!("{}", json_output);
                 }
-                Commands::TestPrint { printer, width, font_size } => {
-                    let test_content = generate_test_content(width, font_size);
-                    let result = print_raw_content(&printer, &test_content);
+                Commands::TestPrint { printer, width, font_size, encoding } => {
+                    let printer_encoding = PrinterEncoding::from_str(&encoding);
+                    let test_content = generate_test_content(width, font_size, &printer_encoding);
+                    let result = print_raw_content(&printer, &test_content, printer_encoding);
 
                     let print_result = match result {
                         Ok(_) => PrintResult {
@@ -191,6 +232,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Commands::Interactive => {
                     interactive_mode()?;
+                }
+                Commands::ListEncodings => {
+                    list_supported_encodings();
                 }
             }
         }
@@ -320,8 +364,8 @@ fn interactive_mode() -> Result<(), Box<dyn std::error::Error>> {
                                                     let printer = &printers[index - 1];
                                                     println!("🖨️ 向 '{}' 发送测试打印...", printer);
 
-                                                    let test_content = generate_test_content(80, 0);
-                                                    match print_raw_content(printer, &test_content) {
+                                                    let test_content = generate_test_content(80, 0, &PrinterEncoding::GBK);
+                                                    match print_raw_content(printer, &test_content, PrinterEncoding::GBK) {
                                                         Ok(_) => println!("✅ 测试打印发送成功！"),
                                                         Err(e) => println!("❌ 测试打印失败: {}", e),
                                                     }
@@ -397,21 +441,41 @@ fn get_system_printers() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     }
 }
 
-fn print_order_internal(printer_name: &str, order_data: &OrderData, width: i32, font_size: i32) -> Result<(), String> {
-    let content = generate_print_content(order_data, width, font_size)?;
-    print_raw_content(printer_name, &content)
+fn print_order_internal(printer_name: &str, order_data: &OrderData, width: i32, font_size: i32, encoding: PrinterEncoding) -> Result<(), String> {
+    let content = generate_print_content(order_data, width, font_size, &encoding)?;
+    print_raw_content(printer_name, &content, encoding)
 }
 
-fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Result<String, String> {
+fn generate_print_content(order: &OrderData, width: i32, font_size: i32, encoding: &PrinterEncoding) -> Result<String, String> {
     let mut content = String::new();
 
     // ESC/POS 初始化命令
     content.push_str("\x1B@"); // 初始化打印机
 
-    // 设置中文字符编码模式
-    content.push_str("\x1C\x26"); // FS & - 选择中文字符模式
-    content.push_str("\x1C\x43\x01"); // FS C 1 - 选择GBK编码页
-    content.push_str("\x1B\x39\x01"); // ESC 9 1 - 开启中文字符打印模式
+    // 根据编码设置字符编码模式
+    match encoding {
+        PrinterEncoding::GBK => {
+            // 简化的GBK设置 - 避免显示额外字符
+        }
+        PrinterEncoding::GB18030 => {
+            content.push_str("\x1C\x43\x02"); // FS C 2 - GB18030编码页
+        }
+        PrinterEncoding::BIG5 => {
+            content.push_str("\x1C\x43\x03"); // FS C 3 - BIG5编码页
+        }
+        PrinterEncoding::ShiftJIS => {
+            content.push_str("\x1C\x43\x04"); // FS C 4 - Shift_JIS编码页
+        }
+        PrinterEncoding::EucKr => {
+            content.push_str("\x1C\x43\x05"); // FS C 5 - EUC-KR编码页
+        }
+        PrinterEncoding::Windows1252 => {
+            content.push_str("\x1B\x52\x00"); // ESC R 0 - ISO 8859-1字符集
+        }
+        PrinterEncoding::Utf8 => {
+            content.push_str("\x1C\x43\x08"); // FS C 8 - UTF-8编码页 (如果支持)
+        }
+    }
 
     // 设置字体大小
     match font_size {
@@ -426,31 +490,25 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
 
     let char_width = if width == 80 { 48 } else { 32 }; // 字符宽度
 
-    // ============= 餐厅信息 =============
-    // content.push_str(&"=".repeat(char_width));
-    // content.push_str("\n");
-    // content.push_str("\x1B\x45\x01"); // 加粗
-    // content.push_str(&center_text_mixed(&order.rd_name, char_width));
-    // content.push_str("\x1B\x45\x00"); // 关闭加粗
-    // content.push_str("\n");
-    // content.push_str(&"=".repeat(char_width));
-    // content.push_str("\n\n");
-
     // ============= 订单基本信息 =============
     content.push_str(&center_text_mixed(&format!("Order #: {}", order.order_id), char_width));
-    // content.push_str(&format_table_row("Order #:", &order.order_id, char_width));
-
     content.push_str("\n");
 
-    // 基本信息表格 create_time
+    // 基本信息表格
     content.push_str(&format_table_row("Order Date:", &order.create_time, char_width));
-     content.push_str("\n");
+    content.push_str("\n");
     content.push_str(&format_table_row("Pickup Time:", &order.delivery_time, char_width));
-     content.push_str("\n");
-    content.push_str(&format_table_row("Payment:", &order.payment_method, char_width));
-     content.push_str("\n");
+    content.push_str("\n");
+
+    let paystyle_info = if order.paystyle == 1 {
+        "Card"
+    } else  {
+        "Cash"
+    };
+    content.push_str(&format_table_row("Payment:", &paystyle_info, char_width));
+    content.push_str("\n");
     content.push_str(&format_table_row("Customer:", &prepare_mixed_content(&order.recipient_name), char_width));
-     content.push_str("\n");
+    content.push_str("\n");
     content.push_str(&format_table_row("Phone:", &order.recipient_phone, char_width));
 
     // 取餐方式
@@ -466,13 +524,11 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
         content.push_str(&format_table_row("Address:", &order.recipient_address, char_width));
     }
 
-
     content.push_str("\n");
     content.push_str(&"-".repeat(char_width));
     content.push_str("\n");
 
     // ============= 商品明细 =============
-    // 表格标题
     let header = format_table_header("Item Name", "Qty", "Total", "", char_width);
     content.push_str(&header);
     content.push_str(&"-".repeat(char_width));
@@ -481,7 +537,7 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
     for item in &order.dishes_array {
         let price: f64 = item.price.parse().unwrap_or(0.0);
 
-        // 商品行 - 中文菜名
+        // 商品行 - 处理多语言菜名
         content.push_str(&format_item_table_row(
             &prepare_mixed_content(&item.dishes_name),
             item.amount,
@@ -489,16 +545,6 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
             price,
             char_width
         ));
-
-        // 英文描述 - 应用智能换行 TODO:
-        // if !item.dishes_description.is_empty() {
-        //     content.push_str(&format_description_with_wrap(&item.dishes_description, char_width, "  "));
-        // }
-
-        // 特殊要求 - 应用智能换行
-        // if !item.remark.is_empty() {
-        //     content.push_str(&format_remark_with_wrap(&item.remark, char_width, "  Note: "));
-        // }
 
         // 增加商品间的行距
         content.push_str("\n");
@@ -510,11 +556,6 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
 
     // ============= PAYMENT SUMMARY =============
     content.push_str("\x1B\x45\x01"); // 加粗
-    // content.push_str(&center_text_mixed("PAYMENT SUMMARY", char_width));
-    content.push_str("\x1B\x45\x00"); // 关闭加粗
-    // content.push_str("\n");
-    // content.push_str(&"-".repeat(char_width));
-    // content.push_str("\n");
 
     // 费用明细
     let subtotal: f64 = order.sub_total.parse().unwrap_or(0.0);
@@ -569,11 +610,6 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
     content.push_str("\n");
     content.push_str("\n");
 
-    // 总计 (加粗显示)
-    // content.push_str("\x1B\x45\x01"); // 加粗
-    // content.push_str(&format_fee_line("TOTAL", total, char_width));
-    // content.push_str("\x1B\x45\x00"); // 关闭加粗
-
     content.push_str("\n\n\n\n"); // 空行，为切纸预留空间
     content.push_str("\n\n\n\n"); // 空行，为切纸预留空间
     content.push_str("\n\n\n\n"); // 空行，为切纸预留空间
@@ -584,17 +620,37 @@ fn generate_print_content(order: &OrderData, width: i32, font_size: i32) -> Resu
     Ok(content)
 }
 
-fn generate_test_content(width: i32, font_size: i32) -> String {
+fn generate_test_content(width: i32, font_size: i32, encoding: &PrinterEncoding) -> String {
     let char_width = if width == 80 { 48 } else { 32 };
     let mut content = String::new();
 
     // ESC/POS 初始化
     content.push_str("\x1B@");
 
-    // 设置中文字符编码模式
-    content.push_str("\x1C\x26"); // FS & - 选择中文字符模式
-    content.push_str("\x1C\x43\x01"); // FS C 1 - 选择GBK编码页
-    content.push_str("\x1B\x39\x01"); // ESC 9 1 - 开启中文字符打印模式
+    // 根据编码设置字符编码模式
+    match encoding {
+        PrinterEncoding::GBK => {
+            // 简化的GBK设置
+        }
+        PrinterEncoding::GB18030 => {
+            content.push_str("\x1C\x43\x02");
+        }
+        PrinterEncoding::BIG5 => {
+            content.push_str("\x1C\x43\x03");
+        }
+        PrinterEncoding::ShiftJIS => {
+            content.push_str("\x1C\x43\x04");
+        }
+        PrinterEncoding::EucKr => {
+            content.push_str("\x1C\x43\x05");
+        }
+        PrinterEncoding::Windows1252 => {
+            content.push_str("\x1B\x52\x00");
+        }
+        PrinterEncoding::Utf8 => {
+            content.push_str("\x1C\x43\x08");
+        }
+    }
 
     match font_size {
         0 => content.push_str("\x1D\x21\x00"),
@@ -605,13 +661,42 @@ fn generate_test_content(width: i32, font_size: i32) -> String {
 
     content.push_str("=".repeat(char_width as usize).as_str());
     content.push_str("\n");
-    content.push_str(&center_text("TEST PRINT", char_width as usize));
+    content.push_str(&center_text("MULTI-ENCODING TEST", char_width as usize));
     content.push_str("\n");
     content.push_str("=".repeat(char_width as usize).as_str());
     content.push_str("\n\n");
 
-    content.push_str("Chinese Test: 中文测试打印\n");
-    content.push_str("English Test: ABC123\n");
+    // 根据编码显示不同的测试文本
+    content.push_str(&format!("Encoding: {}\n", encoding.to_string()));
+    content.push_str("ASCII Test: ABC123\n");
+
+    match encoding {
+        PrinterEncoding::GBK | PrinterEncoding::GB18030 => {
+            content.push_str("中文测试: 简体中文打印测试\n");
+            content.push_str("菜品: 宫保鸡丁、红烧肉\n");
+        }
+        PrinterEncoding::BIG5 => {
+            content.push_str("中文測試: 繁體中文列印測試\n");
+            content.push_str("菜品: 宮保雞丁、紅燒肉\n");
+        }
+        PrinterEncoding::ShiftJIS => {
+            content.push_str("日本語テスト: 和食料理\n");
+            content.push_str("料理: 寿司、天ぷら\n");
+        }
+        PrinterEncoding::EucKr => {
+            content.push_str("한국어 테스트: 한식 요리\n");
+            content.push_str("요리: 김치찌개, 불고기\n");
+        }
+        PrinterEncoding::Windows1252 => {
+            content.push_str("European Test: Café, naïve\n");
+            content.push_str("Cuisine: Français, Español\n");
+        }
+        PrinterEncoding::Utf8 => {
+            content.push_str("Unicode Test: 🍜🍔🍕\n");
+            content.push_str("Multi: 中文 한국어 日本語\n");
+        }
+    }
+
     content.push_str(&format!("Width: {}mm\n", width));
     content.push_str(&format!("Font Size: {}\n", font_size));
     content.push_str("\n\n\n");
@@ -633,12 +718,12 @@ fn center_text(text: &str, width: usize) -> String {
 }
 
 #[cfg(windows)]
-fn print_raw_content(printer_name: &str, content: &str) -> Result<(), String> {
+fn print_raw_content(printer_name: &str, content: &str, encoding: PrinterEncoding) -> Result<(), String> {
     let wide_printer_name: Vec<u16> = OsStr::new(printer_name)
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
-    let wide_document_name: Vec<u16> = OsStr::new("Order Print")
+    let wide_document_name: Vec<u16> = OsStr::new("Multi-Encoding Print")
         .encode_wide()
         .chain(std::iter::once(0))
         .collect();
@@ -687,10 +772,40 @@ fn print_raw_content(printer_name: &str, content: &str) -> Result<(), String> {
             return Err(format!("Failed to start page: Error {}", error_code));
         }
 
-        // 编码转换：UTF-8 -> GBK
-        let (encoded_content, _, had_errors) = GBK.encode(content);
+        // 多编码转换支持
+        let (encoded_content, encoding_name, had_errors) = match encoding {
+            PrinterEncoding::GBK => {
+                let (bytes, _, errors) = GBK.encode(content);
+                (bytes, "GBK", errors)
+            }
+            PrinterEncoding::GB18030 => {
+                let (bytes, _, errors) = GB18030.encode(content);
+                (bytes, "GB18030", errors)
+            }
+            PrinterEncoding::BIG5 => {
+                let (bytes, _, errors) = BIG5.encode(content);
+                (bytes, "BIG5", errors)
+            }
+            PrinterEncoding::ShiftJIS => {
+                let (bytes, _, errors) = SHIFT_JIS.encode(content);
+                (bytes, "Shift_JIS", errors)
+            }
+            PrinterEncoding::EucKr => {
+                let (bytes, _, errors) = EUC_KR.encode(content);
+                (bytes, "EUC-KR", errors)
+            }
+            PrinterEncoding::Windows1252 => {
+                let (bytes, _, errors) = WINDOWS_1252.encode(content);
+                (bytes, "Windows-1252", errors)
+            }
+            PrinterEncoding::Utf8 => {
+                let (bytes, _, errors) = UTF_8.encode(content);
+                (bytes, "UTF-8", errors)
+            }
+        };
+
         if had_errors {
-            println!("Warning: Some characters could not be encoded to GBK");
+            println!("Warning: Some characters could not be encoded to {}", encoding_name);
         }
 
         let content_bytes = encoded_content.as_ref();
@@ -721,8 +836,8 @@ fn print_raw_content(printer_name: &str, content: &str) -> Result<(), String> {
 }
 
 #[cfg(not(windows))]
-fn print_raw_content(printer_name: &str, content: &str) -> Result<(), String> {
-    println!("模拟打印到 {}: {}", printer_name, content);
+fn print_raw_content(printer_name: &str, content: &str, encoding: PrinterEncoding) -> Result<(), String> {
+    println!("模拟打印到 {} (编码: {}): {}", printer_name, encoding.to_string(), content);
     Ok(())
 }
 
@@ -912,4 +1027,32 @@ fn format_table_header(item_name: &str, qty: &str, total: &str, _extra: &str, wi
         qty_width = qty_width,
         total_width = total_width
     )
+}
+
+// 新增：显示支持的编码列表
+fn list_supported_encodings() {
+    println!("🌍 支持的编码格式：");
+    println!("================");
+    println!("1. GBK           - 中国大陆 (简体中文) [默认]");
+    println!("2. GB18030       - 中国大陆 (扩展中文，完整Unicode映射)");
+    println!("3. BIG5          - 台湾/香港 (繁体中文)");
+    println!("4. Shift_JIS     - 日本 (日文)");
+    println!("5. EUC_KR        - 韩国 (韩文)");
+    println!("6. Windows_1252  - 西欧 (拉丁字母，兼容ISO-8859-1)");
+    println!("7. UTF8          - Unicode (现代打印机)");
+    println!();
+    println!("💡 使用方法:");
+    println!("  --encoding GBK           (中文简体)");
+    println!("  --encoding BIG5          (中文繁体)");
+    println!("  --encoding Shift_JIS     (日文)");
+    println!("  --encoding EUC_KR        (韩文)");
+    println!("  --encoding Windows_1252  (西欧)");
+    println!();
+    println!("🔧 打印机兼容性指南:");
+    println!("• 大部分ESC/POS热敏打印机: 推荐 GBK 或 GB18030");
+    println!("• 台湾/香港地区打印机: 推荐 BIG5");
+    println!("• 日本打印机: 推荐 Shift_JIS");
+    println!("• 韩国打印机: 推荐 EUC_KR");
+    println!("• 欧美打印机: 推荐 Windows_1252");
+    println!("• 现代打印机 (支持Unicode): 可尝试 UTF8");
 }
