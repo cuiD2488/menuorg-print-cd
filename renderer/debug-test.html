@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>调试系统测试页面</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .test-container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .test-section {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .test-button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .test-button:hover {
+        background: #0056b3;
+      }
+      .test-button.danger {
+        background: #dc3545;
+      }
+      .test-button.danger:hover {
+        background: #c82333;
+      }
+      .test-button.success {
+        background: #28a745;
+      }
+      .test-button.success:hover {
+        background: #218838;
+      }
+      .test-output {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-family: monospace;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="test-container">
+      <h1>🔍 调试系统测试页面</h1>
+      <p>这个页面用于测试生产环境调试系统的各项功能。</p>
+
+      <div class="test-section">
+        <h3>基础日志测试</h3>
+        <button class="test-button" onclick="testBasicLogs()">
+          测试基础日志
+        </button>
+        <button class="test-button danger" onclick="testErrorLogs()">
+          测试错误日志
+        </button>
+        <button class="test-button success" onclick="testSuccessLogs()">
+          测试成功日志
+        </button>
+      </div>
+
+      <div class="test-section">
+        <h3>打印功能测试</h3>
+        <button class="test-button" onclick="testPrintOperation()">
+          模拟打印操作
+        </button>
+        <button class="test-button danger" onclick="testPrintError()">
+          模拟打印错误
+        </button>
+        <button class="test-button" onclick="testBatchPrint()">
+          模拟批量打印
+        </button>
+      </div>
+
+      <div class="test-section">
+        <h3>网络功能测试</h3>
+        <button class="test-button" onclick="testApiCall()">模拟API调用</button>
+        <button class="test-button danger" onclick="testApiError()">
+          模拟API错误
+        </button>
+        <button class="test-button" onclick="testWebSocketConnection()">
+          测试WebSocket连接
+        </button>
+      </div>
+
+      <div class="test-section">
+        <h3>性能测试</h3>
+        <button class="test-button" onclick="testPerformanceMetrics()">
+          收集性能指标
+        </button>
+        <button class="test-button" onclick="testMemoryUsage()">
+          模拟内存使用
+        </button>
+      </div>
+
+      <div class="test-section">
+        <h3>系统诊断</h3>
+        <button class="test-button success" onclick="runQuickDiagnosis()">
+          运行快速诊断
+        </button>
+        <button class="test-button" onclick="exportTestLogs()">
+          导出测试日志
+        </button>
+        <button class="test-button danger" onclick="clearAllLogs()">
+          清空所有日志
+        </button>
+      </div>
+
+      <div class="test-output" id="testOutput">测试输出将显示在这里...</div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="js/printer.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+      // 初始化测试应用
+      let testApp;
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        try {
+          // 创建测试应用实例
+          testApp = new OrderPrintApp();
+
+          // 模拟一些基础数据
+          testApp.currentUser = { user_id: 'test_user', username: 'test' };
+          testApp.selectedOrder = {
+            order_id: 'TEST_001',
+            recipient_name: '测试用户',
+            total_amount: 88.88,
+            dishes_array: [
+              { dishes_name: '测试菜品1', quantity: 2 },
+              { dishes_name: '测试菜品2', quantity: 1 },
+            ],
+          };
+
+          // 初始化调试系统
+          await testApp.init();
+
+          log('✅ 调试系统测试环境初始化完成');
+        } catch (error) {
+          log(`❌ 初始化失败: ${error.message}`);
+        }
+      });
+
+      function log(message) {
+        const output = document.getElementById('testOutput');
+        const timestamp = new Date().toLocaleTimeString();
+        output.textContent += `[${timestamp}] ${message}\n`;
+        output.scrollTop = output.scrollHeight;
+      }
+
+      // 测试基础日志
+      function testBasicLogs() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.debugLog('这是一条信息日志', 'info');
+        testApp.debugLog('这是一条警告日志', 'warn');
+        testApp.debugLog('这是一条调试日志', 'info');
+        log('✅ 基础日志测试完成');
+      }
+
+      // 测试错误日志
+      function testErrorLogs() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.debugLog('模拟网络连接错误', 'error', 'network');
+        testApp.debugLog('模拟打印机离线错误', 'error', 'print');
+        testApp.debugLog('模拟系统异常错误', 'error');
+        log('✅ 错误日志测试完成');
+      }
+
+      // 测试成功日志
+      function testSuccessLogs() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.debugLog('打印任务执行成功', 'success', 'print');
+        testApp.debugLog('网络连接建立成功', 'success', 'network');
+        testApp.debugLog('系统初始化成功', 'success');
+        log('✅ 成功日志测试完成');
+      }
+
+      // 测试打印操作
+      function testPrintOperation() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.recordPrintOperation('测试打印机1', 'TEST_001', 1500, true);
+        testApp.recordPrintOperation('测试打印机2', 'TEST_001', 2300, true);
+        log('✅ 打印操作测试完成');
+      }
+
+      // 测试打印错误
+      function testPrintError() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.recordPrintOperation(
+          '故障打印机',
+          'TEST_002',
+          5000,
+          false,
+          '打印机离线'
+        );
+        testApp.debugLog('打印机通信超时', 'error', 'print');
+        log('✅ 打印错误测试完成');
+      }
+
+      // 测试批量打印
+      function testBatchPrint() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        const printers = ['打印机A', '打印机B', '打印机C'];
+        printers.forEach((printer, index) => {
+          const success = Math.random() > 0.3; // 70%成功率
+          const duration = 1000 + Math.random() * 2000;
+          const error = success ? null : '随机模拟错误';
+          testApp.recordPrintOperation(
+            printer,
+            `BATCH_${index + 1}`,
+            duration,
+            success,
+            error
+          );
+        });
+        log('✅ 批量打印测试完成');
+      }
+
+      // 测试API调用
+      function testApiCall() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.recordApiCall('获取订单列表', 800, true);
+        testApp.recordApiCall('用户登录', 1200, true);
+        testApp.recordApiCall('上传打印日志', 2500, true);
+        log('✅ API调用测试完成');
+      }
+
+      // 测试API错误
+      function testApiError() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.recordApiCall('获取订单详情', 5000, false, '网络超时');
+        testApp.recordApiCall('打印机状态查询', 3000, false, '服务器错误500');
+        log('✅ API错误测试完成');
+      }
+
+      // 测试WebSocket连接
+      function testWebSocketConnection() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.debugLog('尝试建立WebSocket连接', 'info', 'network');
+        setTimeout(() => {
+          testApp.debugLog('WebSocket连接建立成功', 'success', 'network');
+          testApp.recordApiCall('WebSocket-Connect', 1500, true);
+        }, 1000);
+        log('✅ WebSocket连接测试开始');
+      }
+
+      // 测试性能指标
+      function testPerformanceMetrics() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.collectPerformanceMetrics();
+        log('✅ 性能指标收集完成');
+      }
+
+      // 测试内存使用
+      function testMemoryUsage() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        // 模拟一些内存使用
+        const testData = new Array(10000).fill('test data');
+        testApp.debugLog(
+          `模拟内存使用: ${testData.length} 条数据`,
+          'info',
+          'performance'
+        );
+
+        // 清理
+        setTimeout(() => {
+          testData.length = 0;
+          testApp.debugLog('内存数据已清理', 'info', 'performance');
+        }, 2000);
+
+        log('✅ 内存使用测试完成');
+      }
+
+      // 运行快速诊断
+      async function runQuickDiagnosis() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        try {
+          log('🔍 开始运行快速诊断...');
+          const result = await testApp.performQuickDiagnosis();
+          log(`✅ 快速诊断完成，总体状态: ${result.overallStatus}`);
+        } catch (error) {
+          log(`❌ 快速诊断失败: ${error.message}`);
+        }
+      }
+
+      // 导出测试日志
+      function exportTestLogs() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.exportDebugLogs();
+        log('✅ 测试日志导出完成');
+      }
+
+      // 清空所有日志
+      function clearAllLogs() {
+        if (!testApp) return log('❌ 应用未初始化');
+
+        testApp.clearDebugLogs();
+        log('✅ 所有日志已清空');
+      }
+    </script>
+  </body>
+</html>

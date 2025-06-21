@@ -258,55 +258,49 @@ class OrderPrintApp {
         this.testWebSocketConnection();
       });
 
-    // 打印设置和预览按钮
-    document
-      .getElementById('printSettingsBtn')
-      .addEventListener('click', () => {
-        this.showPrintSettings();
-      });
+    // 打印设置和预览按钮功能已移除
+    // document
+    //   .getElementById('printSettingsBtn')
+    //   .addEventListener('click', () => {
+    //     this.showPrintSettings();
+    //   });
 
-    document.getElementById('printPreviewBtn').addEventListener('click', () => {
-      this.showPrintPreview();
-    });
+    // document.getElementById('printPreviewBtn').addEventListener('click', () => {
+    //   this.showPrintPreview();
+    // });
 
-    // 中文编码测试页面按钮
-    document.getElementById('openTestPageBtn').addEventListener('click', () => {
-      this.openChineseEncodingTestPage();
-    });
+    // 中文编码测试功能已移除
+    // document.getElementById('openTestPageBtn').addEventListener('click', () => {
+    //   this.openChineseEncodingTestPage();
+    // });
 
-    // 打印设置模态框事件
-    document
-      .getElementById('savePrintSettings')
-      .addEventListener('click', () => {
-        this.savePrintSettings();
-      });
+    // 打印设置模态框事件已移除
+    // document
+    //   .getElementById('savePrintSettings')
+    //   .addEventListener('click', () => {
+    //     this.savePrintSettings();
+    //   });
 
-    document
-      .getElementById('resetPrintSettings')
-      .addEventListener('click', () => {
-        this.resetPrintSettings();
-      });
+    // document
+    //   .getElementById('resetPrintSettings')
+    //   .addEventListener('click', () => {
+    //     this.resetPrintSettings();
+    //   });
 
-    document
-      .getElementById('closePrintSettings')
-      .addEventListener('click', () => {
-        this.hidePrintSettings();
-      });
+    // 打印预览模态框事件已移除
+    // document
+    //   .getElementById('printFromPreview')
+    //   .addEventListener('click', () => {
+    //     this.printFromPreview();
+    //   });
 
-    // 打印预览模态框事件
-    document
-      .getElementById('printFromPreview')
-      .addEventListener('click', () => {
-        this.printFromPreview();
-      });
+    // document.getElementById('refreshPreview').addEventListener('click', () => {
+    //   this.refreshPreview();
+    // });
 
-    document.getElementById('refreshPreview').addEventListener('click', () => {
-      this.refreshPreview();
-    });
-
-    document.getElementById('closePreview').addEventListener('click', () => {
-      this.hidePreview();
-    });
+    // document.getElementById('closePreview').addEventListener('click', () => {
+    //   this.hidePreview();
+    // });
 
     document.querySelector('.close').addEventListener('click', () => {
       this.hideOrderModal();
@@ -1331,205 +1325,6 @@ class OrderPrintApp {
       console.log('[APP] Starting WebSocket connection test...');
       this.connectWebSocket();
     }, 1000);
-  }
-
-  // 打印设置相关方法
-  async showPrintSettings() {
-    console.log('[APP] Showing print settings modal');
-    try {
-      const settings = await window.electronAPI.getPrintSettings();
-      this.loadPrintSettingsToForm(settings);
-      document.getElementById('printSettingsModal').classList.remove('hidden');
-    } catch (error) {
-      console.error('[APP] Failed to load print settings:', error);
-    }
-  }
-
-  loadPrintSettingsToForm(settings) {
-    document.getElementById('paperWidth').value = settings.paperWidth || 58;
-    document.getElementById('fontSize').value = settings.fontSize || 12;
-    document.getElementById('fontFamily').value =
-      settings.fontFamily || 'SimSun';
-    document.getElementById('lineSpacing').value = settings.lineSpacing || 1.2;
-    document.getElementById('margin').value = settings.margin || 5;
-    document.getElementById('showLogo').checked = settings.showLogo !== false;
-    document.getElementById('showOrderTime').checked =
-      settings.showOrderTime !== false;
-    document.getElementById('showItemDetails').checked =
-      settings.showItemDetails !== false;
-    document.getElementById('showSeparator').checked =
-      settings.showSeparator !== false;
-  }
-
-  async savePrintSettings() {
-    console.log('[APP] Saving print settings');
-    try {
-      const settings = {
-        paperWidth: parseInt(document.getElementById('paperWidth').value),
-        fontSize: parseInt(document.getElementById('fontSize').value),
-        fontFamily: document.getElementById('fontFamily').value,
-        lineSpacing: parseFloat(document.getElementById('lineSpacing').value),
-        margin: parseInt(document.getElementById('margin').value),
-        showLogo: document.getElementById('showLogo').checked,
-        showOrderTime: document.getElementById('showOrderTime').checked,
-        showItemDetails: document.getElementById('showItemDetails').checked,
-        showSeparator: document.getElementById('showSeparator').checked,
-      };
-
-      const success = await window.electronAPI.savePrintSettings(settings);
-      if (success) {
-        console.log('[APP] Print settings saved successfully');
-        this.showTrayNotification('Print settings saved successfully!');
-        this.hidePrintSettings();
-      } else {
-        alert('Failed to save print settings');
-      }
-    } catch (error) {
-      console.error('[APP] Failed to save print settings:', error);
-      alert('Failed to save print settings: ' + error.message);
-    }
-  }
-
-  resetPrintSettings() {
-    console.log('[APP] Resetting print settings to defaults');
-    this.loadPrintSettingsToForm({
-      paperWidth: 58,
-      fontSize: 12,
-      fontFamily: 'SimSun',
-      lineSpacing: 1.2,
-      margin: 5,
-      showLogo: true,
-      showOrderTime: true,
-      showItemDetails: true,
-      showSeparator: true,
-    });
-  }
-
-  hidePrintSettings() {
-    document.getElementById('printSettingsModal').classList.add('hidden');
-  }
-
-  // 打印预览相关方法
-  async showPrintPreview() {
-    console.log('[APP] Showing print preview');
-    try {
-      // 使用第一个订单作为预览示例，如果没有订单则创建示例订单
-      let sampleOrder =
-        this.orders.length > 0
-          ? this.orders[0]
-          : {
-              order_id: 'SAMPLE_001',
-              created_at: new Date().toISOString(),
-              total_amount: '88.50',
-              status: 'New Order',
-              items: [
-                { name: 'Kung Pao Chicken', quantity: 1, price: '28.00' },
-                { name: 'Fried Rice', quantity: 2, price: '12.00' },
-                { name: 'Hot & Sour Soup', quantity: 1, price: '15.00' },
-                { name: 'Spring Rolls', quantity: 3, price: '8.50' },
-              ],
-            };
-
-      const settings = await window.electronAPI.getPrintSettings();
-      const preview = await window.electronAPI.printPreview(
-        sampleOrder,
-        settings
-      );
-
-      this.displayPreview(preview);
-      document.getElementById('printPreviewModal').classList.remove('hidden');
-    } catch (error) {
-      console.error('[APP] Failed to generate print preview:', error);
-      alert('Failed to generate print preview: ' + error.message);
-    }
-  }
-
-  displayPreview(preview) {
-    const content = preview.content;
-    const settings = preview.settings;
-
-    document.getElementById('previewContent').textContent = content;
-    document.getElementById('previewPaperWidth').textContent =
-      settings.paperWidth;
-    document.getElementById('previewFontSize').textContent = settings.fontSize;
-    document.getElementById('previewCharsPerLine').textContent =
-      settings.charsPerLine;
-
-    // 动态调整预览内容的样式
-    const previewElement = document.getElementById('previewContent');
-    previewElement.style.fontSize = settings.fontSize + 'px';
-    previewElement.style.fontFamily = settings.fontFamily;
-    previewElement.style.lineHeight = settings.lineSpacing;
-  }
-
-  async refreshPreview() {
-    console.log('[APP] Refreshing print preview');
-    await this.showPrintPreview();
-  }
-
-  async printFromPreview() {
-    console.log('[APP] Printing from preview');
-    if (!this.printerManager.isAnyPrinterSelected()) {
-      alert('Please select a printer first');
-      return;
-    }
-
-    try {
-      const sampleOrder =
-        this.orders.length > 0
-          ? this.orders[0]
-          : {
-              order_id: 'SAMPLE_001',
-              created_at: new Date().toISOString(),
-              total_amount: '88.50',
-              status: 'New Order',
-              items: [
-                { name: 'Kung Pao Chicken', quantity: 1, price: '28.00' },
-                { name: 'Fried Rice', quantity: 2, price: '12.00' },
-              ],
-            };
-
-      await this.printerManager.printOrder(sampleOrder);
-      this.showTrayNotification('Print job sent to printer!');
-      this.hidePreview();
-    } catch (error) {
-      console.error('[APP] Failed to print from preview:', error);
-      alert('Failed to print: ' + error.message);
-    }
-  }
-
-  hidePreview() {
-    document.getElementById('printPreviewModal').classList.add('hidden');
-  }
-
-  // 打开中文编码测试页面
-  async openChineseEncodingTestPage() {
-    console.log('[APP] Opening Chinese encoding test page');
-
-    try {
-      // 使用 electron API 打开新窗口
-      if (window.electronAPI && window.electronAPI.openNewWindow) {
-        const success = await window.electronAPI.openNewWindow(
-          'test_electron_integration.html',
-          {
-            width: 1200,
-            height: 900,
-            title: '🧪 中文编码测试 - Electron环境热敏打印机测试',
-          }
-        );
-
-        if (success) {
-          this.showTrayNotification('已打开中文编码测试页面');
-        } else {
-          alert('打开测试页面失败，请检查文件是否存在');
-        }
-      } else {
-        alert('无法打开新窗口，electronAPI 不可用');
-      }
-    } catch (error) {
-      console.error('[APP] Failed to open test page:', error);
-      alert('打开测试页面失败: ' + error.message);
-    }
   }
 
   // 托盘通知

@@ -963,30 +963,128 @@ class PrinterManager {
   }
 
   async printOrder(orderData, printerName = null) {
+    const startTime = Date.now();
+
     if (!orderData) {
-      throw new Error('订单数据不能为空');
+      const error = '订单数据不能为空';
+      console.error(`❌ [打印] ${error}`);
+      // 如果有全局调试系统，记录到调试日志
+      if (window.app?.debugLog) {
+        window.app.debugLog(`❌ [打印机管理器] ${error}`, 'error', 'print');
+      }
+      throw new Error(error);
     }
 
-    console.log('开始打印订单:', orderData.order_id || 'Unknown');
+    const orderId = orderData.order_id || 'Unknown';
+    console.log(`🖨️ [打印] 开始打印订单: ${orderId}`);
+
+    if (window.app?.debugLog) {
+      window.app.debugLog(
+        `🖨️ [打印机管理器] 开始打印订单: ${orderId}`,
+        'info',
+        'print'
+      );
+      window.app.debugLog(
+        `📋 [打印机管理器] 订单数据: ${JSON.stringify({
+          order_id: orderData.order_id,
+          recipient_name: orderData.recipient_name,
+          dishes_count: orderData.dishes_array?.length || 0,
+          total_amount: orderData.total_amount,
+        })}`,
+        'info',
+        'print'
+      );
+    }
 
     // 如果指定了打印机名称，只打印到该打印机
     if (printerName) {
       const printer = this.printers.find((p) => p.name === printerName);
       if (!printer) {
-        throw new Error(`找不到指定的打印机: ${printerName}`);
+        const error = `找不到指定的打印机: ${printerName}`;
+        console.error(`❌ [打印] ${error}`);
+        if (window.app?.debugLog) {
+          window.app.debugLog(`❌ [打印机管理器] ${error}`, 'error', 'print');
+        }
+        throw new Error(error);
       }
 
-      console.log(`向指定打印机打印: ${printerName}`);
-      return await this.printToSinglePrinter(orderData, printer);
+      console.log(`🎯 [打印] 向指定打印机打印: ${printerName}`);
+      if (window.app?.debugLog) {
+        window.app.debugLog(
+          `🎯 [打印机管理器] 向指定打印机打印: ${printerName}`,
+          'info',
+          'print'
+        );
+      }
+
+      try {
+        const result = await this.printToSinglePrinter(orderData, printer);
+        const duration = Date.now() - startTime;
+
+        if (window.app?.debugLog) {
+          window.app.debugLog(
+            `✅ [打印机管理器] 单台打印机打印完成 (${duration}ms)`,
+            'success',
+            'print'
+          );
+        }
+
+        return {
+          总打印机数: 1,
+          成功数量: 1,
+          失败数量: 0,
+          详细结果: [{ printer: printerName, success: true }],
+          错误列表: [],
+        };
+      } catch (error) {
+        const duration = Date.now() - startTime;
+
+        if (window.app?.debugLog) {
+          window.app.debugLog(
+            `❌ [打印机管理器] 单台打印机打印失败 (${duration}ms): ${error.message}`,
+            'error',
+            'print'
+          );
+        }
+
+        return {
+          总打印机数: 1,
+          成功数量: 0,
+          失败数量: 1,
+          详细结果: [
+            { printer: printerName, success: false, error: error.message },
+          ],
+          错误列表: [error.message],
+        };
+      }
     }
 
     // 否则，向所有选中的打印机打印
     const selectedPrinters = this.getSelectedPrinters();
     if (selectedPrinters.length === 0) {
-      throw new Error('没有选择任何打印机，无法打印订单');
+      const error = '没有选择任何打印机，无法打印订单';
+      console.error(`❌ [打印] ${error}`);
+      if (window.app?.debugLog) {
+        window.app.debugLog(`❌ [打印机管理器] ${error}`, 'error', 'print');
+      }
+      throw new Error(error);
     }
 
-    console.log(`向 ${selectedPrinters.length} 台选中的打印机打印订单`);
+    console.log(
+      `📤 [打印] 向 ${selectedPrinters.length} 台选中的打印机打印订单`
+    );
+    if (window.app?.debugLog) {
+      window.app.debugLog(
+        `📤 [打印机管理器] 向 ${selectedPrinters.length} 台选中的打印机打印订单`,
+        'info',
+        'print'
+      );
+      window.app.debugLog(
+        `🖨️ [打印机管理器] 选中的打印机: [${selectedPrinters.join(', ')}]`,
+        'info',
+        'print'
+      );
+    }
 
     let successCount = 0;
     let errorCount = 0;
@@ -995,31 +1093,83 @@ class PrinterManager {
 
     // 并行向所有选中的打印机打印
     const printPromises = selectedPrinters.map(async (printerName) => {
+      const printerStartTime = Date.now();
       const printer = this.printers.find((p) => p.name === printerName);
+
       if (!printer) {
         const error = `找不到打印机: ${printerName}`;
         errors.push(error);
         errorCount++;
+
+        if (window.app?.debugLog) {
+          window.app.debugLog(`❌ [打印机管理器] ${error}`, 'error', 'print');
+        }
+
         return { printer: printerName, success: false, error };
       }
 
       try {
-        console.log(`向打印机 ${printerName} 发送订单打印`);
+        console.log(`🚀 [打印] 向打印机 ${printerName} 发送订单打印`);
+        if (window.app?.debugLog) {
+          window.app.debugLog(
+            `🚀 [打印机管理器] 向打印机 ${printerName} 发送订单打印`,
+            'info',
+            'print'
+          );
+        }
+
         await this.printToSinglePrinter(orderData, printer);
+
+        const printerDuration = Date.now() - printerStartTime;
         successCount++;
-        console.log(`打印机 ${printerName} 订单打印成功`);
-        return { printer: printerName, success: true };
+
+        console.log(
+          `✅ [打印] 打印机 ${printerName} 订单打印成功 (${printerDuration}ms)`
+        );
+        if (window.app?.debugLog) {
+          window.app.debugLog(
+            `✅ [打印机管理器] 打印机 ${printerName} 订单打印成功 (${printerDuration}ms)`,
+            'success',
+            'print'
+          );
+        }
+
+        return {
+          printer: printerName,
+          success: true,
+          duration: printerDuration,
+        };
       } catch (error) {
+        const printerDuration = Date.now() - printerStartTime;
         errorCount++;
         const errorMsg = `${printerName}: ${error.message}`;
         errors.push(errorMsg);
-        console.error(`打印机 ${printerName} 订单打印失败:`, error);
-        return { printer: printerName, success: false, error: error.message };
+
+        console.error(
+          `❌ [打印] 打印机 ${printerName} 订单打印失败 (${printerDuration}ms):`,
+          error
+        );
+        if (window.app?.debugLog) {
+          window.app.debugLog(
+            `❌ [打印机管理器] 打印机 ${printerName} 订单打印失败 (${printerDuration}ms): ${error.message}`,
+            'error',
+            'print'
+          );
+        }
+
+        return {
+          printer: printerName,
+          success: false,
+          error: error.message,
+          duration: printerDuration,
+        };
       }
     });
 
     const printResults = await Promise.all(printPromises);
     results.push(...printResults);
+
+    const totalDuration = Date.now() - startTime;
 
     // 汇总结果
     const summary = {
@@ -1028,18 +1178,44 @@ class PrinterManager {
       失败数量: errorCount,
       详细结果: results,
       错误列表: errors,
+      总耗时: totalDuration,
     };
 
-    console.log('订单打印结果汇总:', summary);
+    console.log(`📊 [打印] 订单打印结果汇总:`, summary);
+    if (window.app?.debugLog) {
+      window.app.debugLog(
+        `📊 [打印机管理器] 订单打印结果汇总: 成功${successCount}台, 失败${errorCount}台, 总耗时${totalDuration}ms`,
+        'info',
+        'print'
+      );
+
+      // 记录详细的打印机结果
+      results.forEach((result) => {
+        const status = result.success ? '✅' : '❌';
+        const duration = result.duration ? ` (${result.duration}ms)` : '';
+        const error = result.error ? ` - ${result.error}` : '';
+        window.app.debugLog(
+          `  ${status} ${result.printer}${duration}${error}`,
+          result.success ? 'info' : 'error',
+          'print'
+        );
+      });
+    }
 
     if (successCount === 0) {
-      throw new Error(`所有打印机都打印失败: ${errors.join('; ')}`);
+      const errorMsg = `所有打印机都打印失败: ${errors.join('; ')}`;
+      if (window.app?.debugLog) {
+        window.app.debugLog(`❌ [打印机管理器] ${errorMsg}`, 'error', 'print');
+      }
+      throw new Error(errorMsg);
     }
 
     if (errorCount > 0) {
-      console.warn(
-        `订单打印部分成功: ${successCount} 成功, ${errorCount} 失败`
-      );
+      const warnMsg = `订单打印部分成功: ${successCount} 成功, ${errorCount} 失败`;
+      console.warn(`⚠️ [打印] ${warnMsg}`);
+      if (window.app?.debugLog) {
+        window.app.debugLog(`⚠️ [打印机管理器] ${warnMsg}`, 'warn', 'print');
+      }
     }
 
     return summary;

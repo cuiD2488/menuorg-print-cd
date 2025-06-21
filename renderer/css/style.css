@@ -704,15 +704,6 @@ button:hover {
         gap: 15px;
     }
 
-    .preview-container {
-        flex-direction: column;
-    }
-
-    .preview-controls {
-        flex: none;
-        order: -1;
-    }
-
     .modal-large .modal-content {
         width: 95%;
     }
@@ -1015,105 +1006,6 @@ button:hover {
     gap: 12px;
     justify-content: flex-end;
     background: #f8f9fa;
-}
-
-/* 打印设置样式 */
-.settings-form {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.form-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-}
-
-.form-row label {
-    font-weight: 500;
-    color: #555;
-    flex: 1;
-}
-
-.form-row input,
-.form-row select {
-    flex: 1;
-    max-width: 150px;
-    padding: 6px 10px;
-    border: 2px solid #e9ecef;
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-.form-row input:focus,
-.form-row select:focus {
-    outline: none;
-    border-color: #667eea;
-}
-
-.checkbox-row {
-    justify-content: flex-start;
-}
-
-.checkbox-row .checkbox-label {
-    margin: 0;
-}
-
-/* 打印预览样式 */
-.modal-large .modal-content {
-    width: 90%;
-    max-width: 800px;
-    max-height: 90vh;
-}
-
-.preview-container {
-    display: flex;
-    gap: 30px;
-    align-items: flex-start;
-}
-
-.preview-paper {
-    flex: 1;
-    background: white;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    min-height: 400px;
-    max-height: 500px;
-    overflow-y: auto;
-}
-
-.preview-content {
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    color: #333;
-    background: #f9f9f9;
-    padding: 15px;
-    border-radius: 4px;
-    border: 1px solid #e9ecef;
-}
-
-.preview-controls {
-    flex: 0 0 200px;
-    background: #f8f9fa;
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid #e9ecef;
-}
-
-.preview-controls p {
-    margin: 8px 0;
-    font-size: 14px;
-    color: #666;
-}
-
-.preview-controls strong {
-    color: #333;
 }
 
 /* 加载覆盖层 */

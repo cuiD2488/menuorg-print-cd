@@ -89,13 +89,6 @@
 
                 <div class="printer-actions">
                   <button id="testPrint" class="btn-small">测试打印</button>
-                  <button id="printSettingsBtn" class="btn-small btn-secondary">
-                    打印设置
-                  </button>
-                  <button id="printPreviewBtn" class="btn-small">预览</button>
-                  <button id="openTestPageBtn" class="btn-small btn-warning">
-                    🧪 中文编码测试
-                  </button>
                 </div>
               </div>
               <div class="auto-print-config">
@@ -167,123 +160,6 @@
         <div class="modal-footer">
           <button id="printOrderBtn" class="btn-primary">Print Order</button>
           <button id="closeModalBtn" class="btn-secondary">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Print Settings Modal -->
-    <div id="printSettingsModal" class="modal hidden">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Print Layout Settings</h3>
-          <span class="close">&times;</span>
-        </div>
-        <div class="modal-body">
-          <div class="settings-form">
-            <div class="form-row">
-              <label for="paperWidth">Paper Width (mm):</label>
-              <input
-                type="number"
-                id="paperWidth"
-                value="58"
-                min="30"
-                max="100"
-              />
-            </div>
-            <div class="form-row">
-              <label for="fontSize">Font Size:</label>
-              <input type="number" id="fontSize" value="12" min="8" max="20" />
-            </div>
-            <div class="form-row">
-              <label for="fontFamily">Font Family:</label>
-              <select id="fontFamily">
-                <option value="SimSun">宋体</option>
-                <option value="Microsoft YaHei">微软雅黑</option>
-                <option value="SimHei">黑体</option>
-                <option value="monospace">等宽字体</option>
-              </select>
-            </div>
-            <div class="form-row">
-              <label for="lineSpacing">Line Spacing:</label>
-              <input
-                type="number"
-                id="lineSpacing"
-                value="1.2"
-                min="1.0"
-                max="2.0"
-                step="0.1"
-              />
-            </div>
-            <div class="form-row">
-              <label for="margin">Margin (mm):</label>
-              <input type="number" id="margin" value="5" min="0" max="20" />
-            </div>
-            <div class="form-row checkbox-row">
-              <label class="checkbox-label">
-                <input type="checkbox" id="showLogo" checked />
-                <span class="checkmark"></span>
-                Show store logo/name
-              </label>
-            </div>
-            <div class="form-row checkbox-row">
-              <label class="checkbox-label">
-                <input type="checkbox" id="showOrderTime" checked />
-                <span class="checkmark"></span>
-                Show order time
-              </label>
-            </div>
-            <div class="form-row checkbox-row">
-              <label class="checkbox-label">
-                <input type="checkbox" id="showItemDetails" checked />
-                <span class="checkmark"></span>
-                Show item details
-              </label>
-            </div>
-            <div class="form-row checkbox-row">
-              <label class="checkbox-label">
-                <input type="checkbox" id="showSeparator" checked />
-                <span class="checkmark"></span>
-                Show separators
-              </label>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="savePrintSettings" class="btn-primary">
-            Save Settings
-          </button>
-          <button id="resetPrintSettings" class="btn-secondary">Reset</button>
-          <button id="closePrintSettings" class="btn-secondary">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Print Preview Modal -->
-    <div id="printPreviewModal" class="modal hidden">
-      <div class="modal-content modal-large">
-        <div class="modal-header">
-          <h3>Print Preview</h3>
-          <span class="close">&times;</span>
-        </div>
-        <div class="modal-body">
-          <div class="preview-container">
-            <div class="preview-paper">
-              <div id="previewContent" class="preview-content"></div>
-            </div>
-            <div class="preview-controls">
-              <p><strong>Preview Settings:</strong></p>
-              <p>Paper Width: <span id="previewPaperWidth">58</span>mm</p>
-              <p>Font Size: <span id="previewFontSize">12</span>px</p>
-              <p>
-                Characters per line: <span id="previewCharsPerLine">32</span>
-              </p>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button id="printFromPreview" class="btn-primary">Print</button>
-          <button id="refreshPreview" class="btn-secondary">Refresh</button>
-          <button id="closePreview" class="btn-secondary">Close</button>
         </div>
       </div>
     </div>
