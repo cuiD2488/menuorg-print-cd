@@ -657,7 +657,6 @@ class OrderPrintApp {
     });
 
     this.wsClient.on('newOrder', (orderData) => {
-      console.log('[APP] New order received via WebSocket:', orderData);
       this.handleNewOrder(orderData);
     });
 
@@ -672,52 +671,90 @@ class OrderPrintApp {
   }
 
   async handleNewOrder(orderData) {
+    console.log('[APP] WebSocket收到新订单通知:', orderData);
+
+    // 显示系统通知
     await window.electronAPI.showNotification({
       title: '新订单',
       body: `订单号: ${orderData.order_id || orderData.id}`,
     });
 
     const orderId = orderData.order_id || orderData.id;
-    if (orderId) {
+    if (!orderId) {
+      console.error('[APP] WebSocket订单数据缺少订单ID');
+      return;
+    }
+
+    console.log('[APP] WebSocket处理订单ID:', orderId);
+
+    try {
+      // 从API获取完整订单详情（与手动打印相同的逻辑）
+      console.log('[APP] WebSocket正在获取订单详情...');
       const orderDetails = await API.getOrderById(orderId);
-      if (orderDetails.success) {
-        this.addOrderToList(orderDetails.data);
 
-        // 检查是否启用自动打印
-        if (document.getElementById('autoPrint').checked) {
-          const selectedPrinters = this.printerManager.getSelectedPrinters();
-
-          if (selectedPrinters.length === 0) {
-            console.warn('[APP] 自动打印失败: 未选择任何打印机');
-            this.showTrayNotification('⚠️ 自动打印失败: 未选择打印机');
-          } else {
-            try {
-              console.log(
-                `[APP] 自动打印新订单到 ${selectedPrinters.length} 台打印机`
-              );
-              const printResult = await this.printerManager.printOrder(
-                orderDetails.data
-              );
-
-              if (printResult.成功数量 > 0) {
-                this.showTrayNotification(
-                  `✅ 订单 ${orderId} 已自动打印到 ${printResult.成功数量} 台打印机`
-                );
-              }
-
-              if (printResult.失败数量 > 0) {
-                console.warn('[APP] 自动打印部分失败:', printResult.错误列表);
-                this.showTrayNotification(
-                  `⚠️ ${printResult.失败数量} 台打印机打印失败`
-                );
-              }
-            } catch (error) {
-              console.error('[APP] 自动打印完全失败:', error);
-              this.showTrayNotification(`❌ 自动打印失败: ${error.message}`);
-            }
-          }
-        }
+      if (!orderDetails.success || !orderDetails.data) {
+        console.error('[APP] WebSocket获取订单详情失败:', orderDetails.message);
+        this.showTrayNotification(
+          `❌ 获取订单详情失败: ${orderDetails.message || '未知错误'}`
+        );
+        return;
       }
+
+      console.log('[APP] WebSocket成功获取订单详情');
+      const order = orderDetails.data;
+
+      // 添加订单到列表
+      this.addOrderToList(order);
+
+      // 检查是否启用自动打印
+      if (!document.getElementById('autoPrint').checked) {
+        console.log('[APP] WebSocket自动打印未启用，跳过打印');
+        return;
+      }
+
+      // 使用与手动打印完全相同的逻辑进行自动打印
+      await this.executeAutoPrint(order);
+    } catch (error) {
+      console.error('[APP] WebSocket处理新订单失败:', error);
+      this.showTrayNotification(`❌ 处理新订单失败: ${error.message}`);
+    }
+  }
+
+  // 提取自动打印逻辑为独立方法，与手动打印使用相同的核心逻辑
+  async executeAutoPrint(order) {
+    const selectedPrinters = this.printerManager.getSelectedPrinters();
+
+    if (selectedPrinters.length === 0) {
+      console.warn('[APP] 自动打印失败: 未选择任何打印机');
+      this.showTrayNotification('⚠️ 自动打印失败: 未选择打印机');
+      return;
+    }
+
+    try {
+      console.log(
+        `[APP] 开始自动打印订单 ${order.order_id} 到 ${selectedPrinters.length} 台打印机`
+      );
+
+      // 使用与手动打印完全相同的打印逻辑
+      const printResult = await this.printerManager.printOrder(order);
+
+      if (printResult.成功数量 > 0) {
+        this.showTrayNotification(
+          `✅ 订单 ${order.order_id} 已自动打印到 ${printResult.成功数量} 台打印机`
+        );
+      }
+
+      if (printResult.失败数量 > 0) {
+        console.warn('[APP] 自动打印部分失败:', printResult.错误列表);
+        this.showTrayNotification(
+          `⚠️ ${printResult.失败数量} 台打印机打印失败`
+        );
+      }
+
+      console.log('[APP] 自动打印结果:', printResult);
+    } catch (error) {
+      console.error('[APP] 自动打印完全失败:', error);
+      this.showTrayNotification(`❌ 自动打印失败: ${error.message}`);
     }
   }
 

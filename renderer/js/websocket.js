@@ -68,8 +68,12 @@ class WebSocketClient {
             console.log('[WebSocket] JSON message parsed:', data);
 
             // 根据消息类型分发事件
-            if (data.type === 'new_order') {
-              this.emit('newOrder', data);
+            if (data.type === 'order' || data.type === 'new_order') {
+              console.log(
+                '[WebSocket] 订单消息，触发newOrder事件，数据:',
+                data.data || data
+              );
+              this.emit('newOrder', data.data || data);
             } else if (data.type === 'order_update') {
               this.emit('orderUpdate', data);
             } else {
