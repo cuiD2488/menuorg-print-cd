@@ -139,6 +139,91 @@ function startWebSocketMessageMonitoring() {
   console.log('提示: 现在可以通过外部方式发送WebSocket消息进行测试');
 }
 
+// 测试函数6: 测试重连后检查错过订单
+async function testMissedOrdersAfterReconnect() {
+  console.log('\n6. 测试重连后检查错过订单...');
+
+  if (!window.app) {
+    console.error('❌ 应用未初始化');
+    return;
+  }
+
+  try {
+    console.log('直接调用checkMissedOrdersAfterReconnect方法...');
+    await window.app.checkMissedOrdersAfterReconnect();
+    console.log('✅ 错过订单检查完成');
+  } catch (error) {
+    console.error('❌ 错过订单检查失败:', error);
+  }
+}
+
+// 测试函数7: 模拟WebSocket重连
+function simulateWebSocketReconnect() {
+  console.log('\n7. 模拟WebSocket重连...');
+
+  if (!window.app?.wsClient) {
+    console.error('❌ WebSocket客户端不存在');
+    return;
+  }
+
+  console.log('模拟断开连接...');
+  window.app.wsClient.emit('disconnected', {
+    code: 1006,
+    reason: 'Test disconnect',
+  });
+
+  setTimeout(() => {
+    console.log('模拟重新连接...');
+    window.app.wsClient.emit('connected');
+  }, 2000);
+
+  console.log('✅ 重连模拟已启动，2秒后将触发重连事件');
+}
+
+// 测试函数8: 检查已打印订单记录
+function checkPrintedOrdersRecord() {
+  console.log('\n8. 检查已打印订单记录...');
+
+  if (!window.app) {
+    console.error('❌ 应用未初始化');
+    return;
+  }
+
+  const printedIds = Array.from(window.app.printedOrderIds);
+  console.log(`已打印订单数量: ${printedIds.length}`);
+
+  if (printedIds.length > 0) {
+    console.log('已打印订单列表:', printedIds);
+  } else {
+    console.log('暂无已打印订单记录');
+  }
+
+  // 检查localStorage中的记录
+  const storedIds = localStorage.getItem('printedOrderIds');
+  if (storedIds) {
+    const parsed = JSON.parse(storedIds);
+    console.log(`localStorage中的记录数量: ${parsed.length}`);
+  } else {
+    console.log('localStorage中没有记录');
+  }
+}
+
+// 测试函数9: 清空已打印订单记录
+function clearPrintedOrdersRecord() {
+  console.log('\n9. 清空已打印订单记录...');
+
+  if (!window.app) {
+    console.error('❌ 应用未初始化');
+    return;
+  }
+
+  const beforeCount = window.app.printedOrderIds.size;
+  window.app.printedOrderIds.clear();
+  window.app.savePrintedOrdersRecord();
+
+  console.log(`✅ 已清空 ${beforeCount} 个已打印订单记录`);
+}
+
 // 导出测试函数到全局作用域
 window.testWebSocketAutoPrint = {
   simulateMessage: simulateWebSocketOrderMessage,
@@ -146,6 +231,12 @@ window.testWebSocketAutoPrint = {
   testHandleNewOrder: testHandleNewOrderDirectly,
   fullTest: fullWebSocketAutoPrintTest,
   startMonitoring: startWebSocketMessageMonitoring,
+
+  // 新增测试功能
+  testMissedOrders: testMissedOrdersAfterReconnect,
+  simulateReconnect: simulateWebSocketReconnect,
+  checkPrintedRecords: checkPrintedOrdersRecord,
+  clearPrintedRecords: clearPrintedOrdersRecord,
 };
 
 console.log('\n=== 测试函数已准备就绪 ===');
@@ -157,4 +248,16 @@ console.log(
 console.log('3. testWebSocketAutoPrint.fullTest() - 完整流程测试');
 console.log('4. testWebSocketAutoPrint.simulateMessage() - 模拟WebSocket消息');
 console.log('5. testWebSocketAutoPrint.startMonitoring() - 开始消息监控');
+console.log(
+  '6. testWebSocketAutoPrint.testMissedOrders() - 测试重连后检查错过订单'
+);
+console.log(
+  '7. testWebSocketAutoPrint.simulateReconnect() - 模拟WebSocket重连'
+);
+console.log(
+  '8. testWebSocketAutoPrint.checkPrintedRecords() - 检查已打印订单记录'
+);
+console.log(
+  '9. testWebSocketAutoPrint.clearPrintedRecords() - 清空已打印订单记录'
+);
 console.log('\n建议先运行: testWebSocketAutoPrint.checkConditions()');

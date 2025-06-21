@@ -7,6 +7,11 @@ class OrderPrintApp {
     this.isInitialized = false;
     this.todayOrderCount = 0;
 
+    // 添加已打印订单记录和WebSocket状态跟踪
+    this.printedOrderIds = new Set(); // 记录已打印的订单ID
+    this.lastWebSocketConnectTime = null; // 记录最后连接时间
+    this.lastOrderCheckTime = null; // 记录最后检查订单的时间
+
     this.init();
   }
 
@@ -16,6 +21,7 @@ class OrderPrintApp {
     await this.printerManager.init();
     this.bindEvents();
     await this.initUI();
+    await this.loadPrintedOrdersRecord(); // 加载已打印订单记录
     await this.checkAutoLogin();
 
     console.log('[APP] Application initialization completed');
@@ -642,11 +648,25 @@ class OrderPrintApp {
 
     this.wsClient = new WebSocketClient(wsUrl);
 
-    this.wsClient.on('connected', () => {
+    this.wsClient.on('connected', async () => {
       console.log('[APP] WebSocket connected successfully');
       document.getElementById('wsStatus').textContent = 'Connected';
       document.getElementById('wsStatus').className =
         'status-badge status-success';
+
+      // 记录连接时间
+      const currentTime = new Date();
+      const wasReconnection = this.lastWebSocketConnectTime !== null;
+      this.lastWebSocketConnectTime = currentTime;
+
+      // 如果是重连（不是首次连接），检查错过的订单
+      if (wasReconnection) {
+        console.log('[APP] WebSocket重连成功，检查错过的订单...');
+        await this.checkMissedOrdersAfterReconnect();
+      } else {
+        console.log('[APP] WebSocket首次连接成功');
+        this.lastOrderCheckTime = currentTime;
+      }
     });
 
     this.wsClient.on('disconnected', () => {
@@ -730,6 +750,15 @@ class OrderPrintApp {
       return;
     }
 
+    // 检查是否已经打印过这个订单
+    if (this.printedOrderIds.has(order.order_id)) {
+      console.log(`[APP] 订单 ${order.order_id} 已经打印过，跳过重复打印`);
+      this.showTrayNotification(
+        `ℹ️ 订单 ${order.order_id} 已打印过，跳过重复打印`
+      );
+      return;
+    }
+
     try {
       console.log(
         `[APP] 开始自动打印订单 ${order.order_id} 到 ${selectedPrinters.length} 台打印机`
@@ -739,6 +768,11 @@ class OrderPrintApp {
       const printResult = await this.printerManager.printOrder(order);
 
       if (printResult.成功数量 > 0) {
+        // 记录已打印的订单ID
+        this.printedOrderIds.add(order.order_id);
+        console.log(`[APP] 订单 ${order.order_id} 已记录为已打印`);
+        this.savePrintedOrdersRecord(); // 保存到localStorage
+
         this.showTrayNotification(
           `✅ 订单 ${order.order_id} 已自动打印到 ${printResult.成功数量} 台打印机`
         );
@@ -756,6 +790,116 @@ class OrderPrintApp {
       console.error('[APP] 自动打印完全失败:', error);
       this.showTrayNotification(`❌ 自动打印失败: ${error.message}`);
     }
+  }
+
+  // 检查WebSocket重连后错过的订单
+  async checkMissedOrdersAfterReconnect() {
+    if (!this.currentUser || !document.getElementById('autoPrint').checked) {
+      console.log('[APP] 跳过检查错过订单：用户未登录或自动打印未启用');
+      return;
+    }
+
+    try {
+      console.log('[APP] 开始检查WebSocket断开期间错过的订单...');
+
+      // 获取最近的订单列表（增加数量以确保不遗漏）
+      const response = await API.getOrderList(1, 20);
+
+      if (!response.success || !response.data) {
+        console.warn('[APP] 检查错过订单失败:', response.message);
+        return;
+      }
+
+      const recentOrders = response.data;
+      console.log(`[APP] 获取到 ${recentOrders.length} 个最近订单`);
+
+      // 筛选出在断开期间创建的新订单
+      const missedOrders = this.filterMissedOrders(recentOrders);
+
+      if (missedOrders.length === 0) {
+        console.log('[APP] 没有发现错过的订单');
+        this.updateLastOrderCheckTime();
+        return;
+      }
+
+      console.log(
+        `[APP] 发现 ${missedOrders.length} 个错过的订单:`,
+        missedOrders.map((o) => o.order_id)
+      );
+
+      // 显示通知
+      this.showTrayNotification(
+        `🔔 发现 ${missedOrders.length} 个错过的订单，准备自动打印...`
+      );
+
+      // 逐个处理错过的订单
+      for (const order of missedOrders) {
+        console.log(`[APP] 处理错过的订单: ${order.order_id}`);
+
+        try {
+          // 添加到订单列表（如果还没有）
+          if (!this.orders.find((o) => o.order_id === order.order_id)) {
+            this.addOrderToList(order);
+          }
+
+          // 执行自动打印
+          await this.executeAutoPrint(order);
+
+          // 添加延迟避免打印过快
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error(`[APP] 处理错过订单 ${order.order_id} 失败:`, error);
+        }
+      }
+
+      console.log('[APP] 错过订单处理完成');
+      this.updateLastOrderCheckTime();
+    } catch (error) {
+      console.error('[APP] 检查错过订单过程出错:', error);
+    }
+  }
+
+  // 筛选出错过的订单
+  filterMissedOrders(orders) {
+    if (!this.lastOrderCheckTime) {
+      // 如果没有记录最后检查时间，只处理最近5分钟的订单
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      this.lastOrderCheckTime = fiveMinutesAgo;
+    }
+
+    const missedOrders = [];
+
+    for (const order of orders) {
+      const orderTime = new Date(order.create_time || order.created_at);
+
+      // 检查订单是否在断开期间创建
+      if (orderTime > this.lastOrderCheckTime) {
+        // 检查是否已经打印过
+        if (!this.printedOrderIds.has(order.order_id)) {
+          // 只处理待处理或已确认的订单
+          if (order.order_status === 0 || order.order_status === 1) {
+            missedOrders.push(order);
+          }
+        } else {
+          console.log(`[APP] 订单 ${order.order_id} 已打印过，跳过`);
+        }
+      }
+    }
+
+    // 按时间排序，最早的订单先打印
+    missedOrders.sort((a, b) => {
+      const timeA = new Date(a.create_time || a.created_at);
+      const timeB = new Date(b.create_time || b.created_at);
+      return timeA - timeB;
+    });
+
+    return missedOrders;
+  }
+
+  // 更新最后检查订单的时间
+  updateLastOrderCheckTime() {
+    this.lastOrderCheckTime = new Date();
+    console.log('[APP] 更新最后检查订单时间:', this.lastOrderCheckTime);
   }
 
   async loadRecentOrders() {
@@ -1278,6 +1422,13 @@ class OrderPrintApp {
       );
 
       if (printResult.成功数量 > 0) {
+        // 记录已打印的订单ID
+        this.printedOrderIds.add(this.currentOrderForPrint.order_id);
+        console.log(
+          `[APP] 手动打印订单 ${this.currentOrderForPrint.order_id} 已记录为已打印`
+        );
+        this.savePrintedOrdersRecord(); // 保存到localStorage
+
         this.showTrayNotification(
           `✅ 订单 ${this.currentOrderForPrint.order_id} 已打印到 ${printResult.成功数量} 台打印机`
         );
@@ -1324,6 +1475,11 @@ class OrderPrintApp {
       const printResult = await this.printerManager.printOrder(order);
 
       if (printResult.成功数量 > 0) {
+        // 记录已打印的订单ID
+        this.printedOrderIds.add(orderId);
+        console.log(`[APP] 手动打印订单 ${orderId} 已记录为已打印`);
+        this.savePrintedOrdersRecord(); // 保存到localStorage
+
         this.showTrayNotification(
           `✅ 订单 ${orderId} 已打印到 ${printResult.成功数量} 台打印机`
         );
@@ -1376,6 +1532,55 @@ class OrderPrintApp {
         notification.parentNode.removeChild(notification);
       }
     }, 3000);
+  }
+
+  async loadPrintedOrdersRecord() {
+    try {
+      console.log('[APP] 加载已打印订单记录...');
+      const storedIds = localStorage.getItem('printedOrderIds');
+
+      if (storedIds) {
+        const parsedIds = JSON.parse(storedIds);
+        this.printedOrderIds = new Set(parsedIds);
+        console.log(
+          `[APP] 已加载 ${this.printedOrderIds.size} 个已打印订单记录`
+        );
+      } else {
+        console.log('[APP] 没有找到已打印订单记录，使用空记录');
+        this.printedOrderIds = new Set();
+      }
+
+      // 清理超过7天的记录，避免存储过多数据
+      this.cleanupOldPrintedRecords();
+    } catch (error) {
+      console.error('[APP] 加载已打印订单记录失败:', error);
+      this.printedOrderIds = new Set();
+    }
+  }
+
+  // 保存已打印订单记录到localStorage
+  savePrintedOrdersRecord() {
+    try {
+      const idsArray = Array.from(this.printedOrderIds);
+      localStorage.setItem('printedOrderIds', JSON.stringify(idsArray));
+      console.log(`[APP] 已保存 ${idsArray.length} 个已打印订单记录`);
+    } catch (error) {
+      console.error('[APP] 保存已打印订单记录失败:', error);
+    }
+  }
+
+  // 清理超过7天的已打印记录
+  cleanupOldPrintedRecords() {
+    // 由于订单ID通常包含时间信息，我们可以根据订单列表来清理
+    // 这里简单实现：如果记录超过100个，清理最旧的一半
+    if (this.printedOrderIds.size > 100) {
+      const idsArray = Array.from(this.printedOrderIds);
+      const keepCount = 50;
+      const newIds = new Set(idsArray.slice(-keepCount));
+      this.printedOrderIds = newIds;
+      this.savePrintedOrdersRecord();
+      console.log(`[APP] 清理已打印记录，保留最近 ${keepCount} 个`);
+    }
   }
 }
 
