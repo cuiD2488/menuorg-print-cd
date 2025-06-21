@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printOrder: (printerName, orderData) =>
     ipcRenderer.invoke('print-order', printerName, orderData),
 
-  // 打印引擎状态
+  // 打印引擎状态 - 统一API命名
   getPrintEngineStatus: () => ipcRenderer.invoke('get-print-engine-status'),
   getEngineStatus: () => ipcRenderer.invoke('get-print-engine-status'),
 
@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 通知
   showNotification: (options) =>
     ipcRenderer.invoke('show-notification', options),
+
+  // 打印预览
+  generatePrintPreview: (orderData, settings) =>
+    ipcRenderer.invoke('print-preview', orderData, settings),
 
   // 中文编码相关API已移除
 

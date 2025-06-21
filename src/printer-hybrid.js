@@ -43,7 +43,6 @@ class PrinterHybrid {
     this.nativeEngine = null;
     this.initNativeEngine();
     this.printerNative = new PrinterNative();
-    this.printerUtils = new PrinterUtils();
   }
 
   initNativeEngine() {

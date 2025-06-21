@@ -2,9 +2,6 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-// 导入安全的控制台输出函数
-const { safeConsoleLog, safeConsoleError } = require('../main');
-
 // 临时解决方案：在这里定义安全输出函数
 function safeLog(...args) {
   if (process.platform === 'win32') {

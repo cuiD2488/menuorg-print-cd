@@ -10,9 +10,11 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const printerUtils = require('./src/printer');
 // 引入混合打印引擎
 const PrinterHybrid = require('./src/printer-hybrid');
+
+// 创建混合打印引擎实例 - 移到文件顶部
+const hybridPrinter = new PrinterHybrid();
 
 // 简单的配置存储
 const configPath = path.join(app.getPath('userData'), 'config.json');
@@ -211,9 +213,6 @@ ipcMain.handle(
 
 // 中文编码相关的IPC处理程序已移除
 
-// 创建混合打印引擎实例
-const hybridPrinter = new PrinterHybrid();
-
 // 新增：获取引擎状态的调试处理程序
 ipcMain.handle('get-print-engine-status', async () => {
   try {
@@ -354,7 +353,8 @@ ipcMain.handle('close-window', async () => {
 // 打印预览功能
 ipcMain.handle('print-preview', async (event, orderData, printerSettings) => {
   try {
-    return await printerUtils.generatePrintPreview(orderData, printerSettings);
+    // 使用混合打印引擎而不是printerUtils
+    return await PrinterHybrid.generatePrintPreview(orderData, printerSettings);
   } catch (error) {
     console.error('生成打印预览失败:', error);
     throw error;
