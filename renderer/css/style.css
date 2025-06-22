@@ -1072,3 +1072,212 @@ button:hover {
         opacity: 1;
     }
 }
+
+/* 🍽️ 分菜打印配置样式 */
+.dish-print-config {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+    margin-top: 20px;
+}
+
+.dish-print-config h4 {
+    margin-bottom: 15px;
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.config-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    gap: 10px;
+}
+
+.btn-help {
+    background: #17a2b8;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    padding: 0;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+}
+
+.btn-help:hover {
+    background: #138496;
+}
+
+.printer-number-config {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #dee2e6;
+}
+
+.config-section-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.printer-number-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.printer-number-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    gap: 10px;
+}
+
+.printer-number-item label {
+    flex: 1;
+    font-weight: 500;
+    color: #495057;
+    font-size: 13px;
+}
+
+.printer-number-item input[type="number"] {
+    width: 80px;
+    padding: 6px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 13px;
+    text-align: center;
+}
+
+.printer-number-item input[type="number"]:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+}
+
+.printer-number-item .number-hint {
+    font-size: 11px;
+    color: #6c757d;
+    margin-left: 5px;
+}
+
+.config-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-primary {
+    background: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #1e7e34;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+/* 状态指示器样式 */
+.status-enabled {
+    background: #28a745;
+    color: white;
+}
+
+.status-disabled {
+    background: #6c757d;
+    color: white;
+}
+
+/* 帮助模态框样式 */
+.help-content {
+    line-height: 1.6;
+    color: #495057;
+}
+
+.help-content h4 {
+    color: #2c3e50;
+    margin: 20px 0 10px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.help-content h4:first-child {
+    margin-top: 0;
+}
+
+.help-content p {
+    margin-bottom: 15px;
+}
+
+.help-content ul,
+.help-content ol {
+    margin-bottom: 15px;
+    padding-left: 20px;
+}
+
+.help-content li {
+    margin-bottom: 8px;
+}
+
+.help-content code {
+    background: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    color: #e83e8c;
+}
+
+.help-content strong {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .config-actions {
+        flex-direction: column;
+    }
+
+    .config-actions .btn-small {
+        width: 100%;
+        text-align: center;
+    }
+
+    .printer-number-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .printer-number-item input[type="number"] {
+        width: 100%;
+    }
+}

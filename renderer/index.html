@@ -91,6 +91,56 @@
                   <button id="testPrint" class="btn-small">测试打印</button>
                 </div>
               </div>
+
+              <!-- 🍽️ 新增：分菜打印配置 -->
+              <div class="dish-print-config">
+                <h4>🍽️ 分菜打印配置</h4>
+
+                <!-- 分菜模式开关 -->
+                <div class="config-row">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="enableSeparatePrinting" />
+                    <span class="checkmark"></span>
+                    启用分菜打印模式
+                  </label>
+                  <button
+                    id="showDishPrintHelp"
+                    class="btn-small btn-help"
+                    title="查看分菜打印说明"
+                  >
+                    ?
+                  </button>
+                </div>
+
+                <!-- 打印机编号设置容器 -->
+                <div
+                  id="printerNumberConfig"
+                  class="printer-number-config hidden"
+                >
+                  <div class="config-section-title">打印机编号设置:</div>
+                  <div id="printerNumberList" class="printer-number-list">
+                    <!-- 动态生成打印机编号设置 -->
+                  </div>
+                  <div class="config-actions">
+                    <button
+                      id="saveDishPrintConfig"
+                      class="btn-small btn-primary"
+                    >
+                      保存配置
+                    </button>
+                    <button
+                      id="resetDishPrintConfig"
+                      class="btn-small btn-danger"
+                    >
+                      重置配置
+                    </button>
+                    <button id="testDishPrint" class="btn-small btn-success">
+                      测试分菜打印
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div class="auto-print-config">
                 <label class="checkbox-label">
                   <input type="checkbox" id="autoPrint" checked />
@@ -121,6 +171,13 @@
               <div class="status-item">
                 <span>Today Orders:</span>
                 <span id="todayOrderCount" class="status-badge">0</span>
+              </div>
+              <!-- 🍽️ 新增：分菜打印状态 -->
+              <div class="status-item">
+                <span>分菜打印:</span>
+                <span id="dishPrintStatus" class="status-badge status-disabled"
+                  >已禁用</span
+                >
               </div>
             </div>
           </div>
@@ -160,6 +217,76 @@
         <div class="modal-footer">
           <button id="printOrderBtn" class="btn-primary">Print Order</button>
           <button id="closeModalBtn" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🍽️ 新增：分菜打印帮助模态框 -->
+    <div id="dishPrintHelpModal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>🍽️ 分菜打印功能说明</h3>
+          <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+          <div class="help-content">
+            <h4>功能概述</h4>
+            <p>
+              分菜打印功能允许根据菜品的
+              <code>printType</code>
+              字段将订单分配到不同的打印机，实现厨房分工打印。
+            </p>
+
+            <h4>使用方法</h4>
+            <ol>
+              <li><strong>启用分菜模式</strong>：勾选"启用分菜打印模式"</li>
+              <li>
+                <strong>设置打印机编号</strong>：为每台打印机设置编号（1-99）
+              </li>
+              <li>
+                <strong>菜品配置</strong>：确保订单中的菜品有正确的
+                <code>printType</code> 值
+              </li>
+              <li>
+                <strong>开始打印</strong>：新订单会根据
+                <code>printType</code> 自动分配到对应打印机
+              </li>
+            </ol>
+
+            <h4>分菜逻辑</h4>
+            <ul>
+              <li>
+                <code>printType = 1</code> → 编号为 1 的打印机（如：热菜台）
+              </li>
+              <li>
+                <code>printType = 2</code> → 编号为 2 的打印机（如：凉菜台）
+              </li>
+              <li>
+                <code>printType = 0</code> 或未设置 →
+                没有编号的打印机（完整订单）
+              </li>
+            </ul>
+
+            <h4>应用场景</h4>
+            <ul>
+              <li><strong>热菜台</strong>：printType = 1，处理炒菜、煎炸等</li>
+              <li>
+                <strong>凉菜台</strong>：printType = 2，处理凉拌菜、沙拉等
+              </li>
+              <li><strong>汤品台</strong>：printType = 3，处理汤类、粥类等</li>
+              <li><strong>收银台</strong>：无编号，打印完整订单用于核对</li>
+            </ul>
+
+            <h4>注意事项</h4>
+            <ul>
+              <li>没有编号的打印机会打印完整订单</li>
+              <li>如果找不到对应编号的打印机，菜品会归入完整订单</li>
+              <li>配置会自动保存，重启后保持有效</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="closeDishPrintHelpBtn" class="btn-secondary">关闭</button>
         </div>
       </div>
     </div>

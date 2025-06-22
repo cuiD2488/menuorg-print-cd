@@ -68,7 +68,18 @@ class LodopPrinterManager {
       },
     };
 
-    console.log('[LODOP] C-Lodop 打印机管理器初始化（支持百分比排版）');
+    // 🍽️ 新增：分菜打印配置
+    this.printTypeConfig = {
+      // 打印机编号配置 - 用于分菜打印
+      printerNumbers: new Map(), // printerName -> number
+
+      // 是否启用分菜打印模式
+      enableSeparatePrinting: false,
+    };
+
+    console.log(
+      '[LODOP] C-Lodop 打印机管理器初始化（支持百分比排版和分菜打印）'
+    );
   }
 
   async init() {
@@ -131,6 +142,8 @@ class LodopPrinterManager {
             width: this.estimatePrinterWidth(printerName),
             fontSize: 0, // 小字体
             engine: 'C-Lodop',
+            // 🍽️ 新增：分菜打印相关字段
+            printerNumber: null, // 打印机编号，用于分菜打印
           };
 
           this.printers.push(printer);
@@ -156,20 +169,44 @@ class LodopPrinterManager {
   calculateLayoutParams(paperWidth) {
     const config = this.layoutConfig;
 
-    // 计算边距（毫米）
-    const leftMarginMm = (paperWidth * config.margins.left) / 100;
-    console.log('[LODOP] 左边距:', leftMarginMm);
-    const rightMarginMm = (paperWidth * config.margins.right) / 100;
+    // 🔧 修复边距计算 - 使用更合理的固定边距
+    // 热敏打印机边距不应该用百分比，应该用固定毫米数
+    const leftMarginMm = paperWidth >= 80 ? 2.0 : 1.5; // 80mm用2mm，58mm用1.5mm
+    const rightMarginMm = paperWidth >= 80 ? 2.0 : 1.5;
     const topMarginMm = config.margins.top;
     const bottomMarginMm = config.margins.bottom;
+
+    console.log('[LODOP] 🔧 边距修复:', {
+      纸张宽度: `${paperWidth}mm`,
+      左边距: `${leftMarginMm}mm`,
+      右边距: `${rightMarginMm}mm`,
+      原百分比计算: `${(paperWidth * config.margins.left) / 100}mm`,
+    });
 
     // 计算可用宽度
     const availableWidthMm = paperWidth - leftMarginMm - rightMarginMm;
 
-    // 计算字符宽度
-    const ratio =
-      config.charWidthRatio[paperWidth] || config.charWidthRatio.default;
-    const totalCharWidth = Math.floor(paperWidth * ratio);
+    // 🔧 修复字符宽度计算 - 更精确的估算
+    // 不再使用简单的系数，而是基于实际可用宽度计算
+    const avgCharWidthMm = paperWidth >= 80 ? 2.0 : 1.8; // 字符实际宽度（毫米）
+    const maxCharsFromWidth = Math.floor(availableWidthMm / avgCharWidthMm);
+
+    // 使用更保守的字符宽度设置
+    const totalCharWidth = Math.min(
+      maxCharsFromWidth,
+      paperWidth >= 80 ? 36 : 26 // 最大字符数限制
+    );
+
+    console.log('[LODOP] 🔧 字符宽度修复:', {
+      可用宽度: `${availableWidthMm}mm`,
+      字符宽度: `${avgCharWidthMm}mm`,
+      理论最大: `${maxCharsFromWidth}字符`,
+      实际使用: `${totalCharWidth}字符`,
+      原系数计算: `${Math.floor(
+        paperWidth *
+          (config.charWidthRatio[paperWidth] || config.charWidthRatio.default)
+      )}字符`,
+    });
 
     // 选择表格布局
     let tableLayout;
@@ -206,10 +243,15 @@ class LodopPrinterManager {
     const itemFontSize = baseFontSize + config.fontSize.item;
     const normalFontSize = baseFontSize + config.fontSize.normal;
 
-    // 计算文本区域宽度（毫米）
-    const avgCharWidthMm = baseFontSize * 0.15;
-    const textAreaWidthMm = totalCharWidth * avgCharWidthMm;
-    const finalTextWidthMm = Math.min(textAreaWidthMm, availableWidthMm);
+    // 🔧 修复文本区域宽度计算 - 直接使用可用宽度
+    // 不再通过字符数量估算，直接使用物理宽度
+    const textAreaWidthMm = availableWidthMm; // 直接使用可用宽度
+
+    console.log('[LODOP] 🔧 文本宽度修复:', {
+      可用宽度: `${availableWidthMm}mm`,
+      文本区域: `${textAreaWidthMm}mm`,
+      原估算方式: `${totalCharWidth * (baseFontSize * 0.15)}mm`,
+    });
 
     return {
       // 边距信息
@@ -224,7 +266,7 @@ class LodopPrinterManager {
       paperWidth: paperWidth,
       availableWidth: availableWidthMm,
       totalCharWidth: totalCharWidth,
-      textAreaWidth: finalTextWidthMm,
+      textAreaWidth: textAreaWidthMm, // 🔧 使用修复后的文本宽度
 
       // 表格布局
       table: {
@@ -252,7 +294,9 @@ class LodopPrinterManager {
 
       // 调试信息
       debug: {
-        charWidthRatio: ratio,
+        charWidthRatio: `${totalCharWidth}/${paperWidth} = ${(
+          totalCharWidth / paperWidth
+        ).toFixed(3)}`,
         avgCharWidthMm: avgCharWidthMm,
         layoutType:
           paperWidth >= 80
@@ -260,6 +304,14 @@ class LodopPrinterManager {
             : paperWidth >= 58
             ? 'compact'
             : 'minimal',
+        calculations: {
+          理论最大字符: maxCharsFromWidth,
+          实际字符宽度: totalCharWidth,
+          边距总计: leftMarginMm + rightMarginMm,
+          文本区域利用率: `${((textAreaWidthMm / paperWidth) * 100).toFixed(
+            1
+          )}%`,
+        },
       },
     };
   }
@@ -354,7 +406,7 @@ class LodopPrinterManager {
   }
 
   async printOrder(order) {
-    console.log(`[LODOP] 开始打印订单: ${order.order_id}`);
+    console.log(`[LODOP] 🍽️ 开始分菜打印订单: ${order.order_id}`);
     console.log(JSON.stringify(order));
 
     const selectedPrinters = this.getSelectedPrinters();
@@ -362,39 +414,77 @@ class LodopPrinterManager {
       throw new Error('未选择任何打印机');
     }
 
+    // 根据菜品 printType 分组
+    const printerGroups = this.groupDishesByPrintType(order);
+
+    if (printerGroups.size === 0) {
+      throw new Error('没有可用的打印机组合');
+    }
+
     let successCount = 0;
     let errorCount = 0;
     const errors = [];
+    const printResults = [];
 
-    // 生成打印内容
-    const printContent = this.generateOrderPrintContent(order);
+    // 并行打印到所有分组
+    const printPromises = Array.from(printerGroups.entries()).map(
+      async ([printerName, group]) => {
+        try {
+          // 创建针对该打印机的订单副本
+          const printerOrder = {
+            ...order,
+            dishes_array: group.dishes,
+          };
 
-    // 并行打印到所有选中的打印机
-    const printPromises = selectedPrinters.map(async (printerName) => {
-      try {
-        await this.printToLodop(printerName, printContent, order);
-        successCount++;
-        console.log(`[LODOP] 订单打印成功: ${printerName}`);
-        return { printer: printerName, success: true };
-      } catch (error) {
-        errorCount++;
-        const errorMsg = `${printerName}: ${error.message}`;
-        errors.push(errorMsg);
-        console.error(`[LODOP] 订单打印失败 ${printerName}:`, error);
-        return { printer: printerName, success: false, error: error.message };
+          // 生成打印内容
+          const printContent = group.hasFullOrder
+            ? this.generateOrderPrintContent(printerOrder)
+            : this.generatePartialOrderPrintContent(printerOrder, group);
+
+          await this.printToLodop(printerName, printContent, printerOrder);
+          successCount++;
+
+          const logMsg = group.hasFullOrder
+            ? `完整订单打印成功: ${printerName}`
+            : `分菜打印成功: ${printerName} (${group.dishes.length}个菜品, printType: ${group.printType})`;
+          console.log(`[LODOP] 🍽️ ${logMsg}`);
+
+          return {
+            printer: printerName,
+            success: true,
+            type: group.hasFullOrder ? 'full' : 'partial',
+            dishCount: group.dishes.length,
+            printerNumber: group.printerNumber || null,
+            printType: group.printType || null,
+          };
+        } catch (error) {
+          errorCount++;
+          const errorMsg = `${printerName}: ${error.message}`;
+          errors.push(errorMsg);
+          console.error(`[LODOP] 🍽️ 打印失败 ${printerName}:`, error);
+          return {
+            printer: printerName,
+            success: false,
+            error: error.message,
+            type: group.hasFullOrder ? 'full' : 'partial',
+            dishCount: group.dishes.length,
+          };
+        }
       }
-    });
+    );
 
-    await Promise.all(printPromises);
+    const results = await Promise.all(printPromises);
 
     const result = {
       成功数量: successCount,
       失败数量: errorCount,
       错误列表: errors,
-      打印引擎: 'C-Lodop',
+      打印引擎: 'C-Lodop (分菜打印)',
+      分菜模式: this.printTypeConfig.enableSeparatePrinting,
+      打印详情: results,
     };
 
-    console.log(`[LODOP] 订单 ${order.order_id} 打印完成:`, result);
+    console.log(`[LODOP] 🍽️ 订单 ${order.order_id} 分菜打印完成:`, result);
     return result;
   }
 
@@ -1206,6 +1296,326 @@ class LodopPrinterManager {
       console.error('[LODOP] 生成预览失败:', error);
       throw error;
     }
+  }
+
+  // 🍽️ 新增：设置打印机编号
+  setPrinterNumber(printerName, number) {
+    const printer = this.printers.find((p) => p.name === printerName);
+    if (printer) {
+      printer.printerNumber = number;
+      this.printTypeConfig.printerNumbers.set(printerName, number);
+      console.log(`[LODOP] 🍽️ 设置打印机编号: ${printerName} -> ${number}`);
+      return true;
+    }
+    return false;
+  }
+
+  // 🍽️ 新增：获取打印机编号
+  getPrinterNumber(printerName) {
+    return this.printTypeConfig.printerNumbers.get(printerName) || null;
+  }
+
+  // 🍽️ 新增：启用/禁用分菜打印模式
+  setSeparatePrintingMode(enabled) {
+    this.printTypeConfig.enableSeparatePrinting = enabled;
+    console.log(`[LODOP] 🍽️ 分菜打印模式: ${enabled ? '已启用' : '已禁用'}`);
+  }
+
+  // 🍽️ 新增：根据菜品 printType 分组订单
+  groupDishesByPrintType(order) {
+    const printerGroups = new Map(); // printerName -> {dishes: [], hasFullOrder: boolean, printType: number}
+
+    console.log('[LODOP] 🍽️ 开始按 printType 分菜分组...');
+
+    // 如果未启用分菜打印，返回完整订单
+    if (!this.printTypeConfig.enableSeparatePrinting) {
+      console.log('[LODOP] 🍽️ 分菜打印未启用，使用完整订单模式');
+      const selectedPrinters = this.getSelectedPrinters();
+      selectedPrinters.forEach((printerName) => {
+        printerGroups.set(printerName, {
+          dishes: order.dishes_array || [],
+          hasFullOrder: true,
+          printerName: printerName,
+          printType: null,
+        });
+      });
+      return printerGroups;
+    }
+
+    // 收集所有菜品的 printType
+    const dishesWithPrintType = new Map(); // printType -> dishes[]
+    const dishesWithoutPrintType = [];
+
+    (order.dishes_array || []).forEach((dish) => {
+      const printType = parseInt(dish.printType || '0');
+
+      if (printType > 0) {
+        if (!dishesWithPrintType.has(printType)) {
+          dishesWithPrintType.set(printType, []);
+        }
+        dishesWithPrintType.get(printType).push(dish);
+        console.log(
+          `[LODOP] 🍽️ 菜品 "${dish.dishes_name}" printType: ${printType}`
+        );
+      } else {
+        dishesWithoutPrintType.push(dish);
+        console.log(
+          `[LODOP] 🍽️ 菜品 "${dish.dishes_name}" 无 printType，归入通用组`
+        );
+      }
+    });
+
+    // 为每个 printType 找到对应的打印机
+    dishesWithPrintType.forEach((dishes, printType) => {
+      const targetPrinter = this.printers.find(
+        (p) =>
+          p.printerNumber === printType &&
+          this.selectedPrinters.includes(p.name)
+      );
+
+      if (targetPrinter) {
+        printerGroups.set(targetPrinter.name, {
+          dishes: dishes,
+          hasFullOrder: false,
+          printerName: targetPrinter.name,
+          printerNumber: printType,
+          printType: printType,
+        });
+        console.log(
+          `[LODOP] 🍽️ printType ${printType} -> 打印机 "${targetPrinter.name}" (${dishes.length}个菜品)`
+        );
+      } else {
+        console.log(
+          `[LODOP] 🍽️ 警告: printType ${printType} 没有找到对应的打印机，归入通用组`
+        );
+        dishesWithoutPrintType.push(...dishes);
+      }
+    });
+
+    // 处理没有 printType 的菜品和没有编号的打印机
+    if (dishesWithoutPrintType.length > 0) {
+      console.log(
+        `[LODOP] 🍽️ 处理 ${dishesWithoutPrintType.length} 个通用菜品`
+      );
+
+      // 找到没有编号的打印机，打印完整订单
+      const unNumberedPrinters = this.selectedPrinters.filter((printerName) => {
+        const printer = this.printers.find((p) => p.name === printerName);
+        return !printer || !printer.printerNumber;
+      });
+
+      if (unNumberedPrinters.length > 0) {
+        unNumberedPrinters.forEach((printerName) => {
+          printerGroups.set(printerName, {
+            dishes: order.dishes_array || [], // 完整订单
+            hasFullOrder: true,
+            printerName: printerName,
+            printType: null,
+          });
+          console.log(
+            `[LODOP] 🍽️ 未编号打印机 "${printerName}" 将打印完整订单`
+          );
+        });
+      } else if (printerGroups.size === 0) {
+        // 如果没有任何分组，至少选择一台打印机打印完整订单
+        const firstPrinter = this.selectedPrinters[0];
+        if (firstPrinter) {
+          printerGroups.set(firstPrinter, {
+            dishes: order.dishes_array || [],
+            hasFullOrder: true,
+            printerName: firstPrinter,
+            printType: null,
+          });
+          console.log(`[LODOP] 🍽️ 兜底: 使用 "${firstPrinter}" 打印完整订单`);
+        }
+      }
+    }
+
+    console.log(
+      `[LODOP] 🍽️ printType 分菜分组完成，共分配到 ${printerGroups.size} 台打印机`
+    );
+    return printerGroups;
+  }
+
+  // 🍽️ 新增：生成部分订单打印内容（仅包含指定 printType 的菜品）
+  generatePartialOrderPrintContent(order, group) {
+    console.log(
+      `[LODOP] 🍽️ 生成部分订单打印内容 (printType: ${group.printType}, ${group.dishes.length}个菜品)...`
+    );
+
+    // 获取打印机宽度设置
+    const printer = this.printers.find((p) => p.name === group.printerName);
+    const paperWidth = printer ? printer.width : 80;
+
+    // 🔧 使用新的百分比布局系统
+    const layout = this.calculateLayoutParams(paperWidth);
+
+    let content = '';
+
+    // ============= 订单号区域：靠左对齐 =============
+    content += `#${order.order_id}`;
+    if (group.printType) {
+      content += ` - Type ${group.printType}`;
+    }
+    content += '\n';
+    content += '\n';
+
+    // ============= 订单信息：基本信息 =============
+    content += `Order Date: ${this.formatDateTime(order.create_time)}\n`;
+    content += `Pickup Time: ${this.formatDateTime(order.delivery_time)}\n`;
+
+    const paystyle = order.paystyle == 1 ? 'Card' : 'Cash';
+    content += `Payment: ${paystyle}\n`;
+    content += `Customer: ${order.recipient_name || 'N/A'}\n`;
+    content += `Phone: ${order.recipient_phone || 'N/A'}\n`;
+
+    // 取餐方式
+    const deliveryType = order.delivery_type == 1 ? 'Delivery' : 'Pickup';
+    content += `Type: ${deliveryType}\n`;
+
+    content += '\n';
+    content += '='.repeat(layout.totalCharWidth) + '\n';
+
+    // ============= 菜单表格：仅显示指定 printType 的菜品 =============
+    console.log('[LODOP] 🍽️ 使用百分比表格布局 (部分菜品)');
+
+    // 表头
+    content += this.padText('Item', layout.table.nameWidth, 'left');
+    content += this.padText('Qty', layout.table.qtyWidth, 'center');
+    content += this.padText('Price', layout.table.priceWidth, 'right');
+    content += '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
+
+    // ============= 菜单明细：只显示指定 printType 的菜品 =============
+    let totalAmount = 0;
+    group.dishes.forEach((dish) => {
+      const price = parseFloat(dish.price || '0');
+      const qty = parseInt(dish.amount || '1');
+      const priceStr = `$${price.toFixed(2)}`;
+      const qtyStr = qty.toString();
+
+      totalAmount += price;
+
+      // 🔧 菜名处理：使用百分比计算的列宽
+      const dishName = dish.dishes_name || '';
+      if (this.displayWidth(dishName) <= layout.table.nameWidth) {
+        // 菜名不超宽，单行显示
+        content += this.padText(dishName, layout.table.nameWidth, 'left');
+        content += this.padText(qtyStr, layout.table.qtyWidth, 'center');
+        content += this.padText(priceStr, layout.table.priceWidth, 'right');
+        content += '\n';
+      } else {
+        // 菜名超宽，多行显示
+        const wrappedName = this.wrapText(dishName, layout.table.nameWidth);
+        const nameLines = wrappedName.split('\n');
+
+        // 第一行：菜名 + 数量 + 价格
+        const firstLine = nameLines[0] || '';
+        content += this.padText(firstLine, layout.table.nameWidth, 'left');
+        content += this.padText(qtyStr, layout.table.qtyWidth, 'center');
+        content += this.padText(priceStr, layout.table.priceWidth, 'right');
+        content += '\n';
+
+        // 后续行：只显示菜名续
+        for (let i = 1; i < nameLines.length; i++) {
+          if (nameLines[i].trim()) {
+            content += this.padText(
+              nameLines[i],
+              layout.table.nameWidth,
+              'left'
+            );
+            content += ' '.repeat(
+              layout.table.qtyWidth + layout.table.priceWidth
+            ); // 数量和价格列留空
+            content += '\n';
+          }
+        }
+      }
+
+      // 🔧 规格处理：缩进显示，使用百分比宽度换行
+      if (dish.remark && dish.remark.trim()) {
+        const specIndent = 2; // 2个空格缩进
+        const specWidth = layout.table.nameWidth - specIndent;
+        const wrappedSpec = this.wrapText(dish.remark, specWidth);
+        const specLines = wrappedSpec.split('\n');
+
+        specLines.forEach((line) => {
+          if (line.trim()) {
+            content += ' '.repeat(specIndent); // 缩进
+            content += this.padText(line, specWidth, 'left');
+            content += ' '.repeat(
+              layout.table.qtyWidth + layout.table.priceWidth
+            ); // 数量和价格列留空
+            content += '\n';
+          }
+        });
+      }
+
+      content += '\n'; // 每个菜品后空一行
+    });
+
+    content += '='.repeat(layout.totalCharWidth) + '\n';
+
+    // ============= 部分订单小计 =============
+    content += this.padText('部分小计', layout.fee.labelWidth, 'left');
+    content += this.padText(
+      `$${totalAmount.toFixed(2)}`,
+      layout.fee.amountWidth,
+      'right'
+    );
+    content += '\n';
+
+    // ============= 备注：靠左显示，自动换行 =============
+    if (order.order_notes && order.order_notes.trim()) {
+      content += '\n';
+      content += '-'.repeat(layout.totalCharWidth) + '\n';
+      content += 'Notes:\n';
+      const wrappedNotes = this.wrapText(
+        order.order_notes,
+        layout.totalCharWidth - 2
+      );
+      const noteLines = wrappedNotes.split('\n');
+      noteLines.forEach((line) => {
+        if (line.trim()) {
+          content += `  ${line}\n`;
+        }
+      });
+    }
+
+    // 结尾
+    content += '\n';
+    content += '='.repeat(layout.totalCharWidth) + '\n';
+    content += `PrintType ${group.printType || '?'} - ${
+      group.dishes.length
+    }个菜品\n`;
+
+    console.log('[LODOP] 🍽️ 部分订单内容生成完成');
+    return content;
+  }
+
+  // 🍽️ 新增：获取分菜打印配置
+  getPrintTypeConfig() {
+    return {
+      enableSeparatePrinting: this.printTypeConfig.enableSeparatePrinting,
+      printerNumbers: Object.fromEntries(this.printTypeConfig.printerNumbers),
+      availablePrinters: this.printers.map((p) => ({
+        name: p.name,
+        number: p.printerNumber,
+      })),
+    };
+  }
+
+  // 🍽️ 新增：重置分菜打印配置
+  resetPrintTypeConfig() {
+    this.printTypeConfig.printerNumbers.clear();
+    this.printTypeConfig.enableSeparatePrinting = false;
+
+    // 重置打印机对象中的相关字段
+    this.printers.forEach((printer) => {
+      printer.printerNumber = null;
+    });
+
+    console.log('[LODOP] 🍽️ 分菜打印配置已重置');
   }
 }
 

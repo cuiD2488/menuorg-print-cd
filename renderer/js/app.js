@@ -30,6 +30,8 @@ class OrderPrintApp {
   async initUI() {
     await this.updatePrinterSelect();
     await this.loadUIConfig();
+    // 🍽️ 加载分菜打印配置
+    this.loadDishPrintConfig();
   }
 
   async updatePrinterSelect() {
@@ -119,6 +121,14 @@ class OrderPrintApp {
 
     this.updatePrinterSelectionSummary();
     this.updatePrinterStatus();
+
+    // 🍽️ 如果分菜模式已启用，更新打印机编号配置界面
+    const isEnabled = document.getElementById(
+      'enableSeparatePrinting'
+    )?.checked;
+    if (isEnabled) {
+      this.renderPrinterNumberConfig();
+    }
   }
 
   handlePrinterToggle(printerName, isChecked) {
@@ -249,6 +259,51 @@ class OrderPrintApp {
     document.getElementById('autoPrint').addEventListener('change', () => {
       this.saveUIConfig();
     });
+
+    // 🍽️ 新增：分菜打印配置事件监听器
+    document
+      .getElementById('enableSeparatePrinting')
+      .addEventListener('change', (e) => {
+        this.handleSeparatePrintingToggle(e.target.checked);
+      });
+
+    document
+      .getElementById('showDishPrintHelp')
+      .addEventListener('click', () => {
+        this.showDishPrintHelp();
+      });
+
+    document
+      .getElementById('saveDishPrintConfig')
+      .addEventListener('click', () => {
+        this.saveDishPrintConfig();
+      });
+
+    document
+      .getElementById('resetDishPrintConfig')
+      .addEventListener('click', () => {
+        this.resetDishPrintConfig();
+      });
+
+    document.getElementById('testDishPrint').addEventListener('click', () => {
+      this.testDishPrint();
+    });
+
+    // 帮助模态框关闭事件
+    document
+      .getElementById('closeDishPrintHelpBtn')
+      .addEventListener('click', () => {
+        this.hideDishPrintHelp();
+      });
+
+    // 模态框点击背景关闭
+    document
+      .getElementById('dishPrintHelpModal')
+      .addEventListener('click', (e) => {
+        if (e.target.id === 'dishPrintHelpModal') {
+          this.hideDishPrintHelp();
+        }
+      });
 
     document.getElementById('refreshOrders').addEventListener('click', () => {
       this.loadRecentOrders();
@@ -1580,6 +1635,352 @@ class OrderPrintApp {
       this.printedOrderIds = newIds;
       this.savePrintedOrdersRecord();
       console.log(`[APP] 清理已打印记录，保留最近 ${keepCount} 个`);
+    }
+  }
+
+  // 🍽️ 新增：分菜打印配置方法实现
+
+  // 处理分菜打印模式切换
+  handleSeparatePrintingToggle(isEnabled) {
+    console.log('[APP] 🍽️ 切换分菜打印模式:', isEnabled);
+
+    const configContainer = document.getElementById('printerNumberConfig');
+    const statusElement = document.getElementById('dishPrintStatus');
+
+    if (isEnabled) {
+      // 显示打印机编号配置
+      configContainer.classList.remove('hidden');
+      statusElement.textContent = '已启用';
+      statusElement.className = 'status-badge status-enabled';
+
+      // 渲染打印机编号配置
+      this.renderPrinterNumberConfig();
+
+      // 通知打印管理器启用分菜模式
+      if (this.printerManager && this.printerManager.lodopManager) {
+        this.printerManager.lodopManager.setSeparatePrintingMode(true);
+      }
+    } else {
+      // 隐藏打印机编号配置
+      configContainer.classList.add('hidden');
+      statusElement.textContent = '已禁用';
+      statusElement.className = 'status-badge status-disabled';
+
+      // 通知打印管理器禁用分菜模式
+      if (this.printerManager && this.printerManager.lodopManager) {
+        this.printerManager.lodopManager.setSeparatePrintingMode(false);
+      }
+    }
+
+    // 保存配置
+    this.saveDishPrintConfig();
+  }
+
+  // 渲染打印机编号配置界面
+  renderPrinterNumberConfig() {
+    const container = document.getElementById('printerNumberList');
+    const printers = this.printerManager.getAllPrinters();
+
+    container.innerHTML = '';
+
+    printers.forEach((printer, index) => {
+      const printerItem = document.createElement('div');
+      printerItem.className = 'printer-number-item';
+
+      // 获取当前打印机的编号
+      let currentNumber = '';
+      if (this.printerManager && this.printerManager.lodopManager) {
+        const number = this.printerManager.lodopManager.getPrinterNumber(
+          printer.name
+        );
+        currentNumber = number || '';
+      }
+
+      printerItem.innerHTML = `
+        <label>${printer.name}</label>
+        <input type="number"
+               id="printerNumber_${index}"
+               min="0"
+               max="99"
+               value="${currentNumber}"
+               placeholder="编号"
+               data-printer-name="${printer.name}">
+        <span class="number-hint">(0=完整订单, 1-99=printType)</span>
+      `;
+
+      // 添加输入事件监听
+      const input = printerItem.querySelector('input');
+      input.addEventListener('change', (e) => {
+        this.handlePrinterNumberChange(printer.name, e.target.value);
+      });
+
+      container.appendChild(printerItem);
+    });
+  }
+
+  // 处理打印机编号变更
+  handlePrinterNumberChange(printerName, value) {
+    const number = parseInt(value) || null;
+    console.log('[APP] 🍽️ 设置打印机编号:', printerName, '->', number);
+
+    if (this.printerManager && this.printerManager.lodopManager) {
+      const success = this.printerManager.lodopManager.setPrinterNumber(
+        printerName,
+        number
+      );
+      if (success) {
+        console.log('[APP] 🍽️ 打印机编号设置成功');
+      } else {
+        console.error('[APP] 🍽️ 打印机编号设置失败');
+      }
+    }
+  }
+
+  // 显示分菜打印帮助
+  showDishPrintHelp() {
+    console.log('[APP] 显示分菜打印帮助');
+    const modal = document.getElementById('dishPrintHelpModal');
+    modal.classList.remove('hidden');
+  }
+
+  // 隐藏分菜打印帮助
+  hideDishPrintHelp() {
+    console.log('[APP] 隐藏分菜打印帮助');
+    const modal = document.getElementById('dishPrintHelpModal');
+    modal.classList.add('hidden');
+  }
+
+  // 保存分菜打印配置
+  async saveDishPrintConfig() {
+    console.log('[APP] 🍽️ 保存分菜打印配置');
+
+    try {
+      const isEnabled = document.getElementById(
+        'enableSeparatePrinting'
+      ).checked;
+
+      // 收集所有打印机编号配置
+      const printerNumbers = {};
+      const printers = this.printerManager.getAllPrinters();
+
+      printers.forEach((printer, index) => {
+        const input = document.getElementById(`printerNumber_${index}`);
+        if (input) {
+          const number = parseInt(input.value) || null;
+          if (number) {
+            printerNumbers[printer.name] = number;
+          }
+        }
+      });
+
+      // 构建配置对象
+      const config = {
+        enableSeparatePrinting: isEnabled,
+        printerNumbers: printerNumbers,
+      };
+
+      // 保存到本地存储
+      localStorage.setItem('dishPrintConfig', JSON.stringify(config));
+
+      console.log('[APP] 🍽️ 分菜打印配置已保存:', config);
+
+      // 显示成功提示
+      this.showNotification('分菜打印配置已保存', 'success');
+    } catch (error) {
+      console.error('[APP] 🍽️ 保存分菜打印配置失败:', error);
+      this.showNotification('保存配置失败: ' + error.message, 'error');
+    }
+  }
+
+  // 重置分菜打印配置
+  resetDishPrintConfig() {
+    console.log('[APP] 🍽️ 重置分菜打印配置');
+
+    if (confirm('确定要重置所有分菜打印配置吗？此操作不可撤销。')) {
+      // 重置界面
+      document.getElementById('enableSeparatePrinting').checked = false;
+      document.getElementById('printerNumberConfig').classList.add('hidden');
+      document.getElementById('dishPrintStatus').textContent = '已禁用';
+      document.getElementById('dishPrintStatus').className =
+        'status-badge status-disabled';
+
+      // 清空所有打印机编号输入框
+      const inputs = document.querySelectorAll(
+        '#printerNumberList input[type="number"]'
+      );
+      inputs.forEach((input) => {
+        input.value = '';
+      });
+
+      // 重置打印管理器配置
+      if (this.printerManager && this.printerManager.lodopManager) {
+        this.printerManager.lodopManager.resetPrintTypeConfig();
+      }
+
+      // 清除本地存储
+      localStorage.removeItem('dishPrintConfig');
+
+      console.log('[APP] 🍽️ 分菜打印配置已重置');
+      this.showNotification('分菜打印配置已重置', 'success');
+    }
+  }
+
+  // 测试分菜打印
+  async testDishPrint() {
+    console.log('[APP] 🍽️ 开始测试分菜打印');
+
+    try {
+      // 检查是否有选中的打印机
+      const selectedPrinters = this.printerManager.getSelectedPrinters();
+      if (selectedPrinters.length === 0) {
+        this.showNotification('请先选择至少一台打印机', 'error');
+        return;
+      }
+
+      // 检查是否启用了分菜模式
+      const isEnabled = document.getElementById(
+        'enableSeparatePrinting'
+      ).checked;
+      if (!isEnabled) {
+        this.showNotification('请先启用分菜打印模式', 'error');
+        return;
+      }
+
+      // 创建测试订单
+      const testOrder = {
+        order_id: `TEST-${Date.now()}`,
+        create_time: new Date().toISOString(),
+        delivery_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        paystyle: 1,
+        recipient_name: '测试客户',
+        recipient_phone: '13800138000',
+        delivery_type: 2,
+        sub_total: 45.5,
+        tax_fee: 3.64,
+        tip_fee: 5.0,
+        total: 54.14,
+        order_notes: '这是分菜打印测试订单',
+        dishes_array: [
+          {
+            dishes_name: '宫保鸡丁',
+            price: '18.50',
+            amount: '1',
+            remark: '微辣，不要花生',
+            printType: '1',
+          },
+          {
+            dishes_name: '麻婆豆腐',
+            price: '16.00',
+            amount: '1',
+            remark: '中辣',
+            printType: '1',
+          },
+          {
+            dishes_name: '凉拌黄瓜',
+            price: '8.00',
+            amount: '1',
+            remark: '多放蒜',
+            printType: '2',
+          },
+          {
+            dishes_name: '米饭',
+            price: '3.00',
+            amount: '2',
+            remark: '',
+            printType: '0',
+          },
+        ],
+      };
+
+      // 执行测试打印
+      this.showNotification('正在执行分菜打印测试...', 'info');
+
+      const result = await this.printerManager.printOrder(testOrder);
+
+      if (result && result.成功数量 > 0) {
+        this.showNotification(
+          `分菜打印测试完成！成功: ${result.成功数量}台, 失败: ${result.失败数量}台`,
+          'success'
+        );
+        console.log('[APP] 🍽️ 分菜打印测试结果:', result);
+      } else {
+        this.showNotification('分菜打印测试失败', 'error');
+        console.error('[APP] 🍽️ 分菜打印测试失败:', result);
+      }
+    } catch (error) {
+      console.error('[APP] 🍽️ 分菜打印测试异常:', error);
+      this.showNotification('分菜打印测试异常: ' + error.message, 'error');
+    }
+  }
+
+  // 加载分菜打印配置
+  loadDishPrintConfig() {
+    console.log('[APP] 🍽️ 加载分菜打印配置');
+
+    try {
+      const configStr = localStorage.getItem('dishPrintConfig');
+      if (configStr) {
+        const config = JSON.parse(configStr);
+
+        // 恢复分菜模式开关
+        document.getElementById('enableSeparatePrinting').checked =
+          config.enableSeparatePrinting || false;
+
+        // 恢复状态显示
+        const statusElement = document.getElementById('dishPrintStatus');
+        if (config.enableSeparatePrinting) {
+          statusElement.textContent = '已启用';
+          statusElement.className = 'status-badge status-enabled';
+          document
+            .getElementById('printerNumberConfig')
+            .classList.remove('hidden');
+        } else {
+          statusElement.textContent = '已禁用';
+          statusElement.className = 'status-badge status-disabled';
+          document
+            .getElementById('printerNumberConfig')
+            .classList.add('hidden');
+        }
+
+        // 恢复打印机编号配置
+        if (
+          config.printerNumbers &&
+          this.printerManager &&
+          this.printerManager.lodopManager
+        ) {
+          Object.entries(config.printerNumbers).forEach(
+            ([printerName, number]) => {
+              this.printerManager.lodopManager.setPrinterNumber(
+                printerName,
+                number
+              );
+            }
+          );
+
+          // 设置打印管理器的分菜模式
+          this.printerManager.lodopManager.setSeparatePrintingMode(
+            config.enableSeparatePrinting
+          );
+        }
+
+        console.log('[APP] 🍽️ 分菜打印配置已加载:', config);
+      }
+    } catch (error) {
+      console.error('[APP] 🍽️ 加载分菜打印配置失败:', error);
+    }
+  }
+
+  // 显示通知消息
+  showNotification(message, type = 'info') {
+    // 简单的通知实现，可以根据需要改进
+    console.log(`[NOTIFICATION-${type.toUpperCase()}] ${message}`);
+
+    // 如果有现成的通知系统，可以调用
+    if (typeof this.showTrayNotification === 'function') {
+      this.showTrayNotification(message);
+    } else {
+      // 简单的alert作为临时方案
+      alert(message);
     }
   }
 }
