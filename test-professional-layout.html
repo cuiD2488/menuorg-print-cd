@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🎫 专业热敏小票排版测试</title>
+    <style>
+      body {
+        font-family: 'Courier New', monospace;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .test-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+      .preview {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 20px;
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        margin: 15px 0;
+      }
+      .info {
+        background: #d1ecf1;
+        color: #0c5460;
+        padding: 15px;
+        border-radius: 6px;
+        margin: 15px 0;
+      }
+      .success {
+        background: #d4edda;
+        color: #155724;
+        padding: 15px;
+        border-radius: 6px;
+        margin: 15px 0;
+      }
+      .comparison {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin: 20px 0;
+      }
+      .comparison-item {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        margin: 8px;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .feature-list {
+        background: #fff3cd;
+        color: #856404;
+        padding: 15px;
+        border-radius: 6px;
+        margin: 15px 0;
+      }
+      .feature-list ul {
+        margin: 10px 0;
+        padding-left: 20px;
+      }
+      .feature-list li {
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎫 专业热敏小票排版测试</h1>
+
+      <div class="info">
+        <strong>🎯 新版本特点：</strong><br />
+        基于真实热敏小票样式设计，支持多种纸张宽度自适应，专业排版布局。
+      </div>
+
+      <div class="feature-list">
+        <h3>✨ 核心特性</h3>
+        <ul>
+          <li>
+            <strong>自适应宽度：</strong>支持80mm、58mm、48mm等多种热敏纸宽度
+          </li>
+          <li><strong>居中标题：</strong>餐厅名称和订单类型居中显示</li>
+          <li><strong>表格布局：</strong>订单信息使用专业表格格式</li>
+          <li><strong>菜品表格：</strong>带表头的菜品明细，长菜名自动换行</li>
+          <li><strong>右对齐价格：</strong>所有价格信息右对齐显示</li>
+          <li><strong>分区清晰：</strong>使用分隔线区分不同内容区域</li>
+          <li>
+            <strong>预付费标识：</strong>支持"Prepaid - Do Not Charge"提示
+          </li>
+        </ul>
+      </div>
+
+      <div class="test-section">
+        <h3>📊 多宽度对比测试</h3>
+        <div class="comparison">
+          <div class="comparison-item">
+            <h4>80mm热敏纸 (34字符)</h4>
+            <button onclick="test80mmLayout()">生成80mm预览</button>
+            <div id="preview80mm"></div>
+          </div>
+          <div class="comparison-item">
+            <h4>58mm热敏纸 (24字符)</h4>
+            <button onclick="test58mmLayout()">生成58mm预览</button>
+            <div id="preview58mm"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="test-section">
+        <h3>🏪 餐厅样式测试</h3>
+        <div class="info">
+          模拟不同餐厅的小票样式，测试排版的通用性和美观性。
+        </div>
+        <button onclick="testRestaurantStyles()">测试多种餐厅样式</button>
+        <div id="restaurantStylesResult"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>📱 复杂订单测试</h3>
+        <div class="info">
+          测试包含长菜名、多种费用、地址信息等复杂场景的排版效果。
+        </div>
+        <button onclick="testComplexOrder()">测试复杂订单</button>
+        <div id="complexOrderResult"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>🖨️ 实际打印测试</h3>
+        <div class="info">
+          如果已安装C-Lodop并连接热敏打印机，可以进行实际打印测试。
+        </div>
+        <button onclick="testActualPrint()">测试实际打印</button>
+        <div id="printTestResult"></div>
+      </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="renderer/LodopFuncs.js"></script>
+    <script src="src/printer-lodop.js"></script>
+
+    <script>
+      let lodopManager = null;
+
+      // 初始化
+      async function init() {
+        try {
+          if (typeof LodopPrinterManager !== 'undefined') {
+            lodopManager = new LodopPrinterManager();
+            const initResult = await lodopManager.init();
+
+            if (initResult.success) {
+              console.log('✅ C-Lodop 初始化成功');
+            } else {
+              console.log('❌ C-Lodop 初始化失败，使用模拟模式');
+              lodopManager = createMockManager();
+            }
+          } else {
+            console.log('❌ LodopPrinterManager 未找到，使用模拟模式');
+            lodopManager = createMockManager();
+          }
+        } catch (error) {
+          console.error('初始化失败:', error);
+          lodopManager = createMockManager();
+        }
+      }
+
+      // 创建模拟管理器
+      function createMockManager() {
+        return {
+          printers: [
+            { name: '模拟80mm打印机', width: 80 },
+            { name: '模拟58mm打印机', width: 58 },
+            { name: '模拟48mm打印机', width: 48 },
+          ],
+          selectedPrinters: ['模拟80mm打印机'],
+          generateOrderPrintContent: function (order, paperWidth = 80) {
+            // 使用新的专业排版逻辑
+            let totalWidth;
+            if (paperWidth >= 80) {
+              totalWidth = 34;
+            } else if (paperWidth >= 58) {
+              totalWidth = 24;
+            } else if (paperWidth >= 48) {
+              totalWidth = 20;
+            } else {
+              totalWidth = Math.max(Math.floor(paperWidth * 0.35), 16);
+            }
+
+            let content = '';
+
+            // 头部区域
+            content += '='.repeat(totalWidth) + '\n';
+            content +=
+              this.centerText(order.rd_name || 'RESTAURANT', totalWidth) + '\n';
+            const deliveryType =
+              order.delivery_type == 1 ? 'DELIVERY' : 'PICKUP';
+            content += this.centerText(deliveryType, totalWidth) + '\n';
+            content += '='.repeat(totalWidth) + '\n\n';
+
+            // 订单号区域
+            content +=
+              this.centerText(`Order #: ${order.order_id}`, totalWidth) + '\n';
+            if (order.serial_num && order.serial_num > 0) {
+              const serial = `#${order.serial_num.toString().padStart(3, '0')}`;
+              content +=
+                this.centerText(`Serial: ${serial}`, totalWidth) + '\n';
+            }
+            content += '\n';
+
+            // 订单信息表格
+            content += this.formatTableRow(
+              'Order Date:',
+              this.formatDateTime(order.create_time),
+              totalWidth
+            );
+            const timeLabel =
+              order.delivery_type == 1 ? 'Delivery Time:' : 'Pickup Time:';
+            content += this.formatTableRow(
+              timeLabel,
+              this.formatDateTime(order.delivery_time),
+              totalWidth
+            );
+            content += this.formatTableRow(
+              'Payment:',
+              order.paystyle == 1 ? 'Card' : 'Cash',
+              totalWidth
+            );
+            content += this.formatTableRow(
+              'Customer:',
+              order.recipient_name || 'N/A',
+              totalWidth
+            );
+            content += this.formatTableRow(
+              'Phone:',
+              order.recipient_phone || 'N/A',
+              totalWidth
+            );
+
+            content += '\n' + '-'.repeat(totalWidth) + '\n';
+            content += this.centerText('ORDER ITEMS', totalWidth) + '\n';
+            content += '-'.repeat(totalWidth) + '\n';
+
+            // 菜品表格
+            let nameWidth, qtyWidth, priceWidth;
+            if (totalWidth >= 32) {
+              nameWidth = totalWidth - 12;
+              qtyWidth = 4;
+              priceWidth = 8;
+            } else if (totalWidth >= 24) {
+              nameWidth = totalWidth - 10;
+              qtyWidth = 3;
+              priceWidth = 7;
+            } else {
+              nameWidth = totalWidth - 8;
+              qtyWidth = 3;
+              priceWidth = 5;
+            }
+
+            const itemHeader = this.padText('Item Name', nameWidth, 'left');
+            const qtyHeader = this.padText('Qty', qtyWidth, 'center');
+            const priceHeader = this.padText('Total', priceWidth, 'right');
+            content += itemHeader + qtyHeader + priceHeader + '\n';
+            content += '-'.repeat(totalWidth) + '\n';
+
+            // 菜品明细
+            (order.dishes_array || []).forEach((dish) => {
+              const price = parseFloat(dish.price || '0');
+              const qty = parseInt(dish.amount || '1');
+              const priceStr = `$${price.toFixed(2)}`;
+              const qtyStr = qty.toString();
+
+              const dishName = dish.dishes_name || '';
+              const dishLines = this.wrapText(dishName, nameWidth);
+              const dishLinesArray = dishLines.split('\n');
+
+              const firstLine = this.padText(
+                dishLinesArray[0] || '',
+                nameWidth,
+                'left'
+              );
+              const qtyPart = this.padText(qtyStr, qtyWidth, 'center');
+              const pricePart = this.padText(priceStr, priceWidth, 'right');
+              content += firstLine + qtyPart + pricePart + '\n';
+
+              for (let i = 1; i < dishLinesArray.length; i++) {
+                if (dishLinesArray[i].trim()) {
+                  const continueLine = this.padText(
+                    dishLinesArray[i],
+                    nameWidth,
+                    'left'
+                  );
+                  content +=
+                    continueLine + ' '.repeat(qtyWidth + priceWidth) + '\n';
+                }
+              }
+
+              if (dish.remark && dish.remark.trim()) {
+                const specLines = this.wrapText(
+                  dish.remark,
+                  totalWidth - 2
+                ).split('\n');
+                specLines.forEach((line) => {
+                  if (line.trim()) {
+                    content += `  ${line}\n`;
+                  }
+                });
+              }
+            });
+
+            content += '\n' + '-'.repeat(totalWidth) + '\n';
+            content += this.centerText('PAYMENT SUMMARY', totalWidth) + '\n';
+            content += '-'.repeat(totalWidth) + '\n';
+
+            // 费用汇总
+            const subtotal = parseFloat(order.sub_total || '0');
+            const taxFee = parseFloat(order.tax_fee || '0');
+            const total = parseFloat(order.total || '0');
+
+            content += this.formatTableRow(
+              'Subtotal:',
+              `$${subtotal.toFixed(2)}`,
+              totalWidth
+            );
+            if (taxFee > 0) {
+              content += this.formatTableRow(
+                'Tax (8.5%):',
+                `$${taxFee.toFixed(2)}`,
+                totalWidth
+              );
+            }
+            content += '-'.repeat(totalWidth) + '\n';
+            content += this.formatTableRow(
+              'TOTAL:',
+              `$${total.toFixed(2)}`,
+              totalWidth
+            );
+            content += '='.repeat(totalWidth) + '\n';
+
+            // 底部信息
+            content += '\n';
+            content +=
+              this.centerText('Thank you for your order!', totalWidth) + '\n';
+            if (order.paystyle == 1) {
+              content +=
+                this.centerText('Prepaid - Do Not Charge', totalWidth) + '\n';
+            }
+            content += '\n' + '='.repeat(totalWidth) + '\n';
+
+            return content;
+          },
+
+          // 辅助函数
+          centerText: function (text, width) {
+            const textWidth = this.displayWidth(text);
+            if (textWidth >= width) {
+              return this.truncateText(text, width);
+            }
+            const padding = width - textWidth;
+            const leftPad = Math.floor(padding / 2);
+            return ' '.repeat(leftPad) + text;
+          },
+
+          formatTableRow: function (label, value, width) {
+            const labelWidth = this.displayWidth(label);
+            const valueWidth = this.displayWidth(value);
+            const totalUsed = labelWidth + valueWidth;
+
+            if (totalUsed >= width) {
+              return `${label}\n  ${value}\n`;
+            }
+
+            const padding = width - totalUsed;
+            return label + ' '.repeat(padding) + value + '\n';
+          },
+
+          padText: function (text, width, align = 'left') {
+            const textWidth = this.displayWidth(text);
+            if (textWidth >= width) {
+              return this.truncateText(text, width);
+            }
+
+            const padding = width - textWidth;
+            switch (align) {
+              case 'right':
+                return ' '.repeat(padding) + text;
+              case 'center':
+                const leftPad = Math.floor(padding / 2);
+                const rightPad = padding - leftPad;
+                return ' '.repeat(leftPad) + text + ' '.repeat(rightPad);
+              default:
+                return text + ' '.repeat(padding);
+            }
+          },
+
+          displayWidth: function (text) {
+            let width = 0;
+            for (const char of text) {
+              width += char.charCodeAt(0) > 127 ? 2 : 1;
+            }
+            return width;
+          },
+
+          truncateText: function (text, maxWidth) {
+            let result = '';
+            let currentWidth = 0;
+
+            for (const char of text) {
+              const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+              if (currentWidth + charWidth > maxWidth) {
+                break;
+              }
+              result += char;
+              currentWidth += charWidth;
+            }
+
+            return result;
+          },
+
+          wrapText: function (text, width) {
+            let result = '';
+            let currentLine = '';
+            let currentWidth = 0;
+
+            for (const char of text) {
+              const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+
+              if (currentWidth + charWidth > width && currentLine) {
+                result += currentLine + '\n';
+                currentLine = '';
+                currentWidth = 0;
+              }
+
+              currentLine += char;
+              currentWidth += charWidth;
+            }
+
+            if (currentLine) {
+              result += currentLine;
+            }
+
+            return result;
+          },
+
+          formatDateTime: function (dateTimeStr) {
+            if (!dateTimeStr) return 'N/A';
+            try {
+              const date = new Date(dateTimeStr);
+              return date.toLocaleString('en-US', {
+                month: '2-digit',
+                day: '2-digit',
+                year: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              });
+            } catch (error) {
+              return dateTimeStr;
+            }
+          },
+        };
+      }
+
+      // 测试80mm布局
+      function test80mmLayout() {
+        const result = document.getElementById('preview80mm');
+
+        const testOrder = {
+          order_id: 'PROF-80MM-001',
+          rd_name: 'Great Wall Restaurant',
+          create_time: new Date().toISOString(),
+          delivery_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          paystyle: 1,
+          recipient_name: 'John Smith',
+          recipient_phone: '(555) 123-4567',
+          delivery_type: 2,
+          dishes_array: [
+            {
+              dishes_name: "General Tso's Chicken",
+              amount: 1,
+              price: 14.5,
+              remark: 'Served w. White Rice',
+            },
+            {
+              dishes_name: 'Pineapple Fried Rice - Shrimp',
+              amount: 1,
+              price: 12.0,
+              remark: '',
+            },
+          ],
+          sub_total: 26.5,
+          tax_fee: 1.59,
+          tip_fee: 2.0,
+          total: 30.09,
+        };
+
+        const content = lodopManager.generateOrderPrintContent(testOrder, 80);
+
+        result.innerHTML = `
+          <div class="success">
+            <strong>✅ 80mm热敏小票预览</strong><br>
+            专业排版，表格式布局，价格右对齐
+          </div>
+          <div class="preview">${content}</div>
+        `;
+      }
+
+      // 测试58mm布局
+      function test58mmLayout() {
+        const result = document.getElementById('preview58mm');
+
+        const testOrder = {
+          order_id: 'PROF-58MM-001',
+          rd_name: 'NEW CHINA',
+          create_time: new Date().toISOString(),
+          delivery_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          paystyle: 1,
+          recipient_name: 'Leah Richards',
+          recipient_phone: '8438880360',
+          delivery_type: 2,
+          dishes_array: [
+            {
+              dishes_name: 'Sesame Chicken Combination Dinner',
+              amount: 1,
+              price: 10.29,
+              remark: 'White Rice + S x1',
+            },
+            {
+              dishes_name: 'Fried Chicken Wing',
+              amount: 2,
+              price: 14.0,
+              remark: '+ Plain x1',
+            },
+          ],
+          sub_total: 28.79,
+          tax_fee: 2.41,
+          total: 30.2,
+        };
+
+        const content = lodopManager.generateOrderPrintContent(testOrder, 58);
+
+        result.innerHTML = `
+          <div class="success">
+            <strong>✅ 58mm热敏小票预览</strong><br>
+            紧凑布局，自动换行，适配小纸张
+          </div>
+          <div class="preview">${content}</div>
+        `;
+      }
+
+      // 测试餐厅样式
+      function testRestaurantStyles() {
+        const result = document.getElementById('restaurantStylesResult');
+
+        const restaurants = [
+          {
+            name: 'Pizza Palace',
+            orderType: 'DELIVERY',
+            items: ['Large Pepperoni Pizza', 'Garlic Bread', 'Coca Cola 2L'],
+          },
+          {
+            name: '北京烤鸭店',
+            orderType: 'PICKUP',
+            items: ['北京烤鸭半只', '蒜蓉菠菜', '酸辣汤'],
+          },
+          {
+            name: 'Burger Junction',
+            orderType: 'DELIVERY',
+            items: [
+              'Double Cheeseburger Deluxe',
+              'French Fries Large',
+              'Milkshake Vanilla',
+            ],
+          },
+        ];
+
+        let allContent = '';
+
+        restaurants.forEach((restaurant, index) => {
+          const testOrder = {
+            order_id: `STYLE-${index + 1}`,
+            rd_name: restaurant.name,
+            create_time: new Date().toISOString(),
+            delivery_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            paystyle: 1,
+            recipient_name: 'Test Customer',
+            recipient_phone: '(555) 000-0000',
+            delivery_type: restaurant.orderType === 'DELIVERY' ? 1 : 2,
+            dishes_array: restaurant.items.map((item, i) => ({
+              dishes_name: item,
+              amount: 1,
+              price: (10 + i * 2).toFixed(2),
+              remark: i === 0 ? 'Special instructions' : '',
+            })),
+            sub_total: 30.0,
+            tax_fee: 2.55,
+            total: 32.55,
+          };
+
+          const content = lodopManager.generateOrderPrintContent(testOrder, 80);
+          allContent += `\n\n========== ${restaurant.name} ==========\n\n${content}`;
+        });
+
+        result.innerHTML = `
+          <div class="success">
+            <strong>✅ 多种餐厅样式测试完成</strong><br>
+            展示了不同类型餐厅的小票排版效果
+          </div>
+          <div class="preview">${allContent}</div>
+        `;
+      }
+
+      // 测试复杂订单
+      function testComplexOrder() {
+        const result = document.getElementById('complexOrderResult');
+
+        const complexOrder = {
+          order_id: 'COMPLEX-2024-001',
+          rd_name: 'Super Long Restaurant Name That Tests Width Limits',
+          serial_num: 42,
+          create_time: new Date().toISOString(),
+          delivery_time: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+          paystyle: 1,
+          recipient_name: 'John Smith with a Very Long Name',
+          recipient_phone: '(555) 123-4567',
+          delivery_type: 1,
+          recipient_address:
+            '123 Very Long Street Name, Apartment 4B, New York, NY 10001',
+          dishes_array: [
+            {
+              dishes_name:
+                'Super Deluxe Triple Cheeseburger with Extra Everything and More Toppings',
+              amount: 2,
+              price: 18.99,
+              remark:
+                'No onions, extra pickles, medium rare, add avocado, extra cheese, no tomatoes, add bacon',
+            },
+            {
+              dishes_name: '招牌炸鸡汉堡套餐',
+              amount: 1,
+              price: 25.5,
+              remark: '微辣，不要生菜，加芝士，配薯条和可乐',
+            },
+            {
+              dishes_name: 'Regular Fries',
+              amount: 3,
+              price: 4.99,
+              remark: 'Large size, extra salt',
+            },
+          ],
+          sub_total: 72.47,
+          discount_total: 5.0,
+          tax_rate: 8.75,
+          tax_fee: 5.9,
+          delivery_fee: 3.99,
+          tip_fee: 10.0,
+          total: 87.36,
+          order_notes:
+            'Please call when you arrive. Ring the doorbell twice. Leave at the front door if no answer. This is a test of very long order notes that should wrap properly.',
+        };
+
+        const content = lodopManager.generateOrderPrintContent(
+          complexOrder,
+          80
+        );
+
+        result.innerHTML = `
+          <div class="success">
+            <strong>✅ 复杂订单测试完成</strong><br>
+            包含长菜名、长地址、多种费用、详细备注等复杂场景
+          </div>
+          <div class="preview">${content}</div>
+        `;
+      }
+
+      // 测试实际打印
+      async function testActualPrint() {
+        const result = document.getElementById('printTestResult');
+
+        try {
+          const testOrder = {
+            order_id: 'PRINT-TEST-001',
+            rd_name: 'Professional Layout Test',
+            create_time: new Date().toISOString(),
+            delivery_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            paystyle: 1,
+            recipient_name: 'Print Test Customer',
+            recipient_phone: '(555) 000-0000',
+            delivery_type: 2,
+            dishes_array: [
+              {
+                dishes_name: 'Professional Layout Test Item',
+                amount: 1,
+                price: 10.0,
+                remark: 'Testing new professional layout',
+              },
+            ],
+            sub_total: 10.0,
+            tax_fee: 0.85,
+            total: 10.85,
+            order_notes:
+              'This is a test of the new professional layout system.',
+          };
+
+          if (lodopManager.printOrder) {
+            const printResult = await lodopManager.printOrder(testOrder);
+
+            result.innerHTML = `
+              <div class="success">
+                <strong>✅ 专业排版打印测试完成</strong><br>
+                成功: ${printResult.成功数量}, 失败: ${printResult.失败数量}<br>
+                引擎: ${printResult.打印引擎}<br>
+                <br>
+                <strong>检查打印结果:</strong><br>
+                • 餐厅名称是否居中显示<br>
+                • 订单信息是否使用表格格式<br>
+                • 菜品是否有完整的表头和对齐<br>
+                • 价格是否右对齐<br>
+                • 分区是否清晰明确
+              </div>
+            `;
+          } else {
+            result.innerHTML = `
+              <div class="info">
+                <strong>❌ 无可用打印机</strong><br>
+                请确保已安装C-Lodop并连接热敏打印机进行实际测试
+              </div>
+            `;
+          }
+        } catch (error) {
+          result.innerHTML = `
+            <div class="info">
+              <strong>❌ 打印测试失败</strong><br>
+              错误: ${error.message}
+            </div>
+          `;
+        }
+      }
+
+      // 页面加载时初始化
+      window.addEventListener('load', init);
+    </script>
+  </body>
+</html>
