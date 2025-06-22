@@ -10,11 +10,6 @@ const {
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
-// 引入混合打印引擎
-const PrinterHybrid = require('./src/printer-hybrid');
-
-// 创建混合打印引擎实例 - 移到文件顶部
-const hybridPrinter = new PrinterHybrid();
 
 // 简单的配置存储
 const configPath = path.join(app.getPath('userData'), 'config.json');
@@ -41,6 +36,7 @@ function getConfig() {
     return {};
   }
 }
+
 let mainWindow;
 let tray;
 
@@ -177,127 +173,51 @@ if (!gotTheLock) {
   });
 }
 
-// IPC 处理程序
+// 简化的IPC处理程序 - 打印功能现在完全由前端CLodop处理
 ipcMain.handle('get-printers', async () => {
-  try {
-    console.log('🔍 获取系统打印机列表...');
-    // 使用混合打印引擎获取打印机列表
-    const printers = await hybridPrinter.getPrinters();
-    console.log('✅ 成功获取打印机列表:', printers.length, '台');
-    return printers;
-  } catch (error) {
-    console.error('❌ 获取打印机失败:', error);
-    throw error;
-  }
+  // 返回空数组，让前端CLodop自己获取打印机
+  console.log('🔍 前端将使用CLodop获取打印机列表');
+  return [];
 });
 
 ipcMain.handle(
   'test-print',
   async (event, printerName, width = 80, fontSize = 0) => {
-    try {
-      console.log('🧪 测试打印:', { printerName, width, fontSize });
-      // 使用混合打印引擎测试打印
-      const result = await hybridPrinter.testPrint(
-        printerName,
-        width,
-        fontSize
-      );
-      console.log('✅ 测试打印结果:', result);
-      return result;
-    } catch (error) {
-      console.error('❌ 测试打印失败:', error);
-      throw error;
-    }
+    // 返回成功状态，实际打印由前端CLodop处理
+    console.log('🧪 前端将使用CLodop进行测试打印:', {
+      printerName,
+      width,
+      fontSize,
+    });
+    return { success: true, message: '测试打印将由CLodop处理' };
   }
 );
 
-// 中文编码相关的IPC处理程序已移除
-
-// 新增：获取引擎状态的调试处理程序
+// 获取引擎状态 - 现在只返回CLodop状态
 ipcMain.handle('get-print-engine-status', async () => {
-  try {
-    console.log('🔍 获取打印引擎状态...');
-    const status = hybridPrinter.getEngineInfo();
-    console.log('📊 引擎状态:', status);
-    return status;
-  } catch (error) {
-    console.error('❌ 获取引擎状态失败:', error);
-    return {
-      error: error.message,
-      rustAvailable: false,
-      currentEngine: 'Error',
-      fallbackAvailable: false,
-    };
-  }
+  console.log('🔍 返回CLodop引擎状态');
+  return {
+    currentEngine: 'CLodop',
+    rustAvailable: false,
+    fallbackAvailable: false,
+    clodopAvailable: true,
+  };
 });
 
 ipcMain.handle(
   'print-order',
   async (event, orderData, width = 80, fontSize = 0) => {
-    try {
-      console.log('🖨️ 开始打印订单:', {
-        orderId: orderData.order_id,
-        width,
-        fontSize,
-      });
-
-      // 获取配置中的选中打印机
-      const config = getConfig();
-      const selectedPrinters = config.selectedPrinters || [];
-
-      if (selectedPrinters.length === 0) {
-        console.log('⚠️ 未配置打印机，使用默认打印机');
-        // 获取第一台可用打印机
-        const printers = await hybridPrinter.getPrinters();
-        if (printers.length === 0) {
-          throw new Error('没有可用的打印机');
-        }
-        const defaultPrinter = printers[0].name;
-        console.log('📍 使用默认打印机:', defaultPrinter);
-
-        // 使用混合打印引擎打印
-        return await hybridPrinter.printOrder(
-          defaultPrinter,
-          orderData,
-          width,
-          fontSize
-        );
-      }
-
-      // 批量打印到选中的打印机
-      const results = [];
-      for (const printerName of selectedPrinters) {
-        try {
-          console.log('🎯 打印到:', printerName);
-          const result = await hybridPrinter.printOrder(
-            printerName,
-            orderData,
-            width,
-            fontSize
-          );
-          results.push({ printer: printerName, success: true, result });
-          console.log('✅ 打印成功:', printerName);
-        } catch (error) {
-          console.error('❌ 打印失败:', printerName, error);
-          results.push({
-            printer: printerName,
-            success: false,
-            error: error.message,
-          });
-        }
-      }
-
-      return {
-        success: results.some((r) => r.success),
-        results: results,
-        message: `打印完成: ${results.filter((r) => r.success).length}/${
-          results.length
-        } 成功`,
-      };
-    } catch (error) {
-      console.error('❌ 打印订单失败:', error);
-      throw error;
-    }
+    // 返回成功状态，实际打印由前端CLodop处理
+    console.log('🖨️ 前端将使用CLodop打印订单:', {
+      orderId: orderData.order_id,
+      width,
+      fontSize,
+    });
+    return {
+      success: true,
+      message: '订单打印将由CLodop处理',
+      results: [],
+    };
   }
 );
 
@@ -350,15 +270,10 @@ ipcMain.handle('close-window', async () => {
   }
 });
 
-// 打印预览功能
+// 打印预览功能 - 现在由前端处理
 ipcMain.handle('print-preview', async (event, orderData, printerSettings) => {
-  try {
-    // 使用混合打印引擎而不是printerUtils
-    return await PrinterHybrid.generatePrintPreview(orderData, printerSettings);
-  } catch (error) {
-    console.error('生成打印预览失败:', error);
-    throw error;
-  }
+  console.log('📄 前端将使用CLodop生成打印预览');
+  return { success: true, message: '打印预览将由CLodop处理' };
 });
 
 // 打印排版设置

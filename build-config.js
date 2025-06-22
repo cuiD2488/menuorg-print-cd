@@ -1,11 +1,12 @@
 // 构建配置文件
-// 根据环境变量 BUILD_MODE 来设置不同的构建配置
+// 已精简为纯CLodop方案，默认启用CLodop模式
 
 const fs = require('fs');
 const path = require('path');
 
-const buildMode = process.env.BUILD_MODE || 'normal';
-const isLodopMode = buildMode === 'lodop';
+// 由于已精简为纯CLodop方案，默认启用CLodop
+const buildMode = 'clodop';
+const isLodopMode = true;
 
 console.log(`[BUILD] 构建模式: ${buildMode}`);
 console.log(`[BUILD] C-Lodop模式: ${isLodopMode ? '启用' : '禁用'}`);

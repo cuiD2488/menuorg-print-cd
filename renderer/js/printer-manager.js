@@ -9,6 +9,7 @@ class PrinterManager {
     this.lodopManager = null;
     this.buildConfig = null;
     this.isInitialized = false;
+    this.systemPrinters = [];
 
     console.log('[PrinterManager] 智能打印机管理器初始化');
   }
@@ -55,12 +56,15 @@ class PrinterManager {
         this.buildConfig = await response.json();
         console.log('[PrinterManager] 构建配置加载成功:', this.buildConfig);
       } else {
-        console.log('[PrinterManager] 构建配置文件不存在，使用默认配置');
-        this.buildConfig = { buildMode: 'normal', useLodop: false };
+        console.log('[PrinterManager] 构建配置文件不存在，使用CLodop默认配置');
+        this.buildConfig = { buildMode: 'clodop', useLodop: true };
       }
     } catch (error) {
-      console.warn('[PrinterManager] 加载构建配置失败，使用默认配置:', error);
-      this.buildConfig = { buildMode: 'normal', useLodop: false };
+      console.warn(
+        '[PrinterManager] 加载构建配置失败，使用CLodop默认配置:',
+        error
+      );
+      this.buildConfig = { buildMode: 'clodop', useLodop: true };
     }
   }
 
@@ -155,16 +159,50 @@ class PrinterManager {
         if (result.success) {
           this.currentEngine = 'C-Lodop';
           console.log('[PrinterManager] C-Lodop 引擎初始化成功');
+
+          // 立即尝试获取打印机列表进行测试
+          try {
+            const printers = await this.lodopManager.refreshPrinters();
+            console.log('[PrinterManager] C-Lodop 打印机列表:', printers);
+            if (printers && printers.length > 0) {
+              console.log(
+                `[PrinterManager] 成功获取到 ${printers.length} 台打印机`
+              );
+            } else {
+              console.warn('[PrinterManager] C-Lodop 初始化成功但未找到打印机');
+            }
+          } catch (printerError) {
+            console.error('[PrinterManager] 获取打印机列表失败:', printerError);
+          }
         } else {
           throw new Error(`C-Lodop 初始化失败: ${result.error}`);
         }
       } else {
-        throw new Error('C-Lodop 未安装或不可用');
+        throw new Error('C-Lodop 未安装或不可用，将回退到系统打印机');
       }
     } catch (error) {
       console.error('[PrinterManager] C-Lodop 引擎初始化失败:', error);
-      console.log('[PrinterManager] 回退到原生引擎...');
-      await this.initNativeEngine();
+      console.log('[PrinterManager] 回退到系统打印机引擎...');
+
+      // 显示CLodop安装提示
+      if (
+        error.message.includes('未安装') ||
+        error.message.includes('不可用')
+      ) {
+        console.log('[PrinterManager] 显示CLodop安装提示');
+        setTimeout(() => {
+          if (typeof window.installCLodop === 'function') {
+            window.installCLodop();
+          } else {
+            alert(
+              '需要安装C-Lodop打印控件才能使用高级打印功能。\n\n请访问 http://www.lodop.net/download.html 下载安装。'
+            );
+          }
+        }, 1000);
+      }
+
+      // 回退到系统打印机
+      await this.initSystemPrinterFallback();
     }
   }
 
@@ -194,6 +232,13 @@ class PrinterManager {
   async refreshPrinters() {
     if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
       return await this.lodopManager.refreshPrinters();
+    } else if (
+      this.currentEngine === 'System-Fallback' ||
+      this.currentEngine === 'None'
+    ) {
+      // 返回系统回退打印机
+      console.log('[PrinterManager] 返回系统回退打印机列表');
+      return this.systemPrinters || [];
     } else {
       // 使用原生或Electron API
       return await window.electronAPI.getPrinters();
@@ -203,6 +248,11 @@ class PrinterManager {
   getAllPrinters() {
     if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
       return this.lodopManager.getAllPrinters();
+    } else if (
+      this.currentEngine === 'System-Fallback' ||
+      this.currentEngine === 'None'
+    ) {
+      return this.systemPrinters || [];
     } else {
       // 从存储中获取打印机列表（需要先调用refreshPrinters）
       return this.cachedPrinters || [];
@@ -357,6 +407,78 @@ class PrinterManager {
     }
 
     console.log('==================');
+  }
+
+  // 新增：系统打印机回退方案
+  async initSystemPrinterFallback() {
+    try {
+      console.log('[PrinterManager] 初始化系统打印机回退方案...');
+
+      // 创建一个模拟的系统打印机管理器
+      this.systemPrinters = [];
+      this.selectedPrinters = [];
+      this.currentEngine = 'System-Fallback';
+
+      // 尝试获取系统打印机（如果可用）
+      if (window.electronAPI && window.electronAPI.getPrinters) {
+        try {
+          const systemPrinters = await window.electronAPI.getPrinters();
+          if (systemPrinters && systemPrinters.length > 0) {
+            this.systemPrinters = systemPrinters.map((printer) => ({
+              name: printer.name || printer,
+              id: printer.id || this.systemPrinters.length,
+              status: 'Ready',
+              isDefault: false,
+              isThermal: false,
+              width: 210, // A4默认
+              fontSize: 0,
+              engine: 'System-Fallback',
+            }));
+            console.log(
+              `[PrinterManager] 系统回退方案获取到 ${this.systemPrinters.length} 台打印机`
+            );
+          }
+        } catch (sysError) {
+          console.warn('[PrinterManager] 获取系统打印机也失败:', sysError);
+        }
+      }
+
+      // 如果还是没有打印机，创建一个虚拟打印机用于测试
+      if (this.systemPrinters.length === 0) {
+        console.log('[PrinterManager] 创建虚拟打印机用于测试');
+        this.systemPrinters = [
+          {
+            name: '虚拟打印机 (请安装CLodop)',
+            id: 0,
+            status: 'Warning',
+            isDefault: true,
+            isThermal: false,
+            width: 80,
+            fontSize: 0,
+            engine: 'Virtual',
+          },
+        ];
+      }
+
+      console.log('[PrinterManager] 系统打印机回退方案初始化完成');
+    } catch (error) {
+      console.error('[PrinterManager] 系统打印机回退方案初始化失败:', error);
+
+      // 最后的回退：创建虚拟打印机
+      this.systemPrinters = [
+        {
+          name: '需要安装CLodop打印控件',
+          id: 0,
+          status: 'Error',
+          isDefault: true,
+          isThermal: false,
+          width: 80,
+          fontSize: 0,
+          engine: 'None',
+        },
+      ];
+      this.currentEngine = 'None';
+    }
   }
 }
 

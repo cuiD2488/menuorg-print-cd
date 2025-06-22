@@ -1,20 +1,16 @@
 {
   "name": "restaurant-order-printer",
   "version": "1.0.0",
-  "description": "MenuorgPrint",
+  "description": "MenuorgPrint - CLodop打印方案",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "npm run clean && npm run prebuild && npm run build-rust && electron-builder",
-    "build:lodop": "npm run clean && npm run prebuild:lodop && npm run build-rust && electron-builder",
+    "build": "npm run clean && npm run prebuild && electron-builder",
     "dev": "chcp 65001 >nul 2>&1 && set NODE_OPTIONS=--no-warnings && electron . --dev",
-    "dev:lodop": "chcp 65001 >nul 2>&1 && set NODE_OPTIONS=--no-warnings && cross-env BUILD_MODE=lodop electron . --dev",
     "pack": "electron-builder --publish=never",
     "dist": "electron-builder --publish=always",
-    "build-rust": "cargo build --release",
     "clean": "powershell -Command \"if (Test-Path 'dist') { Remove-Item -Recurse -Force 'dist' -ErrorAction SilentlyContinue }\"",
-    "prebuild": "node build-config.js",
-    "prebuild:lodop": "cross-env BUILD_MODE=lodop node build-config.js"
+    "prebuild": "node build-config.js"
   },
   "build": {
     "appId": "com.restaurant.order.printer",
@@ -43,20 +39,16 @@
       "build-config.js",
       "renderer/**/*",
       "src/**/*",
+      "CLodop/**/*",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "target/release/printer-engine.exe",
-        "to": "printer-engine.exe"
-      }
     ]
   },
   "keywords": [
     "restaurant",
     "order",
     "printer",
-    "electron"
+    "electron",
+    "clodop"
   ],
   "author": "Restaurant Order Printer",
   "license": "MIT",
@@ -67,7 +59,6 @@
   },
   "dependencies": {
     "axios": "^1.4.0",
-    "ws": "^8.13.0",
-    "node-thermal-printer": "^4.4.0"
+    "ws": "^8.13.0"
   }
 }

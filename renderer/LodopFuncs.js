@@ -50,6 +50,7 @@ function getCLodop() {
 function needCLodop() {
   try {
     var ua = navigator.userAgent;
+    console.log('[C-Lodop] 用户代理:', ua);
     if (ua.match(/Windows\sNT\s6\.1/i) != null) return true; // Windows 7
     if (ua.match(/Windows\sNT\s6\.0/i) != null) return true; // Windows Vista
     if (ua.match(/Windows\sNT\s5/i) != null) return true; // Windows XP/2003
@@ -65,19 +66,29 @@ function needCLodop() {
   }
 }
 
-// 获取C-Lodop客户端
+// 获取C-Lodop客户端 - 修改为异步版本
 function getCLodopClient() {
-  if (CLodopJsState == 'loading') return;
-  if (CLodopJsState == 'complete') return CreatedOKLodopObject;
+  console.log('[C-Lodop] 开始获取客户端，当前状态:', CLodopJsState);
+
+  if (CLodopJsState == 'loading') {
+    console.log('[C-Lodop] 正在加载中，等待完成...');
+    return null;
+  }
+  if (CLodopJsState == 'complete') {
+    console.log('[C-Lodop] 已完成加载，返回现有对象');
+    return CreatedOKLodopObject;
+  }
 
   CLodopJsState = 'loading';
 
   try {
     // 尝试连接本地C-Lodop服务
     var ports = [8000, 18000]; // C-Lodop默认端口
+    console.log('[C-Lodop] 尝试连接端口:', ports);
 
     for (var i = 0; i < ports.length; i++) {
       try {
+        console.log('[C-Lodop] 尝试端口:', ports[i]);
         var xhr = new XMLHttpRequest();
         xhr.open(
           'GET',
@@ -86,21 +97,59 @@ function getCLodopClient() {
         );
         xhr.send();
 
+        console.log('[C-Lodop] 端口', ports[i], '响应状态:', xhr.status);
+
         if (xhr.status === 200) {
+          console.log(
+            '[C-Lodop] 端口',
+            ports[i],
+            '连接成功，响应长度:',
+            xhr.responseText.length
+          );
+
           // 执行返回的JavaScript代码
           eval(xhr.responseText);
 
           if (typeof getLodop !== 'undefined') {
+            console.log('[C-Lodop] getLodop函数已定义');
             CreatedOKLodopObject = getLodop();
             if (CreatedOKLodopObject && CreatedOKLodopObject.VERSION) {
               CLodopJsState = 'complete';
-              console.log('[C-Lodop] 通过端口', ports[i], '连接成功');
+              console.log(
+                '[C-Lodop] 通过端口',
+                ports[i],
+                '连接成功，版本:',
+                CreatedOKLodopObject.VERSION
+              );
+
+              // 测试打印机数量
+              try {
+                var printerCount = CreatedOKLodopObject.GET_PRINTER_COUNT();
+                console.log('[C-Lodop] 检测到打印机数量:', printerCount);
+
+                for (var j = 0; j < printerCount; j++) {
+                  var printerName = CreatedOKLodopObject.GET_PRINTER_NAME(j);
+                  console.log('[C-Lodop] 打印机', j, ':', printerName);
+                }
+              } catch (printerErr) {
+                console.error('[C-Lodop] 获取打印机信息失败:', printerErr);
+              }
+
               return CreatedOKLodopObject;
+            } else {
+              console.error(
+                '[C-Lodop] getLodop()返回无效对象:',
+                CreatedOKLodopObject
+              );
             }
+          } else {
+            console.error('[C-Lodop] 执行JS后未找到getLodop函数');
           }
+        } else {
+          console.warn('[C-Lodop] 端口', ports[i], 'HTTP错误:', xhr.status);
         }
       } catch (err) {
-        console.warn('[C-Lodop] 端口', ports[i], '连接失败:', err);
+        console.warn('[C-Lodop] 端口', ports[i], '连接异常:', err);
         continue;
       }
     }
@@ -141,6 +190,7 @@ function installCLodop() {
 
 // 主要的getLodop函数
 function getLodop() {
+  console.log('[C-Lodop] getLodop()被调用');
   var LODOP = getCLodop();
 
   if (!LODOP) {
@@ -182,16 +232,34 @@ function getLodop() {
 
 // 检查C-Lodop状态
 function checkCLodopStatus() {
+  console.log('[C-Lodop] 检查C-Lodop状态...');
   var LODOP = getLodop();
 
   if (LODOP) {
-    return {
-      available: true,
-      version: LODOP.VERSION,
-      isLocal: CLodopIsLocal || false,
-      printerCount: LODOP.GET_PRINTER_COUNT ? LODOP.GET_PRINTER_COUNT() : 0,
-    };
+    try {
+      var printerCount = LODOP.GET_PRINTER_COUNT
+        ? LODOP.GET_PRINTER_COUNT()
+        : 0;
+      console.log('[C-Lodop] 状态检查完成，打印机数量:', printerCount);
+
+      return {
+        available: true,
+        version: LODOP.VERSION,
+        isLocal: CLodopIsLocal || false,
+        printerCount: printerCount,
+      };
+    } catch (err) {
+      console.error('[C-Lodop] 状态检查失败:', err);
+      return {
+        available: false,
+        version: LODOP.VERSION,
+        isLocal: false,
+        printerCount: 0,
+        error: err.message,
+      };
+    }
   } else {
+    console.log('[C-Lodop] LODOP对象不可用');
     return {
       available: false,
       version: null,

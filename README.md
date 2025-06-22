@@ -1,127 +1,102 @@
-# 餐厅订单打印系统
+# MenuorgPrint - CLodop打印方案
 
-基于 Electron + Node.js 开发的餐厅订单打印系统，兼容 Windows 7+ 系统。
+## 📋 项目简介
 
-## 功能特点
+MenuorgPrint 是一个基于 Electron + CLodop 的餐厅订单打印系统，专为热敏打印机设计，支持多种纸张宽度和分菜打印功能。
 
-- 🔐 用户登录认证
-- 🖨️ 多打印机支持
-- 📋 实时订单接收 (WebSocket)
-- 🔄 自动打印新订单
-- 📱 桌面通知提醒
-- ⚙️ 配置持久化存储
-- 🎨 现代化界面设计
+## ✨ 主要特性
 
-## 技术栈
+- 🖨️ **CLodop打印引擎** - 使用成熟的CLodop打印方案，稳定可靠
+- 📄 **多种纸张支持** - 支持58mm、80mm等热敏纸张
+- 🍽️ **分菜打印功能** - 支持按菜品类型分别打印到不同打印机
+- 📱 **现代化界面** - 基于Electron的桌面应用
+- ⚡ **高性能** - 精简架构，启动快速，运行流畅
 
-- **前端框架**: Electron
-- **后端**: Node.js
-- **UI**: HTML5 + CSS3 + JavaScript
-- **存储**: electron-store
-- **打印**: Windows 系统打印API
-- **通信**: WebSocket + REST API
+## 🏗️ 技术架构
 
-## 安装依赖
+- **前端**: HTML + CSS + JavaScript
+- **桌面框架**: Electron 22.3.27
+- **打印引擎**: CLodop (C-Lodop)
+- **通信协议**: WebSocket
+- **构建工具**: electron-builder
+
+## 📁 项目结构
+
+```
+├── main.js                 # Electron主进程
+├── preload.js             # 预加载脚本
+├── package.json           # 项目配置
+├── renderer/              # 渲染进程文件
+│   ├── index.html        # 主界面
+│   ├── js/               # JavaScript文件
+│   └── css/              # 样式文件
+├── src/                   # 核心代码
+│   └── printer-lodop.js  # CLodop打印管理器
+├── CLodop/               # CLodop相关文件
+└── dist/                 # 构建输出目录
+```
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Node.js 16+
+- Windows 7/10/11
+- 已安装CLodop打印服务
+
+### 安装依赖
 
 ```bash
 npm install
 ```
 
-## 开发运行
+### 开发模式
 
 ```bash
 npm run dev
 ```
 
-## 打包构建
+### 构建应用
 
 ```bash
 npm run build
 ```
 
-## 项目结构
+## 🖨️ 打印机配置
 
-```
-win7-print/
-├── package.json          # 项目配置
-├── main.js              # Electron 主进程
-├── preload.js           # 预加载脚本
-├── renderer/            # 渲染进程文件
-│   ├── index.html       # 主界面
-│   ├── css/
-│   │   └── style.css    # 样式文件
-│   └── js/
-│       ├── app.js       # 主应用逻辑
-│       ├── api.js       # API接口调用
-│       ├── websocket.js # WebSocket连接
-│       └── printer.js   # 打印机管理
-└── src/
-    └── printer.js       # Node.js打印机模块
-```
+1. 确保已安装CLodop打印服务
+2. 连接热敏打印机到系统
+3. 在应用中刷新打印机列表
+4. 选择要使用的打印机
+5. 进行测试打印确认功能正常
 
-## API 接口
+## 🍽️ 分菜打印配置
 
-### 登录接口
-- **URL**: `https://api.menuorg.com/app/v1/login`
-- **方法**: POST
-- **参数**: username, password
+1. 启用分菜打印模式
+2. 为每台打印机设置编号
+3. 在订单数据中为菜品指定打印机编号
+4. 系统将自动按编号分发打印任务
 
-### 订单详情接口
-- **URL**: `https://api.menuorg.com/app/v1/order/get_by_id`
-- **方法**: GET
-- **参数**: order_id
+## 📦 项目优化
 
-### WebSocket地址
-- **URL**: `wss://message.menuorg.com/app/v1/web_socket/7{user_id}`
+本项目已进行以下优化：
 
-## 使用说明
+- ✅ 移除了Rust依赖，减少构建复杂度
+- ✅ 删除了混合打印引擎，专注CLodop方案
+- ✅ 清理了冗余代码和测试文件
+- ✅ 简化了构建配置和依赖关系
+- ✅ 优化了启动性能和运行效率
 
-1. **启动应用**: 运行程序后显示登录界面
-2. **用户登录**: 输入用户名和密码进行登录
-3. **配置打印机**: 在打印机设置中选择要使用的打印机
-4. **测试打印**: 点击"测试打印"验证打印机是否正常工作
-5. **接收订单**: 登录成功后自动连接WebSocket接收新订单
-6. **打印订单**: 可以手动打印订单，或开启自动打印功能
+## 🔧 维护说明
 
-## 兼容性
+- 定期更新CLodop版本以获得最新功能
+- 保持Electron版本更新以获得安全修复
+- 定期清理日志文件和缓存数据
 
-- **操作系统**: Windows 7 及以上版本
-- **架构**: 支持 32位 和 64位
-- **打印机**: 支持系统已安装的所有打印机
+## 📄 许可证
 
-## 开发说明
+MIT License
 
-### 主要组件
+---
 
-1. **OrderPrintApp**: 主应用类，负责整体逻辑控制
-2. **PrinterManager**: 打印机管理类，处理打印相关操作
-3. **WebSocketClient**: WebSocket客户端，处理实时通信
-4. **API**: REST API调用封装
-
-### 配置文件
-
-应用配置自动保存在用户目录下的配置文件中，包括：
-- 选中的打印机列表
-- 自动打印设置
-- 其他用户偏好设置
-
-## 构建发布
-
-构建Windows安装包：
-
-```bash
-npm run build
-```
-
-生成的安装包位于 `dist/` 目录下。
-
-## 注意事项
-
-1. 确保系统已正确安装所需的打印机驱动
-2. 首次运行可能需要系统管理员权限
-3. 网络连接异常时会自动重连WebSocket
-4. 打印失败时会显示错误提示
-
-## 开发者
-
-餐厅订单打印系统 v1.0.0
+**注意**: 使用前请确保已正确安装CLodop打印服务，并且打印机驱动程序已正确配置。

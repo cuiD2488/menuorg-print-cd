@@ -12,13 +12,53 @@ class OrderPrintApp {
     this.lastWebSocketConnectTime = null; // 记录最后连接时间
     this.lastOrderCheckTime = null; // 记录最后检查订单的时间
 
+    // ✅ 修复：将打印机管理器设置到全局window对象上
+    window.printerManager = this.printerManager;
+
+    // ✅ 调试：检查CLodop相关函数是否正确加载
+    console.log('[APP] 检查CLodop相关函数加载状态:');
+    console.log('[APP] - window.getLodop:', typeof window.getLodop);
+    console.log('[APP] - window.getCLodop:', typeof window.getCLodop);
+    console.log(
+      '[APP] - window.checkCLodopStatus:',
+      typeof window.checkCLodopStatus
+    );
+    console.log(
+      '[APP] - window.LodopPrinterManager:',
+      typeof window.LodopPrinterManager
+    );
+
+    // 尝试立即检查CLodop状态
+    if (typeof window.getLodop === 'function') {
+      try {
+        const lodopObj = window.getLodop();
+        console.log('[APP] CLodop对象获取结果:', lodopObj);
+        if (lodopObj && lodopObj.VERSION) {
+          console.log('[APP] CLodop版本:', lodopObj.VERSION);
+          // 立即测试打印机数量
+          try {
+            const count = lodopObj.GET_PRINTER_COUNT();
+            console.log('[APP] 检测到打印机数量:', count);
+          } catch (err) {
+            console.error('[APP] 获取打印机数量失败:', err);
+          }
+        } else {
+          console.warn('[APP] CLodop对象无效或无版本信息');
+        }
+      } catch (err) {
+        console.error('[APP] 获取CLodop对象失败:', err);
+      }
+    }
+
     this.init();
   }
 
   async init() {
     console.log('[APP] Starting application initialization...');
 
-    await this.printerManager.init();
+    // 使用新的打印系统初始化函数
+    await initializePrinterSystem();
+
     this.bindEvents();
     await this.initUI();
     await this.loadPrintedOrdersRecord(); // 加载已打印订单记录
@@ -1992,3 +2032,181 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.app = app;
+
+// 添加CLodop状态检查功能
+async function checkCLodopInstallation() {
+  console.log('[App] 检查CLodop安装状态...');
+
+  // 检查CLodop服务端口
+  const ports = [8000, 18000];
+  let clodopAvailable = false;
+  let connectedPort = null;
+
+  for (const port of ports) {
+    try {
+      const response = await fetch(`http://localhost:${port}/CLodopfuncs.js`, {
+        method: 'GET',
+        timeout: 3000,
+      });
+
+      if (response.ok) {
+        console.log(`[App] CLodop服务在端口 ${port} 可用`);
+        clodopAvailable = true;
+        connectedPort = port;
+        break;
+      }
+    } catch (error) {
+      console.log(`[App] 端口 ${port} 不可用:`, error.message);
+    }
+  }
+
+  if (!clodopAvailable) {
+    console.warn('[App] CLodop服务不可用');
+    showCLodopInstallationGuide();
+    return false;
+  }
+
+  console.log(`[App] CLodop服务可用，端口: ${connectedPort}`);
+  return true;
+}
+
+// 显示CLodop安装指导
+function showCLodopInstallationGuide() {
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3>🖨️ CLodop打印控件安装指导</h3>
+        <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h4 style="color: #e74c3c;">检测到CLodop打印控件未安装或未启动</h4>
+          <p>为了正常使用打印功能，请按照以下步骤安装CLodop：</p>
+        </div>
+
+        <div style="text-align: left; margin: 20px 0;">
+          <h4>📥 安装步骤：</h4>
+          <ol style="line-height: 1.8;">
+            <li><strong>下载CLodop：</strong> 访问 <a href="http://www.lodop.net/download.html" target="_blank">http://www.lodop.net/download.html</a></li>
+            <li><strong>选择版本：</strong> 下载适合您系统的CLodop版本</li>
+            <li><strong>安装程序：</strong> 运行下载的安装程序</li>
+            <li><strong>启动服务：</strong> 安装完成后，CLodop服务会自动启动</li>
+            <li><strong>重启应用：</strong> 重新启动本应用程序</li>
+          </ol>
+        </div>
+
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h4>🔧 故障排除：</h4>
+          <ul style="line-height: 1.6;">
+            <li>确保CLodop服务正在运行（查看系统托盘图标）</li>
+            <li>检查防火墙是否阻止了端口8000或18000</li>
+            <li>尝试重启CLodop服务</li>
+            <li>如果问题持续，请重新安装CLodop</li>
+          </ul>
+        </div>
+
+        <div style="background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          <h4>✅ 临时解决方案：</h4>
+          <p>在安装CLodop之前，应用会显示虚拟打印机用于测试界面功能。</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="window.open('http://www.lodop.net/download.html', '_blank')" class="btn-primary">
+          立即下载CLodop
+        </button>
+        <button onclick="this.closest('.modal').remove()" class="btn-secondary">
+          稍后安装
+        </button>
+        <button onclick="location.reload()" class="btn-success">
+          重新检测
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  modal.style.display = 'block';
+}
+
+// 修改原有的初始化函数
+async function initializePrinterSystem() {
+  try {
+    console.log('[App] 初始化打印系统...');
+
+    // 首先检查CLodop安装状态
+    const clodopAvailable = await checkCLodopInstallation();
+
+    // ✅ 修复：确保printerManager存在
+    if (!window.printerManager) {
+      console.error('[App] window.printerManager 未找到！');
+      return;
+    }
+
+    // 初始化打印机管理器
+    const result = await window.printerManager.init();
+
+    if (result.success) {
+      console.log(`[App] 打印系统初始化成功，引擎: ${result.engine}`);
+
+      // 更新状态显示
+      updatePrinterStatus(result.engine);
+
+      // 刷新打印机列表 - 使用正确的方法名
+      if (window.app && typeof window.app.updatePrinterSelect === 'function') {
+        await window.app.updatePrinterSelect();
+      }
+
+      if (!clodopAvailable && result.engine !== 'C-Lodop') {
+        console.log('[App] 使用回退模式，显示安装提示');
+        // 延迟显示安装指导，避免与其他弹窗冲突
+        setTimeout(() => {
+          if (document.querySelectorAll('.modal').length === 0) {
+            showCLodopInstallationGuide();
+          }
+        }, 2000);
+      }
+    } else {
+      console.error('[App] 打印系统初始化失败:', result.error);
+      updatePrinterStatus('Error');
+    }
+  } catch (error) {
+    console.error('[App] 打印系统初始化异常:', error);
+    updatePrinterStatus('Error');
+  }
+}
+
+// 更新打印机状态显示
+function updatePrinterStatus(engine) {
+  const statusElement = document.getElementById('printerStatus');
+  if (statusElement) {
+    let statusText = '';
+    let statusClass = '';
+
+    switch (engine) {
+      case 'C-Lodop':
+        statusText = 'CLodop已连接';
+        statusClass = 'status-connected';
+        break;
+      case 'System-Fallback':
+        statusText = '系统回退模式';
+        statusClass = 'status-warning';
+        break;
+      case 'None':
+        statusText = '需要安装CLodop';
+        statusClass = 'status-error';
+        break;
+      case 'Error':
+        statusText = '初始化失败';
+        statusClass = 'status-error';
+        break;
+      default:
+        statusText = '未知状态';
+        statusClass = 'status-disconnected';
+    }
+
+    statusElement.textContent = statusText;
+    statusElement.className = `status-badge ${statusClass}`;
+  }
+}
