@@ -326,7 +326,7 @@ class ChineseEncodingDetector {
   }
 }
 
-class PrinterManager {
+class LegacyPrinterManager {
   constructor() {
     this.printers = [];
     this.selectedPrinters = [];

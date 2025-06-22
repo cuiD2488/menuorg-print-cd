@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>C-Lodop 测试页面</title>
+    <style>
+      body {
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        text-align: center;
+        color: #333;
+        margin-bottom: 30px;
+      }
+      .status-section {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+      }
+      .status-item {
+        margin: 8px 0;
+        padding: 5px 0;
+        border-bottom: 1px dotted #ccc;
+      }
+      .status-label {
+        font-weight: bold;
+        color: #555;
+        display: inline-block;
+        width: 120px;
+      }
+      .status-value {
+        color: #333;
+      }
+      .status-success {
+        color: #28a745;
+      }
+      .status-error {
+        color: #dc3545;
+      }
+      .button-group {
+        text-align: center;
+        margin: 20px 0;
+      }
+      .btn {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .btn:hover {
+        background: #0056b3;
+      }
+      .btn:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+      }
+      .btn-success {
+        background: #28a745;
+      }
+      .btn-success:hover {
+        background: #1e7e34;
+      }
+      .btn-warning {
+        background: #ffc107;
+        color: #212529;
+      }
+      .btn-warning:hover {
+        background: #e0a800;
+      }
+      .log-section {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        margin-top: 20px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+      .log-title {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #495057;
+      }
+      .log-content {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        color: #333;
+      }
+      .printer-list {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        margin-top: 15px;
+      }
+      .printer-item {
+        padding: 10px 15px;
+        border-bottom: 1px solid #f1f1f1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .printer-item:last-child {
+        border-bottom: none;
+      }
+      .printer-name {
+        font-weight: bold;
+        color: #333;
+      }
+      .printer-actions {
+        display: flex;
+        gap: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🖨️ C-Lodop 打印控件测试</h1>
+        <p>用于测试C-Lodop打印控件的安装和功能状态</p>
+      </div>
+
+      <div class="status-section">
+        <h3>📊 系统状态</h3>
+        <div class="status-item">
+          <span class="status-label">C-Lodop状态:</span>
+          <span id="lodopStatus" class="status-value">检测中...</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">版本信息:</span>
+          <span id="lodopVersion" class="status-value">-</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">连接方式:</span>
+          <span id="lodopConnection" class="status-value">-</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">打印机数量:</span>
+          <span id="printerCount" class="status-value">-</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">浏览器:</span>
+          <span id="browserInfo" class="status-value">-</span>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button class="btn" id="checkStatusBtn" onclick="checkStatus()">
+          🔍 检查状态
+        </button>
+        <button
+          class="btn btn-success"
+          id="refreshPrintersBtn"
+          onclick="refreshPrinters()"
+        >
+          🔄 刷新打印机
+        </button>
+        <button
+          class="btn btn-warning"
+          id="installBtn"
+          onclick="installCLodop()"
+          style="display: none"
+        >
+          📥 安装C-Lodop
+        </button>
+        <button class="btn" id="testPrintBtn" onclick="testPrint()" disabled>
+          🧪 测试打印
+        </button>
+      </div>
+
+      <div id="printerSection" style="display: none">
+        <h3>🖨️ 可用打印机</h3>
+        <div id="printerList" class="printer-list">
+          <!-- 打印机列表将在这里显示 -->
+        </div>
+      </div>
+
+      <div class="log-section">
+        <div class="log-title">📝 操作日志</div>
+        <div id="logContent" class="log-content">等待操作...</div>
+      </div>
+    </div>
+
+    <script src="./renderer/LodopFuncs.js"></script>
+    <script>
+      let currentLodop = null;
+      let printerList = [];
+
+      // 页面加载时自动检查状态
+      window.onload = function () {
+        log('页面加载完成，开始检查C-Lodop状态...');
+        checkStatus();
+        updateBrowserInfo();
+      };
+
+      // 日志函数
+      function log(message) {
+        const logContent = document.getElementById('logContent');
+        const timestamp = new Date().toLocaleTimeString();
+        logContent.textContent += `[${timestamp}] ${message}\n`;
+        logContent.scrollTop = logContent.scrollHeight;
+        console.log(`[C-Lodop Test] ${message}`);
+      }
+
+      // 更新浏览器信息
+      function updateBrowserInfo() {
+        const ua = navigator.userAgent;
+        let browser = 'Unknown';
+
+        if (ua.includes('Chrome')) browser = 'Chrome';
+        else if (ua.includes('Firefox')) browser = 'Firefox';
+        else if (ua.includes('Safari')) browser = 'Safari';
+        else if (ua.includes('Edge')) browser = 'Edge';
+        else if (ua.includes('MSIE') || ua.includes('Trident'))
+          browser = 'Internet Explorer';
+
+        document.getElementById('browserInfo').textContent = browser;
+      }
+
+      // 检查C-Lodop状态
+      function checkStatus() {
+        log('开始检查C-Lodop状态...');
+
+        try {
+          currentLodop = getLodop();
+
+          if (currentLodop) {
+            document.getElementById('lodopStatus').textContent = '✅ 可用';
+            document.getElementById('lodopStatus').className =
+              'status-value status-success';
+
+            document.getElementById('lodopVersion').textContent =
+              currentLodop.VERSION || 'Unknown';
+            document.getElementById('lodopConnection').textContent =
+              currentLodop.CVERSION ? '本地客户端' : 'ActiveX';
+
+            const printerCount = currentLodop.GET_PRINTER_COUNT();
+            document.getElementById('printerCount').textContent = printerCount;
+
+            document.getElementById('testPrintBtn').disabled = false;
+            document.getElementById('installBtn').style.display = 'none';
+
+            log(
+              `C-Lodop检查成功！版本: ${currentLodop.VERSION}, 打印机数量: ${printerCount}`
+            );
+
+            // 自动刷新打印机列表
+            refreshPrinters();
+          } else {
+            document.getElementById('lodopStatus').textContent = '❌ 不可用';
+            document.getElementById('lodopStatus').className =
+              'status-value status-error';
+
+            document.getElementById('testPrintBtn').disabled = true;
+            document.getElementById('installBtn').style.display =
+              'inline-block';
+
+            log('C-Lodop不可用，可能需要安装');
+          }
+        } catch (error) {
+          log(`检查C-Lodop状态失败: ${error.message}`);
+          document.getElementById('lodopStatus').textContent = '❌ 错误';
+          document.getElementById('lodopStatus').className =
+            'status-value status-error';
+        }
+      }
+
+      // 刷新打印机列表
+      function refreshPrinters() {
+        if (!currentLodop) {
+          log('C-Lodop不可用，无法获取打印机列表');
+          return;
+        }
+
+        try {
+          log('正在获取打印机列表...');
+          printerList = [];
+
+          const count = currentLodop.GET_PRINTER_COUNT();
+
+          for (let i = 0; i < count; i++) {
+            const name = currentLodop.GET_PRINTER_NAME(i);
+            if (name) {
+              printerList.push({
+                index: i,
+                name: name,
+                isDefault: i === 0,
+              });
+            }
+          }
+
+          displayPrinters();
+          log(`获取到 ${printerList.length} 台打印机`);
+        } catch (error) {
+          log(`获取打印机列表失败: ${error.message}`);
+        }
+      }
+
+      // 显示打印机列表
+      function displayPrinters() {
+        const container = document.getElementById('printerList');
+        const section = document.getElementById('printerSection');
+
+        if (printerList.length === 0) {
+          section.style.display = 'none';
+          return;
+        }
+
+        section.style.display = 'block';
+        container.innerHTML = '';
+
+        printerList.forEach((printer, index) => {
+          const item = document.createElement('div');
+          item.className = 'printer-item';
+
+          item.innerHTML = `
+                    <div>
+                        <div class="printer-name">${printer.name}</div>
+                        <small style="color: #666;">索引: ${printer.index} ${
+            printer.isDefault ? '(默认)' : ''
+          }</small>
+                    </div>
+                    <div class="printer-actions">
+                        <button class="btn" onclick="testPrintToPrinter('${
+                          printer.name
+                        }')">测试打印</button>
+                    </div>
+                `;
+
+          container.appendChild(item);
+        });
+      }
+
+      // 通用测试打印
+      function testPrint() {
+        if (!currentLodop) {
+          log('C-Lodop不可用，无法执行测试打印');
+          return;
+        }
+
+        if (printerList.length === 0) {
+          log('没有可用的打印机');
+          return;
+        }
+
+        // 使用第一台打印机进行测试
+        testPrintToPrinter(printerList[0].name);
+      }
+
+      // 向指定打印机测试打印
+      function testPrintToPrinter(printerName) {
+        if (!currentLodop) {
+          log('C-Lodop不可用，无法执行测试打印');
+          return;
+        }
+
+        try {
+          log(`开始向打印机 "${printerName}" 发送测试打印...`);
+
+          // 创建打印任务
+          currentLodop.PRINT_INITA(0, 0, '80mm', '120mm', 'C-Lodop测试打印');
+
+          // 选择打印机
+          currentLodop.SET_PRINTER_INDEXA(printerName);
+
+          // 添加打印内容
+          currentLodop.ADD_PRINT_TEXT(
+            10,
+            10,
+            200,
+            30,
+            '=== C-Lodop 测试打印 ==='
+          );
+          currentLodop.ADD_PRINT_TEXT(
+            50,
+            10,
+            200,
+            30,
+            `打印机: ${printerName}`
+          );
+          currentLodop.ADD_PRINT_TEXT(
+            90,
+            10,
+            200,
+            30,
+            `时间: ${new Date().toLocaleString()}`
+          );
+          currentLodop.ADD_PRINT_TEXT(
+            130,
+            10,
+            200,
+            30,
+            `版本: ${currentLodop.VERSION}`
+          );
+          currentLodop.ADD_PRINT_TEXT(170, 10, 200, 30, '测试成功！');
+
+          // 执行打印
+          const result = currentLodop.PRINT();
+
+          if (result) {
+            log(`✅ 测试打印成功发送到: ${printerName}`);
+          } else {
+            log(`❌ 测试打印失败: ${printerName}`);
+          }
+        } catch (error) {
+          log(`❌ 测试打印异常: ${error.message}`);
+        }
+      }
+
+      // 安装C-Lodop（如果函数可用）
+      if (typeof installCLodop === 'undefined') {
+        window.installCLodop = function () {
+          log('正在引导安装C-Lodop...');
+
+          const tip = '本应用需要安装C-Lodop打印控件才能正常打印。\n\n';
+          tip += '您可以从以下地址下载安装：\n';
+          tip += 'http://www.lodop.net/download.html\n\n';
+          tip += '安装完成后请重新启动应用程序。';
+
+          alert(tip);
+
+          // 尝试打开下载页面
+          try {
+            window.open('http://www.lodop.net/download.html', '_blank');
+          } catch (err) {
+            log(
+              '无法自动打开下载页面，请手动访问: http://www.lodop.net/download.html'
+            );
+          }
+        };
+      }
+    </script>
+  </body>
+</html>

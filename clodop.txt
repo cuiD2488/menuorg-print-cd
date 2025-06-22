@@ -1,0 +1,578 @@
+
+
+
+C-Lodop技术手册
+
+
+
+
+
+
+
+Ver 6.5.7.1
+
+
+
+
+
+
+
+
+
+
+
+Email: gungho999@sina.com
+QQ: 932131686
+梦泰尔软件(中国)
+MTSoftware(CN)
+
+目      录
+
+一、概述	- 3 -
+二、安装	- 6 -
+安装文件：	- 7 -
+安装后的运行文件：	- 7 -
+安装后的窗口	- 7 -
+安装后的欢迎页面	- 8 -
+扩展功能设置	- 10 -
+三、页面调用	- 11 -
+加载云打印JS文件的简单方法	- 11 -
+动态加载云打印JS文件	- 11 -
+云打印JS文件的优先级	- 11 -
+加载多个云打印JS文件	- 12 -
+https协议加载js文件	- 12 -
+获取LODOP对象	- 12 -
+四、功能函数、属性和事件	- 14 -
+Create_Printer_List	- 14 -
+Create_PageSize_List	- 14 -
+PREVIEW	- 14 -
+HTTPS_STATUS	- 15 -
+On_Return	- 15 -
+On_Return_Remain	- 16 -
+window.On_CLodop_Opened	- 16 -
+SET_PRINTER_INDEX	- 17 -
+SET_BRIDGE_INDEX	- 17 -
+GET_VALUE	- 17 -
+DO_ACTION	- 18 -
+ADD_PRINT_PDF	- 19 -
+SET_PRINT_STYLEA	- 19 -
+五、 界面设置	- 22 -
+1：AO服务器的选项设置	- 22 -
+2：AO服务器的SSL设置	- 23 -
+3：AO客户端桥设置	- 23 -
+4：运行日志	- 24 -
+六、 C-Lodop服务网址	- 26 -
+
+
+
+一、概述
+Web打印服务C-Lodop是梦泰尔软件（MTSoftware）推出的一款精巧快捷的云打印服务产品，以Lodop功能语句为基础，开创了JS语句实现远程打印的先河，为“移动设备+Wifi+普通打印机+集中打印”奠定了编程基础。
+C-Lodop对客户端浏览器要求很低，支持任何现代浏览器，除了Windows平台上的Chrome(谷歌)、FireFox(火狐)、Opera、Safari、IE、edge几大系列及其外壳浏览器（如QQ浏览器、搜狗、360、UC等等）之外，客户端还支持“平板电脑”和“智能手机(无需安装APP)”以及Linux、OS(Mac)上的浏览器。
+C-Lodop可扮演三种角色(参考官网三角色图)，角色1：第一种是在Windows客户端PC本机安装，从而替代Lodop控件功能，这也是常见用法；角色2：第二种是单独部署的打印服务器，适合局域网内的后台集中打印；角色3：第三种角色是广域网AO服务器，适合广域网的远程打印。
+AO打印也称“主动在线”打印，是指处于活动状态的AO打印机主动把自己的信息提交到专门的服务器(AO服务器)上，随时在线待命，而打印发起者通过该服务器中转功能实现远程打印的工作模式。该工作模式目前广泛应用于手机等移动设备(浏览器)的广域网打印业务。
+AO打印机有两种：一是专门生产的专用AO打印机，二是“AO端桥(软件)+普通打印机”配合实现AO打印效果。在以上工作模式中，C-Lodop既担任AO服务器软件，也担任AO端桥软件，推荐两端采用同一版本。
+    三角色图如下：
+1）角色1：C-Lodop与Lodop组合搭配示意图，在第一种角色中，一般采用“Web打印服务C-Lodop + 控件Lodop”组合搭配使用，见图（1-1）：
+
+图(1-1)
+2）角色2：C-Lodop独立服务器部署示意图：
+
+图(1-2)
+
+3）角色3：广域网AO服务器
+图（1-3）
+
+关于Web打印服务C-Lodop支持https协议，包含两方面含义：
+
+第一：安装后自带特殊域名localhost.lodop.net(旧版是localhost)的SSL证书，来自该域名的调用自动适用https协议，无需任何设置（适用角色1）； 
+第二：支持自有域名的SSL证书，一般在C-Lodop担任独立的AO服务器角色(角色2,3)时使用；
+
+
+
+
+
+二、安装
+Web打印服务C-Lodop包含两个安装程序，其中32位程序既适合32位操作系统，也适合64位操作系统，适应面比较广，特别适合客户端安装环境比较繁杂的情况。而64位程序仅适合64位系统，但可以管理超大内存，比较适合独立部署的大型云端服务器系统，譬如AO云服务器。
+在如图（2-1）安装界面选项中，勾选“云服务器工作模式”仅适合独立服务器安装，一般客户端安装时不推荐勾选(按默认就行)，这个工作模式并不影响服务功能，仅仅是对独立工作（无人工干扰）的云端服务器进行特殊处理，例如忽略一些弹窗对话、屏蔽远程桌面操作时“重定向”管理员电脑上的打印机等等，也就是让服务器运行在静默状态。第二个勾选“非HTTPS也支持”允许HTTP协议网址访问本地打印机，默认勾选；第四个选择框“只能本机打印”选中时，将仅限客户端安装使用，不接受外部传来的打印任务，适合角色1使用场景。
+
+图（2-1）
+安装文件：
+文件名是CLodop_Setup_for_Win32NT.exe可同时在32位和64位Windows操作系统上安装，适应面较广，角色1时在客户端安装使用，角色2或角色3时既适合做AO服务器，也适合做AO端桥。
+文件名是CLodop_Setup_for_Win64NT.exe 只能在64位Windows操作系统上安装，性能较高，比较适合对性能要求较高的AO服务器。
+安装后的运行文件：
+1、文件路径：Program Files (x86)\MountTaiSoftware\CLodop32
+             Program Files\MountTaiSoftware\CLodop64
+   不同的Windows操作系统略有差异，一般都在Program Files路径下。
+  	2、主服务文件：CLodopPrint32.exe
+  	3、免登录服务文件：CLodopService32.exe
+  	4、样例Demo目录
+  		Program Files (x86)\MountTaiSoftware\CLodop32\Rootdir\CLodopDemos
+样例中有一个LodopFuncs.js文件很小很关键，建议尽量看懂它。
+安装后的窗口
+正常安装成功后，会弹出如下提示窗口：
+
+图（2-2）
+这也是管理设置窗口，事后可以从Windows开始菜单里重新进入该界面。
+
+图（2-3）
+在设置界面中，通过“设置->端口设置”菜单进入下面的对话窗口进行端口设置，http通讯协议的默认双端口是8000和18000（支持的https协议端口是8443）。 修改端口的操作只有在C-Lodop作为独立服务器软件(角色2和角色3)时才使用，且仅能修改第1端口。
+
+图（2-4）
+安装后的欢迎页面
+点击以上图（2-2）圈定的按钮链接，进入如下欢迎页面：
+
+图（2-5）
+如图（2-5）红框中连接进入，可验证全部传统例子在c-lodop中的应用情况。
+扩展功能设置
+扩展功能设置，主要应对AO打印服务和AO端桥的情况，如图（2-6）：
+
+图（2-6）
+扩展功能的三个子菜单：
+1.AO打印服务，监控作为AO服务器软件时的运行状态和深度设置.
+2.AO客户端桥设置，进行作为AO端桥软件时的链接设置，一般安装在客户端作为AO端桥使用时进行该设置；
+3.SSL(https)设置，进行自主域名SSL证书的部署设置；
+
+
+
+
+
+
+
+
+三、页面调用
+加载云打印JS文件的简单方法
+    调用C-Lodop很简单，在页面head中 添加 如下路径的js文件，就可以向其发打印请求了，如下几个例子都可以在欢迎页面或Lodopfuncs.js这个样例文件里找到：
+       <script src="http://Host地址:8000/CLodopfuncs.js"></script>
+<script src="http://Host地址:18000/CLodopfuncs.js"></script>
+这里的蓝色部分是固定内容，Host地址是指安装C-Lodop的主机地址，可以是其IP地址或其域名，如果是本地(角色1)打印，该值用localhost、127.0.0.1或主机名代替，端口默认是8000、18000双端口(页面可以引用之一或同时引用），引用双端口的优势是当其中一个端口失效时，另一端口可继续工作，例如：
+<script src=”http://192.168.1.1:8000/CLodopfuncs.js”></script>
+<script src=”http://192.168.1.1:18000/CLodopfuncs.js”></script>
+动态加载云打印JS文件
+为了方便控制或兼容老程序，以上静态方法可以用如下动态语句替代，效果一样：
+var oscript = document.createElement("script");
+    oscript.src ="http://localhost:8000/CLodopfuncs.js?priority=1";
+    var head = document.head || document.getElementsByTagName("head")[0] || document.documentElement;
+    head.insertBefore( oscript,head.firstChild );
+LodopFuncs.js中动态加载如图(3-1)：
+
+图（3-1）
+云打印JS文件的优先级
+<script src=”http://localhost:8000/CLodopfuncs.js? priority=1”></script>
+    以上引用方法的参数priority设置的是优先级，优先级值是从0开始的阿拉伯数字，数字越大，优先级越高，默认是0。当一个页面按后续章节同时引用多个云主机时，优先级设置很关键，否则会按下载顺序来处理。
+加载多个云打印JS文件
+如果一个页面通过以上语句同时引用了两个云主机，通常后一个引用会覆盖前一个引用，其先后顺序是以下载js速度快慢为准，此时如果页面希望其中一个引用有更高的优先级，可以用url参数priority来控制，该参数值越大优先级越高，默认值为0，
+例如：
+<script src=”http://192.168.1.6:8000/CLodopfuncs.js”></script>
+<script src=”http://Localhost:8000/CLodopfuncs.js? priority=1”></script>
+这也是C-Lodop默认安装例子演示时，既可以让手机浏览器访问，也可以让电脑访问的神奇原因。如果希望页面的两个引用同时存在(不相互覆盖)，则需要用url的参数name来区分,
+例如：
+    <script src='http://192.168.1.1:8000/CLodopfuncs.js?name=LODOPA'></script>
+<script src='http://192.168.1.2:8000/CLodopfuncs.js?name=LODOPB'></script>
+此时调用打印时，不再用LODOP这个默认的JS变量名，而是用LODOPA或LODOPB，二者分别向不同的云主机发打印指令，LODOPA指向192.168.1.1，而LODOPB指向192.168.1.2，以此类推。
+https协议加载js文件
+C-Lodop默认端口是8443（对应的Host地址也只能是域名，因SSL证书仅颁发给域名地址）。初次安装时，如果该默认端口被占用，端口值会自动加1，直到成功，所以https协议也可以使用双端口(8443和8444)引用主JS文件（忽略页面报错信息），格式如下：
+       <script src="https://Host域名:8443/CLodopfuncs.js"></script>
+       <script src="https://Host域名:8444/CLodopfuncs.js"></script>
+
+获取LODOP对象
+   按照以上引用成功后，就可以在页面程序里通过getCLodop函数获取主对象，赋值给一个普通JS变量，以此开始调用其功能。为了兼容已经开发好的传统打印程序，仍然统一用LODOP这个变量名：
+    var LODOP=getCLodop();
+有了该对象之后，就可以调用云打印功能语句了，如
+LODOP.PRINT();
+    LODOP.PREVIEW();
+LODOP.PRINT_DESIGN();
+更多语句参考后面的功能函数介绍。
+(注：在综合发行包例子Lodopfuncs.js中,getLodop函数包含了getCLodop的调用，注意区分)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+四、功能函数、属性和事件
+	C-Lodop的功能函数涵盖了Lodop的所有语句，它们的详细功能说明参考《WEB打印控件Lodop技术手册》。除此之外，新增了部分与页面整合相关的函数、属性和触发事件，个别语句的参数值也有所扩展，详解如下：
+Create_Printer_List
+名称：建立打印机名单
+格式：Create_Printer_List(oElement);
+功能：C-Lodop特有函数。获得云主机链接的所有打印机名单，并添加到当前页面某个Select标签元素中。
+参数：oElement 目标对象(已经存在的某个Select标签元素)
+举例：CLODOP.Create_Printer_List(document.getElementById('Select01'));
+
+Create_PageSize_List
+名称：建立纸张类型名单
+格式：Create_PageSize_List(oElement, iPrintIndex);
+功能：C-Lodop特有函数。获得目标打印机所拥有的纸张类型名单，并添加到当前页面某个Select标签对象元素中。
+参数：oElement 目标对象(已经存在的某个Select标签元素)
+      iPrintIndex目标打印机在windows系统内的序号
+               (操作系统对所添加打印机的顺序编号，从0开始)
+举例：CLODOP.Create_PageSize_List(document.getElementById('Select03'), 2);
+PREVIEW
+作用：打印预览语句
+格式：PREVIEW(oView,iW,iH,iOption)
+功能：C-Lodop普通功能语句。打印预览语句扩充了可选的四个参数oView,iW,iH，iOption从而以某种窗口姿态进行预览，第4个参数iOption是4.0版增加的参数项。
+参数：参数值及其含义
+    oView：让预览窗口内含在当前页面内（而不是弹窗），这里的“内含”不同于插件“内嵌”模式，进一步的内含样式有如下几种可选：
+_dialog:弹出对话框
+_blank :新窗口
+_winopen:_blank:浏览器新窗口（要实现 window.open语句的开窗口效果，需要加“_winopen:”）
+    具体ID值:在某个现有iframe元素内（需要提前在页面内增加该iframe）
+iW：预览窗口显示时的宽度值(px)；
+iH：预览窗口显示时的高度值(px)；
+
+iOption：显示选项，其中iOption是如下枚举值的合计值:
+      1: 隐藏“正常”按钮;
+      2: 隐藏“放大”按钮;
+      4: 隐藏“缩小”按钮;
+      8：隐藏“打印”按钮;
+      16：隐藏下方“状态条”;
+      32: 隐藏其它AO端桥(有选择端桥语句时);
+
+举例：LODOP.PREVIEW("_blank "); //在新的浏览器窗口显示打印预览
+                                (注意浏览器阻止设置对其仍然有效)
+      LODOP.PREVIEW("001"); //在ID等于“001”的iframe元素内显示打印预览
+LODOP.PREVIEW("_blank",0,0,1+2+4+32);
+HTTPS_STATUS
+名称：判断是否支持https协议的属性。
+格式：CLODOP.HTTPS_STATUS
+功能：C-Lodop特有属性。由于https服务需要单独的安装程序版本来支持，所以页面程序原则上要通过CLODOP.HTTPS_STATU属性来提前判断一下，所安装的版本是否匹配，以便于明确提示。
+参数：参数值及其含义
+      0-不支持  1-支持  2-支持且已启动（https服务需单独启动）。
+举例：
+	if (CLODOP.HTTPS_STATUS>=1) {
+alert("很好，当前C-Lodop支持https!");
+} else
+alert("抱歉，当前C-Lodop不支持https，请安装C-Lodop扩展版!");
+
+
+On_Return
+名称：结果回调函数
+格式：CLODOP.On_Return=function(TaskID,Value){...};
+功能：C-Lodop特有事件。设置那些需要返回结果的动作语句在获得结果时触发的回调函数。
+说明：和Lodop相比，C-Lodop的动作语句不再立即返回执行结果，而是返回一个任务编号，页面程序在回调函数中通过该编号来区分是哪个语句返回的结果，并根据结果值在该回调函数中进行下一步的处理。
+参数：TaskID 后续动作语句的任务编号，进一步参考后面On_Return_Remain的使用。
+      Value该动作语句返回的结果值，类型为逻辑真假值或字符串值。
+举例： ....
+       LODOP.On_Return=function(TaskID,Value){
+          if (Value) alert("已发出实际打印命令！"); else alert("放弃打印！");
+       };
+	   LODOP.PRINTA(); //这是一个典型的动作语句
+On_Return_Remain
+名称：结果回调函数保留
+格式：CLODOP.On_Return_Remain=真假值;
+功能：C-Lodop特有属性。让所设置的回调函数持续保留，对后面多个动作连续有效。
+说明：正常情况下，回调函数执行完毕后会自动销毁（也就是本属性默认值是false），而本属性设置为真值就可以阻止其销毁，从而让后面的所有动作语句都触发同一个回调函数，在回调函数中用TaskID的值来区分是哪个动作触发的回调。
+举例：
+       var TaskID1，TaskID2
+       LODOP.On_Return_Remain=true;
+       LODOP.On_Return=function(TaskID,Value){
+           if (TaskID== TaskID1) {
+                  alert("判断是否打印成功的结果是："+ Value)
+           } else if (TaskID== TaskID2) {
+                  alert("判断打印任务是否还存在的结果是："+ Value)
+           };
+       };
+       TaskID1=LODOP.GET_VALUE("PRINT_STATUS_OK",P_ID);
+	   TaskID2=LODOP.GET_VALUE("PRINT_STATUS_EXIST",P_ID);
+
+
+window.On_CLodop_Opened
+名称：C-Lodop已准备完毕事件
+格式：window.On_ CLodop_Opened =function(Opener);
+功能：C-Lodop特有事件。页面引入C-Lodop后，需要几百毫秒的准备时间（主要是websocket链接），此过程准备完毕后，会触发本事件。
+要求：触发工作执行之后，页面程序需要对其置空。
+举例1：
+ if (needCLodop()) {
+		window.On_CLodop_Opened=function(){
+		    LODOP.PREVIEW();	//执行打印预览
+			window.On_CLodop_Opened=null;
+		};
+	} else
+	window.onload = function(){LODOP.PREVIEW();};
+举例2：页面引用多个C-Lodop时，window.On_CLodop_Opened加Opener参数区分，例如；
+  window.On_CLodop_Opened=function(Opener){
+                if (Opener===CLODOPA) alert("CLODOPA准备好了");
+                else alert("另一个服务准备好了");
+
+
+SET_PRINTER_INDEX
+名称：指定打印机
+格式：SET_PRINTER_INDEX("DriverIndex ,PrinterIDandName");
+功能：这个语句对于广域网打印至关重要，通过扩展其参数含义，实现对AO打印的详细控制。
+     该语句参数正常值是打印机序号或打印机名称，鉴于打印机名(windows要求)不能包含
+     逗号，故而扩展版利用逗号对这个单一参数进行扩展分隔。
+     (这种扩展方式可以兼容老的打印程序)
+参数：
+该参数值如果不包含逗号，则代表普通打印机序号或打印机名称；反之，如果包含逗号，那么逗号分隔成如下两部分：
+第1部分DriverIndex ：一般是AO打印机驱动名(或序号).
+第2部分PrinterIDandName：AO打印机编号与AO打印机标识名用分号组合而成.
+结果：返回逻辑值true或出错信息
+返回true表示指定成功，否则代表出错信息。
+建议或要求：
+要求在初始化之后、打印或预览之前调用。
+举例： LODOP.SET_PRINTER_INDEX(“1,D123456789013;得实DL-218型985号AO打印机”);
+演示网址：http://demo.c-lodop.com:8000/c_aobridge
+SET_BRIDGE_INDEX
+名称：指定目标AO端桥
+格式：LODOP.SET_BRIDGE_INDEX("端桥编号;端桥标识名,打印机名或序号");
+功能：指定AO端桥的设置语句，设置输出的目标端桥。
+说明：把一个C-Lodop(扩展版)程序安装在客户端普通PC上，启用其端桥功能，并设置其指向广域网另一个C-Lodop扮演的AO打印服务，这样就在AO打印服务和普通打印机之间建立了一个对话桥梁，从而代替专用AO打印机， 这就是端桥AO打印。此时指定语句要用SET_BRIDGE_INDEX，其参数有两部分组成，端桥识别信息+(端桥下)打印机识别信息，和标准AO打印参数类似的是，端桥识别信息是其编号和标识名用分号组合，两部分用逗号分隔，语句格式如下:
+LODOP.SET_BRIDGE_INDEX("端桥编号;端桥标识名,打印机名或序号");
+举例：LODOP.SET_BRIDGE_INDEX("C5769905800;我的端桥01,0");
+GET_VALUE
+名称：获取(AO打印)相关数据
+格式：GET_VALUE(ValueType, ValueIndex)
+功能：通过AO打头的一组参数，获取AO服务器当前的一些相关信息，例如有多少打印机在线、每个打印机的配置信息等等。
+参数：ValueType：
+数据值类型，字符型，如下是类型名及其含义：
+AO_PRINT_JSON_PrinterList ----获取AO打印机(及端桥)列表清单
+AO_PRINT_JSON_PrinterDetail ----获取在线单个端桥的详细信息
+AO_PRINT_BridgeID ----获取本地端桥编号
+AO_PRINT_BridgeName ----获取本地端桥标识名
+AO_PRINT_BridgeIP ----获取本地端桥指向的AO服务IP
+AO_PRINT_BridgePort ----获取本地端桥指向的AO服务端口
+AO_PRINT_BridgeEnable ----获取本地端桥是否启用
+ValueIndex：
+当ValueType为AO_PRINT_JSON_PrinterDetail 时，
+本参数要赋的内容是“打印机(端桥驱动)名,端桥编号”。
+其它情况用默认值0，无意义。
+结果：返回字符
+返回对应的字符型、整数型或逻辑值，返回空字符表示读取失败。
+建议或要求：
+C-Lodop广域网云打印服务器启动后调用。
+举例：
+   LODOP.GET_VALUE("AO_PRINT_JSON_PrinterList",0);
+   LODOP.GET_VALUE("AO_PRINT_BridgeID",0);
+   LODOP.GET_VALUE("AO_PRINT_JSON_PrinterDetail","C001;我的端桥");
+演示网址：http://demo.c-lodop.com:8000/c_aoprintget
+DO_ACTION
+名称：设置端桥(动作语句)
+格式：DO_ACTION (ActName, ActValue)
+功能：端桥的人工界面设置操作，都可以用本语句代替。
+参数：
+ActName动作名称的固定值 SET_AO_PRINT_Bridge
+ActValue 动作值，格式为“子动作名=子动作值”，用分号隔开多个子动作，如：
+ID=XXX;Name=XXX;Host=XXX; Port =XXX;Enable=XXX
+其中，ID代表端桥编号，Name代表端桥标识名，Host代表AO服务器IP地址，
+Port代表AO服务器端口(默认是9200)，Enable代表本机启用端桥功能。
+结果：无。
+建议或要求：
+仅限设置本地(localhost)的C-Lodop端桥。
+举例1：
+LODOP.DO_ACTION('SET_AO_PRINT_Bridge','Enable=True;');  //启用端桥功能
+举例2：
+LODOP.DO_ACTION('SET_AO_PRINT_Bridge','Host=121.2.1.100;');  //指向某服务器
+举例3：
+LODOP.DO_ACTION('SET_AO_PRINT_Bridge','ID=C001;Name=我的端桥名;'); //设置名称
+演示网址：http://demo.c-lodop.com:8000/c_aoprintget
+ADD_PRINT_PDF
+名称：PDF文档格式打印项
+格式：ADD_PRINT_PDF(Top,Left,Width,Height,strURLorContent)
+功能：指定pdf文档来源，设定该打印项在纸张内的位置和区域大小，实现PDF文档控制打印。
+参数：
+Top：
+打印项在纸张内的上边距，整数或字符型，整数时缺省长度单位为px。字符型时可包含单位名：in(英寸)、cm(厘米) 、mm(毫米) 、pt(磅)、px(1/96英寸)、%(百分比)，如“10mm”表示10毫米。
+Left：
+打印项在纸张内的左边距，整数或字符型，整数时缺省长度单位为px。字符型时可包含单位名：in(英寸)、cm(厘米) 、mm(毫米) 、pt(磅)、px(1/96英寸) 、%(百分比)，如“10mm”表示10毫米。
+Width：
+未用，宽度以pdf文档本身宽度为准。
+Height：
+未用，高度以pdf文档本身高度为准。
+strURLorContent：
+PDF文档来源地址或内容，字符型，可以是URL、本地路径和内容BASE64码三种方式。
+结果：无
+建议或要求：
+要求在打印初始化后使用。
+举例一：
+LODOP.ADD_PRINT_PDF(0,0,"100%","100%","http://localhost:8000/CLodopDemos/PDFDemo.pdf");
+举例二：LODOP.ADD_PRINT_PDF(0,0,"100%","100%","C:\\demos\\PDFDemo.pdf");
+举例三：单一PDF打印模式:当仅有单个PDF主对象+纸张大小PAGESIZE=模式3(纸张随内容变化)+PDF对象按原始大小输出，此时最终输出纸张大小按PDF文档内部定义的纸张尺寸;
+    例如:
+    LODOP.ADD_PRINT_PDF(0,0,"100%","100%",strURLorContent);
+    LODOP.SET_PRINT_STYLEA(0,"PDFScalMode",1);//pdf文档纸张实际大小输出
+LODOP.SET_PRINT_PAGESIZE(3,0,0,"");//纸张设置为自定义
+
+SET_PRINT_STYLEA
+名称：设置打印项增强属性
+格式：
+SET_PRINT_STYLEA(varItemNameID, strStyleName,varStyleValue)
+功能：设置单个输出项的增强属性，除Lodop传统属性之外，C-Lodop还包含如下旋转、放大轮廓等增强属性。
+参数：
+varItemNameID：详细参见《WEB打印控件Lodop技术手册》中同语句参数说明。
+strStyleName：增强的属性如下：
+“ScalX”水平缩放；
+“ScalY”垂直缩放；
+“PDFScalMode”PDF对象缩放模式;
+
+"Angle"设置内容在纸面上的旋转倾斜角度，旋转原则是，PDF以“内容中心”为圆心旋转，其它对象以内容“左上角”为圆心进行旋转。
+“Alpha”设置输出项的透明度（遮挡其他内容的过滤程度），仅支持纯文本和图像对象;
+“OutLine”设置纯文本对象是否轮廓字(字形描边);
+“CornerRate”矩形图形对象的拐角率(圆弧角矩形);
+
+varStyleValue：打印风格值，相关值如下：
+ScalX的值：数值型，可包含小数，小于1代表缩小，大于1代表放大，如1.2代表放大原始大小120%;
+ScalY的值：数值型，可包含小数，小于1代表缩小，大于1代表放大，如1.2代表放大原始大小120%;
+PDFScalMode的值：0-缩小大页面 、1-实际大小、2-适合纸张；
+0-缩小大页面：默认值，PDF对象超出纸张时自动缩小至纸张大小；
+1-实际大小：按PDF对象自身实际大小输出，存在超出纸张的可能；
+2-适合纸张：PDF对象缩小或放大至纸张大小；
+ScalX、ScalY的放大限度是在小于纸张的基础上有效，如果想超出纸张，需要设置属性PDFScalMode选择“实际大小”。注意：当“缩小大页面”+“ScalX或Y”时，是不能超出纸张的，如果PDF内容本身就接近甚至超出纸张了，ScalX、ScalY设置放大就无效了。
+
+Angle的值：数字型，逆时针旋转角度数（负数代表顺时针），如180度代表倒立；
+Alpha的值：数字型，透明范围值0--255，默认值是255，代表完全不透明，0代表完全透明；
+OutLine的值：字符或数字型，True或1代表“是”，False或0代表“否”;
+CornerRate的值：数值型，拐角率范围值是0--1.0(默认值0直角)，定义：拐角率=拐角圆的直径与矩形小边(长和宽的短者)的比值，其中拐角圆：是指拐角两个直线内的内切圆;
+
+结果：同函数SET_PRINT_ STYLE。
+建议或要求：
+打印初始化后、增加打印项之后调用本函数。
+举例一：LODOP.SET_PRINT_STYLEA(0,"ScalX",1.2); //设置水平放大1.2倍
+举例二：LODOP.SET_PRINT_STYLEA(0,"ScalY",1.5); //设置垂直放大1.5倍
+举例三：LODOP.SET_PRINT_STYLEA(0,"Angle",45);  //逆时针旋转45度
+举例四：LODOP.SET_PRINT_STYLEA(0,"Alpha",128);
+这个例子的透明度值设置为128，真正意义上的"半"透明,256的一半
+举例五：LODOP.SET_PRINT_STYLEA(0,"OutLine",true); //输出空心字
+举例六：LODOP.SET_PRINT_STYLEA(0,"CornerRate",0.5); //拐角率0.5
+举例七：LODOP.SET_PRINT_STYLEA(0,"PDFScalMode",1);//0-缩小大页面 、1-实际大小、2-适合纸张
+
+
+
+
+ADD_PRINT_IMAGE
+名称：增加图片打印项
+格式：ADD_PRINT_IMAGE(Top,Left,Width,Height,strHtmlContent)
+功能：增加图片打印项，设定该打印项在纸张内的位置和区域大小。
+参数：
+Top：
+所增打印项在纸张内的上边距，整数或字符型，整数时缺省长度单位为px。字符型时可包含单位名：in(英寸)、cm(厘米) 、mm(毫米) 、pt(磅)、px(1/96英寸) 、%(百分比)，如“10mm”表示10毫米。
+Left：
+所增打印项在纸张内的左边距，整数或字符型，整数时缺省长度单位为px。字符型时可包含单位名：in(英寸)、cm(厘米) 、mm(毫米) 、pt(磅)、px(1/96英寸) 、%(百分比)，如“10mm”表示10毫米。
+Width：
+图片的宽度，整数或字符型，整数时缺省长度单位为px。字符型时可包含单位名：in(英寸)、cm(厘米) 、mm(毫米) 、pt(磅)、px(1/96英寸) 、%(百分比)，如“10mm”表示10毫米。本参数可以用RightMargin关键字转义为打印区域相对于纸张的“右边距”。
+Height：
+图片的高度，整数或字符型，整数时缺省长度单位为px。字符型时可包含单位名：in(英寸)、cm(厘米) 、mm(毫米) 、pt(磅)、px(1/96英寸) 、%(百分比)，如“10mm”表示10毫米。图片大时被截取，不会分到下页。本参数可以用BottomMargin关键字转义为打印区域相对于纸张的“下边距”。
+strHtmlContent：
+本参数是字符型，有三种情况：一是超文本代码内容；二是本地文件名内容；第三是WEB地址。第一种情况一般是用IMG标签组成的超文本代码段落。第二种情况是本地文件名全路径，格式如“C:/test.jpg”。第三种情况是是URL:web地址形式的URL地址。
+结果：无
+建议或要求：
+要求在打印初始化后调用，建议在画线类函数之后调用。
+本函数可用ADD_PRINT_HTM代替，但区别是其仅取超文本第一个图片元素，边距是0，而且打印时不因为设计区域小于图片而被分页，适合与纯文本组合打印的插图。
+举例一：LODOP.ADD_PRINT_IMAGE(10,10,300,160,"<img src=’http://...’/>");//超文本地址图片
+举例二：LODOP.ADD_PRINT_IMAGE(10,10,300,160,"ftp:///****");//本地地址图片文件
+
+
+
+
+
+
+
+
+
+
+五、界面设置
+    C-Lodop无论充当独立服务器还是客户端桥，界面设置步骤都极少，几乎是零设置，但在实际使用过程中，特别是遇到问题时，还是有些深度设置需要了解的，主要有如下几个方面:
+
+1：AO服务器的选项设置
+进入路径：C-Lodop(AO服务器)安装后的主界面
+          -->设置->扩展功能->AO打印服务->服务选项->服务选项设置
+进入后会看到如下设置界面：
+
+图（5-1）
+其中可设置AO打印机在线心跳间隔时间、任务超时定义、任务保留时长、是否提示端桥升级，以及升级新版的下载地址等。
+
+2：AO服务器的SSL设置
+进入路径：C-Lodop(AO服务器)安装后的主界面->设置->扩展功能->SSL(https)设置
+进入后会看到如下设置界面：
+
+
+图（5-2）
+设置自有域名的SSL证书来源路径和Key证书密码等如下信息：
+2.1 OpenSSL钥匙文件:购买域名证书时，CA证书颁发者（或代理商）返回的几个文件中扩展名是“key”的那个关键文件；
+	2.2 OpenSSL证书文件:另一个关键私有文件，扩展名一般是“pem”或“crt”，通常比key文件大一些；
+ 	2.3 OpenSSL根证书文件:颁发者公开对外的CA文件，扩展名也是pem或crt，购买SSL证书时没有它，需要另外下载，如果该机构足够权威，这一步可以不用设置；
+ 	2.4 OpenSSL钥匙文件密码:是购买SSL证书时约定的具体密码值，也就是证书文件的使用密码；
+    注：密码是防止别人得到这些文件后冒用的，有些颁发者返回的是无密码证书，此时需自己想办法附加上密码，通常用OpenSSL.exe软件。
+
+3：AO客户端桥设置
+进入路径：C-Lodop(端桥)安装后的主界面->设置->扩展功能->AO客户端桥
+进入后会看到如下设置界面：
+
+图（5-3）
+其中可设置端桥功能启用、指向的AO服务器IP，本AO端桥的编号和标识名等。
+注意：AO服务的默认端桥链接端口是9200，管理和打印端口是8000，这俩端口可修改，注意防火墙开启这俩端口的访问权。
+
+4：运行日志
+设置方法：在端口设置界面的右键菜单里勾选 Run Logs，如图（5-4）；
+
+图（5-4）
+
+存放路径：MountTaiSoftware/CLodop32/Logs，保留最新7天日志，每天不超过200k（约2千条）
+日志内容：日志有对话REQUEST类和打印PRINTED类两类成功日志，前者保存了REQUEST请求目的、对方IP、对话协议、对话端口和对话时间;后者保存了打印任务名、打印机名称、打印任务页数、打印份数、打印时间；每天各一个日志文件。
+日志文件名:
+REQUEST类：REQUEST_日期，
+PRINTED类：PRINTED_日期，
+例如:REQUEST_2020-06-06 , PRINTED_2020-06-06。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+六、C-Lodop服务网址
+       C-Lodop服务很多功能是以web方式访问处理的，这些入口都可以从欢迎页面(图1-2-4)
+的超文本链接里找到，这里再罗列一下（以localhost为例）：
+1、http://localhost:8000/              主欢迎页面
+2、http://localhost:8000/c_sysmessage   查看系统信息
+    这个页面可以看到当前C-Lodop版本，内含Lodop版本、出错信息等
+3、http://localhost:8000/c_mlogin		  设置管理员(admin)密码
+    管理员admin是固定名，初始密码为空，有些访问地址需先登录管理员
+4、http://localhost:8000/c_aoprint       AO打印欢迎页面
+5、http://localhost:8000/c_aobridge      AO端桥打印欢迎页面
+6、http://localhost:8000/c_aoprintget     AO打印相关查询演示页面
+7、http://localhost:8000/c_pdfprint       PDF文件打印相关演示页面
+8、http://localhost:8000/c_mpermit      设置访问者(guest客户)密码
+9、http://localhost:8000/c_whitelist      设置来源网址白名单
+    该设置可以限制访问调用本C-Lodop服务的来源网页(WEB应用页),进一步防止
+    恶意打印骚扰。白名单使用原则URL地址包含白名单，不能用*等通配符，可设
+置多个白名单，如果确定单个网址使用时，建议包含完整的URL地址前面部分。
+10、https://localhost.lodop.net:8443/      https协议的欢迎页面
+11、http://localhost:8000/c_mlicense      商用注册
+12、http://localhost:8000/c_options       设置显示选项(需注册)
+    选项“仅TLS1.2通讯协议”（6.5.7.0增加）
+13、http://localhost:8000/c_update       下载安装文件(需服务端部署升级)
+
+
+
+
+
+
+<完>

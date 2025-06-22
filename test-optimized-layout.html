@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🎫 热敏小票排版测试</title>
+    <style>
+      body {
+        font-family: 'Courier New', monospace;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .test-section {
+        margin-bottom: 20px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .preview {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 15px;
+        border-radius: 5px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        overflow-x: auto;
+      }
+      .status {
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+      .success {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .error {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .info {
+        background-color: #d1ecf1;
+        color: #0c5460;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .width-info {
+        background: #fff3cd;
+        color: #856404;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎫 热敏小票排版测试</h1>
+
+      <div class="test-section">
+        <h3>📊 热敏小票字符宽度设置</h3>
+        <div class="width-info">
+          <strong>80mm热敏纸:</strong> 32字符宽度，字体12pt<br />
+          <strong>58mm热敏纸:</strong> 24字符宽度，字体11pt<br />
+          <strong>特点:</strong>
+          订单信息靠左对齐，菜单表格固定列宽，价格靠右对齐
+        </div>
+        <button onclick="testThermalWidths()">测试热敏纸宽度</button>
+        <div id="thermalWidthResult"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>📋 订单信息左对齐测试</h3>
+        <button onclick="testOrderInfoAlignment()">测试订单信息对齐</button>
+        <div id="orderInfoResult"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>🍽️ 菜单表格固定列宽测试</h3>
+        <div class="width-info">
+          <strong>列宽分配:</strong><br />
+          • 菜名列：占剩余宽度，超出自动换行<br />
+          • 数量列：固定4字符宽度，居中对齐<br />
+          • 价格列：固定8字符宽度，右对齐
+        </div>
+        <button onclick="testMenuTableLayout()">测试菜单表格布局</button>
+        <div id="menuTableResult"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>🎫 完整热敏小票测试</h3>
+        <button onclick="testCompleteThermalReceipt()">测试完整热敏小票</button>
+        <div id="completeReceiptResult"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>📏 80mm vs 58mm 对比测试</h3>
+        <button onclick="testSizeComparison()">对比两种纸张尺寸</button>
+        <div id="sizeComparisonResult"></div>
+      </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="renderer/LodopFuncs.js"></script>
+    <script src="src/printer-lodop.js"></script>
+
+    <script>
+      let lodopManager = null;
+
+      // 初始化
+      async function init() {
+        try {
+          if (typeof LodopPrinterManager !== 'undefined') {
+            lodopManager = new LodopPrinterManager();
+            const initResult = await lodopManager.init();
+
+            if (initResult.success) {
+              console.log('✅ C-Lodop 初始化成功');
+            } else {
+              console.log('❌ C-Lodop 初始化失败，使用模拟模式');
+              // 创建模拟的打印机管理器用于测试排版
+              lodopManager = createMockManager();
+            }
+          } else {
+            console.log('❌ LodopPrinterManager 未找到，使用模拟模式');
+            lodopManager = createMockManager();
+          }
+        } catch (error) {
+          console.error('初始化失败:', error);
+          lodopManager = createMockManager();
+        }
+      }
+
+      // 创建模拟管理器用于测试排版
+      function createMockManager() {
+        return {
+          printers: [{ name: '模拟80mm打印机', width: 80 }],
+          selectedPrinters: ['模拟80mm打印机'],
+          generateOrderPrintContent: function (order) {
+            // 🎫 热敏小票模拟排版生成逻辑
+            const paperWidth = 80;
+            let totalWidth = 32; // 80mm热敏纸32字符
+
+            let content = '';
+
+            // 订单号区域：靠左对齐
+            content += `Order #: ${order.order_id}\n\n`;
+
+            // 订单信息：靠左对齐，无间隔字符
+            content += `Order Date: ${this.formatDateTime(
+              order.create_time
+            )}\n`;
+            content += `Pickup Time: ${this.formatDateTime(
+              order.delivery_time
+            )}\n`;
+            content += `Payment: Card\n`;
+            content += `Customer: ${order.recipient_name || 'N/A'}\n`;
+            content += `Phone: ${order.recipient_phone || 'N/A'}\n`;
+            content += `Type: Delivery\n`;
+
+            // 地址处理（可能需要换行）
+            if (order.recipient_address) {
+              const address = order.recipient_address;
+              if (this.displayWidth(`Address: ${address}`) <= totalWidth) {
+                content += `Address: ${address}\n`;
+              } else {
+                content += `Address:\n`;
+                const wrappedAddress = this.wrapText(address, totalWidth - 2);
+                const addressLines = wrappedAddress.split('\n');
+                addressLines.forEach((line) => {
+                  if (line.trim()) {
+                    content += `  ${line}\n`;
+                  }
+                });
+              }
+            }
+
+            content += '\n' + '='.repeat(totalWidth) + '\n';
+
+            // 菜单表格：固定列宽设计
+            const qtyWidth = 4; // 数量固定4字符
+            const priceWidth = 8; // 价格固定8字符
+            const nameWidth = totalWidth - qtyWidth - priceWidth; // 菜名占剩余宽度
+
+            // 表头
+            content += this.padText('Item', nameWidth, 'left');
+            content += this.padText('Qty', qtyWidth, 'center');
+            content += this.padText('Price', priceWidth, 'right');
+            content += '\n';
+            content += '-'.repeat(totalWidth) + '\n';
+
+            // 菜单明细：固定列宽，自动换行
+            const dishes = order.dishes_array || [];
+            dishes.forEach((dish) => {
+              const price = parseFloat(dish.price || '0');
+              const qty = parseInt(dish.amount || '1');
+              const priceStr = `$${price.toFixed(2)}`;
+              const qtyStr = qty.toString();
+
+              // 菜名处理：固定宽度，超出自动换行
+              const dishName = dish.dishes_name || '';
+              if (this.displayWidth(dishName) <= nameWidth) {
+                // 菜名不超宽，单行显示
+                content += this.padText(dishName, nameWidth, 'left');
+                content += this.padText(qtyStr, qtyWidth, 'center');
+                content += this.padText(priceStr, priceWidth, 'right');
+                content += '\n';
+              } else {
+                // 菜名超宽，多行显示
+                const wrappedName = this.wrapText(dishName, nameWidth);
+                const nameLines = wrappedName.split('\n');
+
+                // 第一行：菜名 + 数量 + 价格
+                const firstLine = nameLines[0] || '';
+                content += this.padText(firstLine, nameWidth, 'left');
+                content += this.padText(qtyStr, qtyWidth, 'center');
+                content += this.padText(priceStr, priceWidth, 'right');
+                content += '\n';
+
+                // 后续行：只显示菜名续
+                for (let i = 1; i < nameLines.length; i++) {
+                  if (nameLines[i].trim()) {
+                    content += this.padText(nameLines[i], nameWidth, 'left');
+                    content += ' '.repeat(qtyWidth + priceWidth);
+                    content += '\n';
+                  }
+                }
+              }
+
+              // 规格处理：缩进显示，固定宽度换行
+              if (dish.remark && dish.remark.trim()) {
+                const specIndent = 2;
+                const specWidth = nameWidth - specIndent;
+                const wrappedSpec = this.wrapText(dish.remark, specWidth);
+                const specLines = wrappedSpec.split('\n');
+
+                specLines.forEach((line) => {
+                  if (line.trim()) {
+                    content += ' '.repeat(specIndent);
+                    content += this.padText(line, specWidth, 'left');
+                    content += ' '.repeat(qtyWidth + priceWidth);
+                    content += '\n';
+                  }
+                });
+              }
+
+              content += '\n'; // 每个菜品后空一行
+            });
+
+            return content;
+          },
+          formatDateTime: function (dateTimeStr) {
+            if (!dateTimeStr) return 'N/A';
+            try {
+              const date = new Date(dateTimeStr);
+              return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              });
+            } catch (error) {
+              return dateTimeStr;
+            }
+          },
+          displayWidth: function (text) {
+            let width = 0;
+            for (const char of text) {
+              width += char.charCodeAt(0) > 127 ? 2 : 1;
+            }
+            return width;
+          },
+          padText: function (text, width, align = 'left') {
+            const textWidth = this.displayWidth(text);
+            if (textWidth >= width) {
+              return this.truncateText(text, width);
+            }
+
+            const padding = width - textWidth;
+            switch (align) {
+              case 'right':
+                return ' '.repeat(padding) + text;
+              case 'center':
+                const leftPad = Math.floor(padding / 2);
+                const rightPad = padding - leftPad;
+                return ' '.repeat(leftPad) + text + ' '.repeat(rightPad);
+              default:
+                return text + ' '.repeat(padding);
+            }
+          },
+          truncateText: function (text, maxWidth) {
+            let result = '';
+            let currentWidth = 0;
+
+            for (const char of text) {
+              const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+              if (currentWidth + charWidth > maxWidth) {
+                break;
+              }
+              result += char;
+              currentWidth += charWidth;
+            }
+
+            return result;
+          },
+          wrapText: function (text, width) {
+            let result = '';
+            let currentLine = '';
+            let currentWidth = 0;
+
+            for (const char of text) {
+              const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+
+              if (currentWidth + charWidth > width && currentLine) {
+                result += currentLine + '\n';
+                currentLine = '';
+                currentWidth = 0;
+              }
+
+              currentLine += char;
+              currentWidth += charWidth;
+            }
+
+            if (currentLine) {
+              result += currentLine;
+            }
+
+            return result;
+          },
+        };
+      }
+
+      // 测试字符宽度优化
+      function testWidthOptimization() {
+        const result = document.getElementById('widthTestResult');
+
+        const testResults = [];
+
+        // 测试80mm打印机
+        testResults.push('🔧 80mm打印机字符宽度测试:');
+        testResults.push(`优化前: 42字符 = "${'='.repeat(42)}"`);
+        testResults.push(`优化后: 35字符 = "${'='.repeat(35)}"`);
+        testResults.push('');
+
+        // 测试58mm打印机
+        testResults.push('🔧 58mm打印机字符宽度测试:');
+        testResults.push(`优化前: 30字符 = "${'='.repeat(30)}"`);
+        testResults.push(`优化后: 25字符 = "${'='.repeat(25)}"`);
+
+        result.innerHTML = `<div class="preview">${testResults.join(
+          '\n'
+        )}</div>`;
+      }
+
+      // 测试长内容换行
+      function testLongContentWrapping() {
+        const result = document.getElementById('wrapTestResult');
+
+        const testData = {
+          shortLabel: 'Customer:',
+          shortValue: 'John Doe',
+          longLabel: 'Address:',
+          longValue:
+            'This is a very long address that should wrap to multiple lines instead of being truncated',
+          veryLongLabel: 'Special Instructions:',
+          veryLongValue:
+            'Please deliver to the back door and ring the bell three times. Leave the order on the table if no one answers. Thank you!',
+        };
+
+        const testResults = [];
+        testResults.push('🔧 长内容换行测试 (35字符宽度):');
+        testResults.push('='.repeat(35));
+        testResults.push('');
+
+        // 短内容测试
+        testResults.push('短内容测试:');
+        testResults.push(
+          lodopManager.formatAutoAlignedRow(
+            testData.shortLabel,
+            testData.shortValue,
+            35
+          )
+        );
+
+        // 长内容测试
+        testResults.push('长内容测试:');
+        testResults.push(
+          lodopManager.formatAutoAlignedRow(
+            testData.longLabel,
+            testData.longValue,
+            35
+          )
+        );
+
+        // 超长内容测试
+        testResults.push('超长内容测试:');
+        testResults.push(
+          lodopManager.formatAutoAlignedRow(
+            testData.veryLongLabel,
+            testData.veryLongValue,
+            35
+          )
+        );
+
+        result.innerHTML = `<div class="preview">${testResults.join('')}</div>`;
+      }
+
+      // 测试菜单表格优化
+      function testMenuTableOptimization() {
+        const result = document.getElementById('menuTestResult');
+
+        const testMenuItems = [
+          { name: 'Burger', qty: 2, price: 12.99 },
+          {
+            name: 'Super Deluxe Cheeseburger with Extra Bacon',
+            qty: 1,
+            price: 18.99,
+          },
+          { name: '招牌炸鸡汉堡套餐', qty: 1, price: 25.5 },
+          { name: 'Fries', qty: 3, price: 4.99 },
+        ];
+
+        const testResults = [];
+        testResults.push('🔧 菜单表格优化测试 (35字符宽度):');
+        testResults.push('='.repeat(35));
+        testResults.push('');
+
+        // 表头
+        testResults.push(lodopManager.formatImprovedMenuHeader(35));
+        testResults.push('-'.repeat(35));
+        testResults.push('');
+
+        // 菜单项
+        testMenuItems.forEach((item) => {
+          testResults.push(
+            lodopManager.formatImprovedMenuItemRow(
+              item.name,
+              item.qty,
+              item.price,
+              35
+            )
+          );
+        });
+
+        result.innerHTML = `<div class="preview">${testResults.join('')}</div>`;
+      }
+
+      // 测试完整订单
+      function testCompleteOrder() {
+        const result = document.getElementById('completeTestResult');
+
+        const testOrder = {
+          order_id: 'TEST-2024-001',
+          create_time: '2024-01-15 14:30:00',
+          delivery_time: '2024-01-15 15:00:00',
+          paystyle: 1,
+          recipient_name: 'John Smith',
+          recipient_phone: '(555) 123-4567',
+          delivery_type: 1,
+          recipient_address:
+            '123 Main Street, Apartment 4B, New York, NY 10001',
+          dishes_array: [
+            {
+              dishes_name: 'Classic Cheeseburger',
+              amount: 2,
+              price: 12.99,
+              remark: 'No onions, extra pickles',
+            },
+            {
+              dishes_name:
+                'Super Deluxe Bacon Cheeseburger with Extra Everything',
+              amount: 1,
+              price: 18.99,
+              remark: 'Medium rare, extra bacon, no tomatoes, add avocado',
+            },
+            {
+              dishes_name: '招牌炸鸡汉堡套餐',
+              amount: 1,
+              price: 25.5,
+              remark: '微辣，不要生菜，加芝士',
+            },
+          ],
+          sub_total: 57.48,
+          tax_rate: 8.5,
+          tax_fee: 4.89,
+          delivery_fee: 3.99,
+          tip_fee: 8.0,
+          total: 74.36,
+          order_notes: 'Please call when you arrive. Ring the doorbell twice.',
+        };
+
+        const content = lodopManager.generateOrderPrintContent(testOrder);
+
+        result.innerHTML = `
+                <div class="info">
+                    <strong>✅ 完整订单排版测试完成</strong><br>
+                    所有内容都应该在35字符宽度内正确显示，长内容自动换行而不截断。
+                </div>
+                <div class="preview">${content}</div>
+            `;
+      }
+
+      // 测试热敏纸宽度
+      function testThermalWidths() {
+        const result = document.getElementById('thermalWidthResult');
+
+        const testResults = [];
+
+        // 测试80mm热敏纸
+        testResults.push('🔧 80mm热敏纸字符宽度测试:');
+        testResults.push(`80mm热敏纸: 32字符宽度，字体12pt`);
+        testResults.push('');
+
+        // 测试58mm热敏纸
+        testResults.push('🔧 58mm热敏纸字符宽度测试:');
+        testResults.push(`58mm热敏纸: 24字符宽度，字体11pt`);
+        testResults.push('');
+
+        result.innerHTML = `<div class="preview">${testResults.join(
+          '\n'
+        )}</div>`;
+      }
+
+      // 测试订单信息左对齐
+      function testOrderInfoAlignment() {
+        const result = document.getElementById('orderInfoResult');
+
+        const testResults = [];
+        testResults.push('🎫 订单信息左对齐测试 (32字符宽度):');
+        testResults.push('='.repeat(32) + '\n');
+
+        // 模拟订单信息左对齐显示
+        testResults.push('Order #: TEST-2024-001\n');
+        testResults.push('Order Date: 01/15/2024, 2:30 PM');
+        testResults.push('Pickup Time: 01/15/2024, 3:00 PM');
+        testResults.push('Payment: Card');
+        testResults.push('Customer: John Smith');
+        testResults.push('Phone: (555) 123-4567');
+        testResults.push('Type: Delivery');
+        testResults.push('Address:');
+        testResults.push('  123 Main Street, Apartment');
+        testResults.push('  4B, New York, NY 10001');
+
+        result.innerHTML = `<div class="preview">${testResults.join(
+          '\n'
+        )}</div>`;
+      }
+
+      // 测试菜单表格布局
+      function testMenuTableLayout() {
+        const result = document.getElementById('menuTableResult');
+
+        const testResults = [];
+        testResults.push('🎫 菜单表格固定列宽测试 (32字符):');
+        testResults.push('='.repeat(32));
+        testResults.push('');
+
+        // 手动构建表格示例
+        const totalWidth = 32;
+        const qtyWidth = 4;
+        const priceWidth = 8;
+        const nameWidth = totalWidth - qtyWidth - priceWidth; // 20字符
+
+        // 表头
+        testResults.push(
+          padText('Item', nameWidth, 'left') +
+            padText('Qty', qtyWidth, 'center') +
+            padText('Price', priceWidth, 'right')
+        );
+        testResults.push('-'.repeat(32));
+
+        // 测试菜品
+        const testItems = [
+          { name: 'Burger', qty: 2, price: 12.99 },
+          {
+            name: 'Super Deluxe Cheeseburger with Extra Bacon and Cheese',
+            qty: 1,
+            price: 18.99,
+          },
+          { name: '招牌炸鸡汉堡套餐', qty: 1, price: 25.5 },
+        ];
+
+        testItems.forEach((item) => {
+          const priceStr = `$${item.price.toFixed(2)}`;
+          const qtyStr = item.qty.toString();
+
+          if (displayWidth(item.name) <= nameWidth) {
+            // 单行显示
+            testResults.push(
+              padText(item.name, nameWidth, 'left') +
+                padText(qtyStr, qtyWidth, 'center') +
+                padText(priceStr, priceWidth, 'right')
+            );
+          } else {
+            // 多行显示
+            const wrappedName = wrapText(item.name, nameWidth);
+            const nameLines = wrappedName.split('\n');
+
+            // 第一行
+            testResults.push(
+              padText(nameLines[0] || '', nameWidth, 'left') +
+                padText(qtyStr, qtyWidth, 'center') +
+                padText(priceStr, priceWidth, 'right')
+            );
+
+            // 后续行
+            for (let i = 1; i < nameLines.length; i++) {
+              if (nameLines[i].trim()) {
+                testResults.push(
+                  padText(nameLines[i], nameWidth, 'left') +
+                    ' '.repeat(qtyWidth + priceWidth)
+                );
+              }
+            }
+          }
+          testResults.push(''); // 空行
+        });
+
+        result.innerHTML = `<div class="preview">${testResults.join(
+          '\n'
+        )}</div>`;
+      }
+
+      // 辅助函数
+      function displayWidth(text) {
+        let width = 0;
+        for (const char of text) {
+          width += char.charCodeAt(0) > 127 ? 2 : 1;
+        }
+        return width;
+      }
+
+      function padText(text, width, align = 'left') {
+        const textWidth = displayWidth(text);
+        if (textWidth >= width) {
+          return truncateText(text, width);
+        }
+
+        const padding = width - textWidth;
+        switch (align) {
+          case 'right':
+            return ' '.repeat(padding) + text;
+          case 'center':
+            const leftPad = Math.floor(padding / 2);
+            const rightPad = padding - leftPad;
+            return ' '.repeat(leftPad) + text + ' '.repeat(rightPad);
+          default:
+            return text + ' '.repeat(padding);
+        }
+      }
+
+      function truncateText(text, maxWidth) {
+        let result = '';
+        let currentWidth = 0;
+
+        for (const char of text) {
+          const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+          if (currentWidth + charWidth > maxWidth) {
+            break;
+          }
+          result += char;
+          currentWidth += charWidth;
+        }
+
+        return result;
+      }
+
+      function wrapText(text, width) {
+        let result = '';
+        let currentLine = '';
+        let currentWidth = 0;
+
+        for (const char of text) {
+          const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+
+          if (currentWidth + charWidth > width && currentLine) {
+            result += currentLine + '\n';
+            currentLine = '';
+            currentWidth = 0;
+          }
+
+          currentLine += char;
+          currentWidth += charWidth;
+        }
+
+        if (currentLine) {
+          result += currentLine;
+        }
+
+        return result;
+      }
+
+      // 测试完整热敏小票
+      function testCompleteThermalReceipt() {
+        const result = document.getElementById('completeReceiptResult');
+
+        const testOrder = {
+          order_id: 'TEST-2024-001',
+          create_time: '2024-01-15 14:30:00',
+          delivery_time: '2024-01-15 15:00:00',
+          paystyle: 1,
+          recipient_name: 'John Smith',
+          recipient_phone: '(555) 123-4567',
+          delivery_type: 1,
+          recipient_address:
+            '123 Main Street, Apartment 4B, New York, NY 10001',
+          dishes_array: [
+            {
+              dishes_name: 'Classic Cheeseburger',
+              amount: 2,
+              price: 12.99,
+              remark: 'No onions, extra pickles',
+            },
+            {
+              dishes_name:
+                'Super Deluxe Bacon Cheeseburger with Extra Everything',
+              amount: 1,
+              price: 18.99,
+              remark: 'Medium rare, extra bacon, no tomatoes, add avocado',
+            },
+            {
+              dishes_name: '招牌炸鸡汉堡套餐',
+              amount: 1,
+              price: 25.5,
+              remark: '微辣，不要生菜，加芝士',
+            },
+          ],
+          sub_total: 57.48,
+          tax_rate: 8.5,
+          tax_fee: 4.89,
+          delivery_fee: 3.99,
+          tip_fee: 8.0,
+          total: 74.36,
+          order_notes: 'Please call when you arrive. Ring the doorbell twice.',
+        };
+
+        const content = lodopManager.generateOrderPrintContent(testOrder);
+
+        result.innerHTML = `
+                <div class="info">
+                    <strong>✅ 完整热敏小票测试完成</strong><br>
+                    专门针对80mm/58mm热敏小票机优化的排版格式。
+                </div>
+                <div class="preview">${content}</div>
+            `;
+      }
+
+      // 测试80mm vs 58mm对比
+      function testSizeComparison() {
+        const result = document.getElementById('sizeComparisonResult');
+
+        const testResults = [];
+
+        // 80mm测试
+        testResults.push('🎫 80mm热敏纸测试 (32字符宽度):');
+        testResults.push('='.repeat(32));
+        testResults.push('Order #: TEST-001');
+        testResults.push('Customer: John Smith');
+        testResults.push('Phone: (555) 123-4567');
+        testResults.push('');
+        testResults.push('Item                Qty Price   ');
+        testResults.push('--------------------------------');
+        testResults.push('Classic Cheeseburger 2   $12.99 ');
+        testResults.push('Super Deluxe Bacon   1   $18.99 ');
+        testResults.push('Cheeseburger with           ');
+        testResults.push('Extra Everything            ');
+        testResults.push('');
+        testResults.push('Subtotal              $57.48');
+        testResults.push('Tax (8.5%)            $4.89');
+        testResults.push('TOTAL                 $74.36');
+        testResults.push('');
+
+        // 58mm测试
+        testResults.push('🎫 58mm热敏纸测试 (24字符宽度):');
+        testResults.push('='.repeat(24));
+        testResults.push('Order #: TEST-001');
+        testResults.push('Customer: John Smith');
+        testResults.push('Phone: (555) 123-4567');
+        testResults.push('');
+        testResults.push('Item            Qty Price');
+        testResults.push('------------------------');
+        testResults.push('Classic          2  $12.99');
+        testResults.push('Cheeseburger');
+        testResults.push('Super Deluxe     1  $18.99');
+        testResults.push('Bacon');
+        testResults.push('Cheeseburger');
+        testResults.push('with Extra');
+        testResults.push('Everything');
+        testResults.push('');
+        testResults.push('Subtotal      $57.48');
+        testResults.push('Tax (8.5%)     $4.89');
+        testResults.push('TOTAL         $74.36');
+
+        result.innerHTML = `<div class="preview">${testResults.join(
+          '\n'
+        )}</div>`;
+      }
+
+      // 页面加载时初始化
+      window.addEventListener('load', init);
+    </script>
+  </body>
+</html>

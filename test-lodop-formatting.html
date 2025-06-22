@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>C-Lodop 宽度修复测试</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .section {
+        margin-bottom: 30px;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .section h3 {
+        margin-top: 0;
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 5px;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .status {
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+      }
+      .preview-area {
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        max-height: 500px;
+        overflow-y: auto;
+      }
+      .width-test {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+      .char-ruler {
+        font-family: 'Courier New', monospace;
+        font-size: 10px;
+        background: #e9ecef;
+        padding: 5px;
+        border: 1px solid #ced4da;
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔧 C-Lodop 打印宽度修复测试</h1>
+
+      <!-- 引擎状态检查 -->
+      <div class="section">
+        <h3>📊 引擎状态检查</h3>
+        <button onclick="checkEngineStatus()">检查引擎状态</button>
+        <div id="engineStatus" class="status info">等待检查...</div>
+      </div>
+
+      <!-- 宽度测试区域 -->
+      <div class="section">
+        <h3>📏 宽度修复验证</h3>
+        <div class="width-test">
+          <h4>🎯 80mm打印机字符宽度测试</h4>
+          <div class="char-ruler">
+            <div>42字符标尺（修复后目标宽度）:</div>
+            <div>123456789012345678901234567890123456789012</div>
+            <div>1 2 3 4</div>
+          </div>
+          <div class="char-ruler">
+            <div>32字符标尺（修复前宽度）:</div>
+            <div>12345678901234567890123456789012</div>
+            <div>1 2 3</div>
+          </div>
+        </div>
+        <button onclick="testWidthFix()">测试宽度修复效果</button>
+        <div id="widthTestResult" class="status info">等待测试...</div>
+      </div>
+
+      <!-- 打印机列表 -->
+      <div class="section">
+        <h3>🖨️ 打印机管理</h3>
+        <button onclick="refreshPrinters()">刷新打印机列表</button>
+        <div id="printerList" class="status info">等待刷新...</div>
+      </div>
+
+      <!-- 排版预览 -->
+      <div class="section">
+        <h3>👁️ 排版预览（修复后）</h3>
+        <button onclick="generatePreview()">生成排版预览</button>
+        <button onclick="showPrintPreview()">显示C-Lodop预览</button>
+        <div id="previewContent" class="preview-area">等待生成预览...</div>
+      </div>
+
+      <!-- 测试打印 -->
+      <div class="section">
+        <h3>🖨️ 测试打印</h3>
+        <button onclick="testPrintWidth()">测试宽度修复打印</button>
+        <button onclick="printSampleOrder()">打印样本订单</button>
+        <div id="printResult" class="status info">等待打印...</div>
+      </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="LodopFuncs.js"></script>
+    <script src="../src/printer-lodop.js"></script>
+
+    <script>
+      let printerManager = null;
+
+      // 页面加载时初始化
+      window.onload = async function () {
+        try {
+          console.log('🔧 初始化宽度修复测试页面...');
+
+          // 等待C-Lodop加载
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          if (typeof LodopPrinterManager !== 'undefined') {
+            printerManager = new LodopPrinterManager();
+            const result = await printerManager.init();
+
+            if (result.success) {
+              document.getElementById(
+                'engineStatus'
+              ).innerHTML = `✅ C-Lodop引擎初始化成功<br>版本: ${printerManager.LODOP.VERSION}`;
+              document.getElementById('engineStatus').className =
+                'status success';
+
+              // 自动刷新打印机列表
+              await refreshPrinters();
+            } else {
+              throw new Error(result.error);
+            }
+          } else {
+            throw new Error('LodopPrinterManager 类未找到');
+          }
+        } catch (error) {
+          console.error('初始化失败:', error);
+          document.getElementById(
+            'engineStatus'
+          ).innerHTML = `❌ 初始化失败: ${error.message}`;
+          document.getElementById('engineStatus').className = 'status error';
+        }
+      };
+
+      // 检查引擎状态
+      async function checkEngineStatus() {
+        try {
+          if (!printerManager) {
+            throw new Error('打印管理器未初始化');
+          }
+
+          const status = printerManager.getEngineStatus();
+          document.getElementById(
+            'engineStatus'
+          ).innerHTML = `✅ 引擎状态正常<br>
+             当前引擎: ${status.currentEngine}<br>
+             C-Lodop可用: ${status.lodopAvailable}<br>
+             已初始化: ${status.isInitialized}<br>
+             打印机数量: ${status.printerCount}<br>
+             已选择: ${status.selectedCount}<br>
+             版本: ${status.version}`;
+          document.getElementById('engineStatus').className = 'status success';
+        } catch (error) {
+          document.getElementById(
+            'engineStatus'
+          ).innerHTML = `❌ 状态检查失败: ${error.message}`;
+          document.getElementById('engineStatus').className = 'status error';
+        }
+      }
+
+      // 测试宽度修复效果
+      async function testWidthFix() {
+        try {
+          if (!printerManager) {
+            throw new Error('打印管理器未初始化');
+          }
+
+          // 生成宽度测试内容
+          const testOrder = createWidthTestOrder();
+          const content = printerManager.generateOrderPrintContent(testOrder);
+
+          // 分析内容宽度
+          const lines = content.split('\n');
+          const maxLineLength = Math.max(
+            ...lines.map((line) => {
+              // 计算显示宽度（中文字符算2个宽度）
+              let width = 0;
+              for (const char of line) {
+                width += char.charCodeAt(0) > 127 ? 2 : 1;
+              }
+              return width;
+            })
+          );
+
+          document.getElementById(
+            'widthTestResult'
+          ).innerHTML = `✅ 宽度修复测试完成<br>
+             最大行长度: ${maxLineLength} 字符<br>
+             目标宽度: 42 字符<br>
+             修复状态: ${maxLineLength <= 42 ? '✅ 成功' : '❌ 超出'}<br>
+             内容行数: ${lines.length}`;
+          document.getElementById('widthTestResult').className =
+            maxLineLength <= 42 ? 'status success' : 'status error';
+        } catch (error) {
+          document.getElementById(
+            'widthTestResult'
+          ).innerHTML = `❌ 宽度测试失败: ${error.message}`;
+          document.getElementById('widthTestResult').className = 'status error';
+        }
+      }
+
+      // 刷新打印机列表
+      async function refreshPrinters() {
+        try {
+          if (!printerManager) {
+            throw new Error('打印管理器未初始化');
+          }
+
+          const printers = await printerManager.refreshPrinters();
+          let html = `✅ 找到 ${printers.length} 台打印机:<br>`;
+
+          printers.forEach((printer, index) => {
+            html += `${index + 1}. ${printer.name} (${printer.width}mm, ${
+              printer.engine
+            })<br>`;
+          });
+
+          document.getElementById('printerList').innerHTML = html;
+          document.getElementById('printerList').className = 'status success';
+
+          // 自动选择第一台打印机
+          if (printers.length > 0) {
+            printerManager.setSelectedPrinters([printers[0].name]);
+          }
+        } catch (error) {
+          document.getElementById(
+            'printerList'
+          ).innerHTML = `❌ 刷新打印机失败: ${error.message}`;
+          document.getElementById('printerList').className = 'status error';
+        }
+      }
+
+      // 生成排版预览
+      async function generatePreview() {
+        try {
+          if (!printerManager) {
+            throw new Error('打印管理器未初始化');
+          }
+
+          const testOrder = createWidthTestOrder();
+          const content = printerManager.generateOrderPrintContent(testOrder);
+
+          // 添加宽度标尺
+          const previewWithRuler =
+            `🔧 宽度修复测试预览 (42字符宽度)\n` +
+            `标尺: 123456789012345678901234567890123456789012\n` +
+            `      1         2         3         4  \n` +
+            `======================================\n` +
+            content +
+            `======================================\n` +
+            `修复说明: C-Lodop文本框宽度已调整为约75.6mm\n` +
+            `(42字符 × 1.8mm/字符 = 75.6mm)`;
+
+          document.getElementById('previewContent').textContent =
+            previewWithRuler;
+        } catch (error) {
+          document.getElementById(
+            'previewContent'
+          ).textContent = `❌ 预览生成失败: ${error.message}`;
+        }
+      }
+
+      // 显示C-Lodop预览
+      async function showPrintPreview() {
+        try {
+          if (!printerManager) {
+            throw new Error('打印管理器未初始化');
+          }
+
+          const testOrder = createWidthTestOrder();
+          await printerManager.generatePrintPreview(testOrder);
+
+          document.getElementById('previewContent').textContent =
+            '✅ C-Lodop预览窗口已打开，请查看预览效果';
+        } catch (error) {
+          document.getElementById(
+            'previewContent'
+          ).textContent = `❌ C-Lodop预览失败: ${error.message}`;
+        }
+      }
+
+      // 测试宽度修复打印
+      async function testPrintWidth() {
+        try {
+          if (!printerManager) {
+            throw new Error('打印管理器未初始化');
+          }
+
+          const selectedPrinters = printerManager.getSelectedPrinters();
+          if (selectedPrinters.length === 0) {
+            throw new Error('请先选择打印机');
+          }
+
+          // 创建宽度测试打印内容
+          const testOrder = createWidthTestOrder();
+          const result = await printerManager.printOrder(testOrder);
+
+          document.getElementById(
+            'printResult'
+          ).innerHTML = `✅ 宽度修复测试打印完成<br>
+             成功: ${result.成功数量}<br>
+             失败: ${result.失败数量}<br>
+             引擎: ${result.打印引擎}`;
+          document.getElementById('printResult').className = 'status success';
+        } catch (error) {
+          document.getElementById(
+            'printResult'
+          ).innerHTML = `❌ 测试打印失败: ${error.message}`;
+          document.getElementById('printResult').className = 'status error';
+        }
+      }
+
+      // 打印样本订单
+      async function printSampleOrder() {
+        try {
+          if (!printerManager) {
+            throw new Error('打印管理器未初始化');
+          }
+
+          const selectedPrinters = printerManager.getSelectedPrinters();
+          if (selectedPrinters.length === 0) {
+            throw new Error('请先选择打印机');
+          }
+
+          const sampleOrder = createSampleOrder();
+          const result = await printerManager.printOrder(sampleOrder);
+
+          document.getElementById(
+            'printResult'
+          ).innerHTML = `✅ 样本订单打印完成<br>
+             成功: ${result.成功数量}<br>
+             失败: ${result.失败数量}<br>
+             引擎: ${result.打印引擎}`;
+          document.getElementById('printResult').className = 'status success';
+        } catch (error) {
+          document.getElementById(
+            'printResult'
+          ).innerHTML = `❌ 样本订单打印失败: ${error.message}`;
+          document.getElementById('printResult').className = 'status error';
+        }
+      }
+
+      // 创建宽度测试订单
+      function createWidthTestOrder() {
+        return {
+          order_id: 'WIDTH-TEST-001',
+          create_time: new Date().toISOString(),
+          delivery_time: new Date(Date.now() + 3600000).toISOString(),
+          paystyle: 1,
+          recipient_name: '宽度测试客户名称',
+          recipient_phone: '13800138000',
+          delivery_type: 0,
+          rd_name: '🔧 宽度修复测试餐厅',
+          dishes_array: [
+            {
+              dishes_name: '超长菜名测试：宫保鸡丁配白米饭套餐',
+              amount: 2,
+              price: '15.99',
+              remark: '不辣，多放花生米，配菜要胡萝卜丝',
+            },
+            {
+              dishes_name: '短菜名',
+              amount: 1,
+              price: '8.50',
+              remark: '正常辣度',
+            },
+          ],
+          sub_total: '40.48',
+          tax_fee: '3.24',
+          tax_rate: '8.0',
+          delivery_fee: '2.99',
+          convenience_fee: '1.50',
+          convenience_rate: '3.5',
+          tip_fee: '5.00',
+          total: '53.21',
+          order_notes:
+            '这是一个用于测试80mm打印机42字符宽度修复效果的测试订单。',
+        };
+      }
+
+      // 创建样本订单
+      function createSampleOrder() {
+        return {
+          order_id: 'SAMPLE-' + Date.now(),
+          create_time: new Date().toISOString(),
+          delivery_time: new Date(Date.now() + 3600000).toISOString(),
+          paystyle: 1,
+          recipient_name: 'John Doe',
+          recipient_phone: '555-1234',
+          delivery_type: 1,
+          recipient_address: '123 Main St, City, State 12345',
+          rd_name: 'Sample Restaurant',
+          dishes_array: [
+            {
+              dishes_name: 'Kung Pao Chicken',
+              amount: 2,
+              price: '12.99',
+              remark: 'Spicy, extra peanuts',
+            },
+            {
+              dishes_name: 'Fried Rice',
+              amount: 1,
+              price: '8.99',
+              remark: 'No egg',
+            },
+            {
+              dishes_name: 'Spring Rolls (4 pieces)',
+              amount: 1,
+              price: '6.99',
+              remark: '',
+            },
+          ],
+          sub_total: '34.97',
+          discount_total: '3.50',
+          tax_fee: '2.52',
+          tax_rate: '8.0',
+          delivery_fee: '3.99',
+          convenience_fee: '1.75',
+          convenience_rate: '5.0',
+          tip_fee: '5.00',
+          total: '44.73',
+          order_notes: 'Please ring the doorbell twice.',
+        };
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🎫 热敏小票排版测试</title>
+    <style>
+      body {
+        font-family: 'Courier New', monospace;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .test-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .preview {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 15px;
+        border-radius: 5px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        margin: 10px 0;
+      }
+      .comparison {
+        display: flex;
+        gap: 20px;
+      }
+      .size-demo {
+        flex: 1;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        padding: 10px;
+      }
+      .size-80mm {
+        background: #e8f5e8;
+      }
+      .size-58mm {
+        background: #e8f0ff;
+      }
+      .info {
+        background: #d1ecf1;
+        color: #0c5460;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+        font-size: 14px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .features {
+        background: #fff3cd;
+        color: #856404;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+      .features ul {
+        margin: 10px 0;
+        padding-left: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎫 热敏小票排版测试</h1>
+
+      <div class="info">
+        <strong>🔧 热敏小票专用优化</strong><br />
+        专门针对80mm和58mm热敏小票机纸张优化的打印排版系统。<br />
+        特点：订单信息靠左对齐，菜单表格固定列宽，价格右对齐，字体适中。
+      </div>
+
+      <div class="test-section">
+        <h3>📊 纸张规格对比</h3>
+        <div class="comparison">
+          <div class="size-demo size-80mm">
+            <h4>80mm热敏纸</h4>
+            <div class="features">
+              <ul>
+                <li>字符宽度: 32字符</li>
+                <li>字体大小: 12pt</li>
+                <li>菜名列: 20字符</li>
+                <li>数量列: 4字符</li>
+                <li>价格列: 8字符</li>
+              </ul>
+            </div>
+          </div>
+          <div class="size-demo size-58mm">
+            <h4>58mm热敏纸</h4>
+            <div class="features">
+              <ul>
+                <li>字符宽度: 24字符</li>
+                <li>字体大小: 11pt</li>
+                <li>菜名列: 12字符</li>
+                <li>数量列: 4字符</li>
+                <li>价格列: 8字符</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="test-section">
+        <h3>🎫 80mm热敏小票示例</h3>
+        <button onclick="generate80mmReceipt()">生成80mm小票</button>
+        <div id="receipt80mm"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>🎫 58mm热敏小票示例</h3>
+        <button onclick="generate58mmReceipt()">生成58mm小票</button>
+        <div id="receipt58mm"></div>
+      </div>
+
+      <div class="test-section">
+        <h3>🔧 实际打印测试</h3>
+        <div class="info">
+          <strong>注意:</strong>
+          需要安装C-Lodop并连接热敏打印机才能进行实际打印测试。
+        </div>
+        <button onclick="testActualPrint()">测试实际打印</button>
+        <div id="printResult"></div>
+      </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="renderer/LodopFuncs.js"></script>
+    <script src="src/printer-lodop.js"></script>
+
+    <script>
+      let lodopManager = null;
+
+      // 初始化
+      async function init() {
+        try {
+          if (typeof LodopPrinterManager !== 'undefined') {
+            lodopManager = new LodopPrinterManager();
+            const initResult = await lodopManager.init();
+
+            if (initResult.success) {
+              console.log('✅ C-Lodop 初始化成功');
+            } else {
+              console.log('❌ C-Lodop 初始化失败，使用模拟模式');
+              lodopManager = createMockManager();
+            }
+          } else {
+            console.log('❌ LodopPrinterManager 未找到，使用模拟模式');
+            lodopManager = createMockManager();
+          }
+        } catch (error) {
+          console.error('初始化失败:', error);
+          lodopManager = createMockManager();
+        }
+      }
+
+      // 创建模拟管理器
+      function createMockManager() {
+        return {
+          printers: [
+            { name: '模拟80mm打印机', width: 80 },
+            { name: '模拟58mm打印机', width: 58 },
+          ],
+          selectedPrinters: ['模拟80mm打印机'],
+          generateOrderPrintContent: function (order) {
+            // 获取打印机宽度
+            const printer = this.printers.find((p) =>
+              this.selectedPrinters.includes(p.name)
+            );
+            const paperWidth = printer ? printer.width : 80;
+
+            // 设置字符宽度
+            let totalWidth;
+            if (paperWidth === 80) {
+              totalWidth = 32;
+            } else if (paperWidth === 58) {
+              totalWidth = 24;
+            } else {
+              totalWidth = Math.floor(paperWidth * 0.4);
+            }
+
+            let content = '';
+
+            // 订单号区域：靠左对齐
+            content += `Order #: ${order.order_id}\n\n`;
+
+            // 订单信息：靠左对齐
+            content += `Order Date: ${this.formatDateTime(
+              order.create_time
+            )}\n`;
+            content += `Pickup Time: ${this.formatDateTime(
+              order.delivery_time
+            )}\n`;
+            content += `Payment: ${order.paystyle == 1 ? 'Card' : 'Cash'}\n`;
+            content += `Customer: ${order.recipient_name || 'N/A'}\n`;
+            content += `Phone: ${order.recipient_phone || 'N/A'}\n`;
+            content += `Type: ${
+              order.delivery_type == 1 ? 'Delivery' : 'Pickup'
+            }\n`;
+
+            // 地址处理
+            if (order.delivery_type == 1 && order.recipient_address) {
+              const address = order.recipient_address;
+              if (this.displayWidth(`Address: ${address}`) <= totalWidth) {
+                content += `Address: ${address}\n`;
+              } else {
+                content += `Address:\n`;
+                const wrappedAddress = this.wrapText(address, totalWidth - 2);
+                const addressLines = wrappedAddress.split('\n');
+                addressLines.forEach((line) => {
+                  if (line.trim()) {
+                    content += `  ${line}\n`;
+                  }
+                });
+              }
+            }
+
+            content += '\n' + '='.repeat(totalWidth) + '\n';
+
+            // 菜单表格
+            const qtyWidth = 4;
+            const priceWidth = 8;
+            const nameWidth = totalWidth - qtyWidth - priceWidth;
+
+            // 表头
+            content += this.padText('Item', nameWidth, 'left');
+            content += this.padText('Qty', qtyWidth, 'center');
+            content += this.padText('Price', priceWidth, 'right');
+            content += '\n';
+            content += '-'.repeat(totalWidth) + '\n';
+
+            // 菜单明细
+            const dishes = order.dishes_array || [];
+            dishes.forEach((dish) => {
+              const price = parseFloat(dish.price || '0');
+              const qty = parseInt(dish.amount || '1');
+              const priceStr = `$${price.toFixed(2)}`;
+              const qtyStr = qty.toString();
+
+              const dishName = dish.dishes_name || '';
+              if (this.displayWidth(dishName) <= nameWidth) {
+                content += this.padText(dishName, nameWidth, 'left');
+                content += this.padText(qtyStr, qtyWidth, 'center');
+                content += this.padText(priceStr, priceWidth, 'right');
+                content += '\n';
+              } else {
+                const wrappedName = this.wrapText(dishName, nameWidth);
+                const nameLines = wrappedName.split('\n');
+
+                const firstLine = nameLines[0] || '';
+                content += this.padText(firstLine, nameWidth, 'left');
+                content += this.padText(qtyStr, qtyWidth, 'center');
+                content += this.padText(priceStr, priceWidth, 'right');
+                content += '\n';
+
+                for (let i = 1; i < nameLines.length; i++) {
+                  if (nameLines[i].trim()) {
+                    content += this.padText(nameLines[i], nameWidth, 'left');
+                    content += ' '.repeat(qtyWidth + priceWidth);
+                    content += '\n';
+                  }
+                }
+              }
+
+              if (dish.remark && dish.remark.trim()) {
+                const specIndent = 2;
+                const specWidth = nameWidth - specIndent;
+                const wrappedSpec = this.wrapText(dish.remark, specWidth);
+                const specLines = wrappedSpec.split('\n');
+
+                specLines.forEach((line) => {
+                  if (line.trim()) {
+                    content += ' '.repeat(specIndent);
+                    content += this.padText(line, specWidth, 'left');
+                    content += ' '.repeat(qtyWidth + priceWidth);
+                    content += '\n';
+                  }
+                });
+              }
+
+              content += '\n';
+            });
+
+            content += '='.repeat(totalWidth) + '\n';
+
+            // 费用明细
+            const feeWidth = totalWidth - priceWidth;
+
+            const subtotal = parseFloat(order.sub_total || '0');
+            const taxFee = parseFloat(order.tax_fee || '0');
+            const deliveryFee = parseFloat(order.delivery_fee || '0');
+            const tip = parseFloat(order.tip_fee || '0');
+            const total = parseFloat(order.total || '0');
+
+            content += this.padText('Subtotal', feeWidth, 'left');
+            content += this.padText(
+              `$${subtotal.toFixed(2)}`,
+              priceWidth,
+              'right'
+            );
+            content += '\n';
+
+            if (taxFee > 0) {
+              content += this.padText('Tax', feeWidth, 'left');
+              content += this.padText(
+                `$${taxFee.toFixed(2)}`,
+                priceWidth,
+                'right'
+              );
+              content += '\n';
+            }
+
+            if (deliveryFee > 0) {
+              content += this.padText('Delivery', feeWidth, 'left');
+              content += this.padText(
+                `$${deliveryFee.toFixed(2)}`,
+                priceWidth,
+                'right'
+              );
+              content += '\n';
+            }
+
+            if (tip > 0) {
+              content += this.padText('Tip', feeWidth, 'left');
+              content += this.padText(
+                `$${tip.toFixed(2)}`,
+                priceWidth,
+                'right'
+              );
+              content += '\n';
+            }
+
+            content += this.padText('TOTAL', feeWidth, 'left');
+            content += this.padText(
+              `$${total.toFixed(2)}`,
+              priceWidth,
+              'right'
+            );
+            content += '\n';
+
+            if (order.order_notes && order.order_notes.trim()) {
+              content += '\n';
+              content += '-'.repeat(totalWidth) + '\n';
+              content += 'Notes:\n';
+              const wrappedNotes = this.wrapText(
+                order.order_notes,
+                totalWidth - 2
+              );
+              const noteLines = wrappedNotes.split('\n');
+              noteLines.forEach((line) => {
+                if (line.trim()) {
+                  content += `  ${line}\n`;
+                }
+              });
+            }
+
+            content += '\n';
+            content += '='.repeat(totalWidth) + '\n';
+
+            return content;
+          },
+          formatDateTime: function (dateTimeStr) {
+            if (!dateTimeStr) return 'N/A';
+            try {
+              const date = new Date(dateTimeStr);
+              return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              });
+            } catch (error) {
+              return dateTimeStr;
+            }
+          },
+          displayWidth: function (text) {
+            let width = 0;
+            for (const char of text) {
+              width += char.charCodeAt(0) > 127 ? 2 : 1;
+            }
+            return width;
+          },
+          padText: function (text, width, align = 'left') {
+            const textWidth = this.displayWidth(text);
+            if (textWidth >= width) {
+              return this.truncateText(text, width);
+            }
+
+            const padding = width - textWidth;
+            switch (align) {
+              case 'right':
+                return ' '.repeat(padding) + text;
+              case 'center':
+                const leftPad = Math.floor(padding / 2);
+                const rightPad = padding - leftPad;
+                return ' '.repeat(leftPad) + text + ' '.repeat(rightPad);
+              default:
+                return text + ' '.repeat(padding);
+            }
+          },
+          truncateText: function (text, maxWidth) {
+            let result = '';
+            let currentWidth = 0;
+
+            for (const char of text) {
+              const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+              if (currentWidth + charWidth > maxWidth) {
+                break;
+              }
+              result += char;
+              currentWidth += charWidth;
+            }
+
+            return result;
+          },
+          wrapText: function (text, width) {
+            let result = '';
+            let currentLine = '';
+            let currentWidth = 0;
+
+            for (const char of text) {
+              const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
+
+              if (currentWidth + charWidth > width && currentLine) {
+                result += currentLine + '\n';
+                currentLine = '';
+                currentWidth = 0;
+              }
+
+              currentLine += char;
+              currentWidth += charWidth;
+            }
+
+            if (currentLine) {
+              result += currentLine;
+            }
+
+            return result;
+          },
+          setSelectedPrinters: function (printers) {
+            this.selectedPrinters = printers;
+          },
+        };
+      }
+
+      // 生成80mm小票
+      function generate80mmReceipt() {
+        const testOrder = {
+          order_id: 'TEST-80MM-001',
+          create_time: '2024-01-15 14:30:00',
+          delivery_time: '2024-01-15 15:00:00',
+          paystyle: 1,
+          recipient_name: 'John Smith',
+          recipient_phone: '(555) 123-4567',
+          delivery_type: 1,
+          recipient_address:
+            '123 Main Street, Apartment 4B, New York, NY 10001',
+          dishes_array: [
+            {
+              dishes_name: 'Classic Cheeseburger',
+              amount: 2,
+              price: 12.99,
+              remark: 'No onions, extra pickles',
+            },
+            {
+              dishes_name:
+                'Super Deluxe Bacon Cheeseburger with Extra Everything',
+              amount: 1,
+              price: 18.99,
+              remark: 'Medium rare, extra bacon, no tomatoes, add avocado',
+            },
+            {
+              dishes_name: '招牌炸鸡汉堡套餐',
+              amount: 1,
+              price: 25.5,
+              remark: '微辣，不要生菜，加芝士',
+            },
+          ],
+          sub_total: 57.48,
+          tax_fee: 4.89,
+          delivery_fee: 3.99,
+          tip_fee: 8.0,
+          total: 74.36,
+          order_notes: 'Please call when you arrive. Ring the doorbell twice.',
+        };
+
+        lodopManager.setSelectedPrinters(['模拟80mm打印机']);
+        const content = lodopManager.generateOrderPrintContent(testOrder);
+
+        document.getElementById('receipt80mm').innerHTML = `
+          <div class="info">
+            <strong>✅ 80mm热敏小票生成完成</strong><br>
+            32字符宽度，12pt字体，菜名列20字符，数量列4字符，价格列8字符
+          </div>
+          <div class="preview">${content}</div>
+        `;
+      }
+
+      // 生成58mm小票
+      function generate58mmReceipt() {
+        const testOrder = {
+          order_id: 'TEST-58MM-001',
+          create_time: '2024-01-15 14:30:00',
+          delivery_time: '2024-01-15 15:00:00',
+          paystyle: 1,
+          recipient_name: 'John Smith',
+          recipient_phone: '(555) 123-4567',
+          delivery_type: 1,
+          recipient_address:
+            '123 Main Street, Apartment 4B, New York, NY 10001',
+          dishes_array: [
+            {
+              dishes_name: 'Classic Cheeseburger',
+              amount: 2,
+              price: 12.99,
+              remark: 'No onions, extra pickles',
+            },
+            {
+              dishes_name:
+                'Super Deluxe Bacon Cheeseburger with Extra Everything',
+              amount: 1,
+              price: 18.99,
+              remark: 'Medium rare, extra bacon, no tomatoes, add avocado',
+            },
+            {
+              dishes_name: '招牌炸鸡汉堡套餐',
+              amount: 1,
+              price: 25.5,
+              remark: '微辣，不要生菜，加芝士',
+            },
+          ],
+          sub_total: 57.48,
+          tax_fee: 4.89,
+          delivery_fee: 3.99,
+          tip_fee: 8.0,
+          total: 74.36,
+          order_notes: 'Please call when you arrive. Ring the doorbell twice.',
+        };
+
+        lodopManager.setSelectedPrinters(['模拟58mm打印机']);
+        const content = lodopManager.generateOrderPrintContent(testOrder);
+
+        document.getElementById('receipt58mm').innerHTML = `
+          <div class="info">
+            <strong>✅ 58mm热敏小票生成完成</strong><br>
+            24字符宽度，11pt字体，菜名列12字符，数量列4字符，价格列8字符
+          </div>
+          <div class="preview">${content}</div>
+        `;
+      }
+
+      // 测试实际打印
+      async function testActualPrint() {
+        const result = document.getElementById('printResult');
+
+        try {
+          if (lodopManager.printers && lodopManager.printers.length > 0) {
+            const testOrder = {
+              order_id: 'PRINT-TEST-001',
+              create_time: new Date().toISOString(),
+              delivery_time: new Date(
+                Date.now() + 30 * 60 * 1000
+              ).toISOString(),
+              paystyle: 1,
+              recipient_name: 'Test Customer',
+              recipient_phone: '(555) 000-0000',
+              delivery_type: 2,
+              dishes_array: [
+                {
+                  dishes_name: 'Test Item',
+                  amount: 1,
+                  price: 10.0,
+                  remark: 'Test remark',
+                },
+              ],
+              sub_total: 10.0,
+              tax_fee: 0.85,
+              total: 10.85,
+              order_notes: 'This is a test print.',
+            };
+
+            const printResult = await lodopManager.printOrder(testOrder);
+
+            result.innerHTML = `
+              <div class="info">
+                <strong>✅ 打印测试完成</strong><br>
+                成功: ${printResult.成功数量}, 失败: ${printResult.失败数量}<br>
+                引擎: ${printResult.打印引擎}
+              </div>
+            `;
+          } else {
+            result.innerHTML = `
+              <div class="info">
+                <strong>❌ 无可用打印机</strong><br>
+                请确保已安装C-Lodop并连接热敏打印机
+              </div>
+            `;
+          }
+        } catch (error) {
+          result.innerHTML = `
+            <div class="info">
+              <strong>❌ 打印测试失败</strong><br>
+              错误: ${error.message}
+            </div>
+          `;
+        }
+      }
+
+      // 页面加载时初始化
+      window.addEventListener('load', init);
+    </script>
+  </body>
+</html>

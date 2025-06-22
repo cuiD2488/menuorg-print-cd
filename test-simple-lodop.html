@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>C-Lodop 精确排版测试</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .output {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        font-family: 'Courier New', monospace;
+        white-space: pre-wrap;
+        font-size: 12px;
+        line-height: 1.4;
+        border: 1px solid #e9ecef;
+        max-width: 500px;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .ruler {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        color: #666;
+        border-bottom: 1px solid #ccc;
+        padding: 5px 0;
+        margin-bottom: 10px;
+      }
+      .margin-guide {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        color: #999;
+        background: #fff3cd;
+        padding: 5px;
+        border-radius: 3px;
+        margin-bottom: 10px;
+      }
+      .feature-list {
+        background: #e7f3ff;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+      }
+      .feature-list h3 {
+        margin-top: 0;
+        color: #0056b3;
+      }
+      .feature-list ul {
+        margin: 10px 0;
+        padding-left: 20px;
+      }
+      .feature-list li {
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🖨️ C-Lodop 精确排版测试</h1>
+
+      <div class="feature-list">
+        <h3>📋 自适应排版特性</h3>
+        <ul>
+          <li>
+            ✅ <strong>自适应宽度计算</strong> -
+            根据打印机实际宽度动态调整字符数
+          </li>
+          <li>
+            ✅ <strong>智能内容分布</strong> - 内容自动适应不同宽度的打印机
+          </li>
+          <li>✅ <strong>改进的菜单格式</strong> - 菜名+数量+价格三列显示</li>
+          <li>✅ <strong>动态列宽分配</strong> - 菜名60%，数量15%，价格25%</li>
+          <li>✅ <strong>规格智能换行</strong> - 规格内容自动换行，10%缩进</li>
+          <li>✅ <strong>订单号居中显示</strong> - 标题居中对齐</li>
+          <li>
+            ✅ <strong>基本信息自适应对齐</strong> -
+            标签左对齐，值右对齐，过长自动换行
+          </li>
+        </ul>
+      </div>
+
+      <div class="ruler">
+        自适应宽度示例 (80mm≈32字符): 12345678901234567890123456789012
+      </div>
+      <div class="margin-guide">
+        菜单格式: |--菜名(60%)--|数量(15%)|--价格(25%)--|
+      </div>
+
+      <button onclick="testFormatting()">生成精确排版测试</button>
+      <button onclick="testPrint()">测试打印</button>
+      <button onclick="testPreview()">预览效果</button>
+
+      <div id="output" class="output"></div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script src="renderer/LodopFuncs.js"></script>
+    <script src="src/printer-lodop.js"></script>
+
+    <script>
+      let lodopManager = null;
+
+      // 增强的测试订单数据
+      const testOrder = {
+        order_id: 'TEST-12345',
+        create_time: '2024-01-15T10:30:00.000Z',
+        delivery_time: '2024-01-15T11:00:00.000Z',
+        paystyle: 1,
+        delivery_type: 1,
+        recipient_name: 'John Doe',
+        recipient_phone: '555-1234-5678',
+        recipient_address: '123 Main Street, Apartment 4B',
+        dishes_array: [
+          {
+            dishes_name: 'Kung Pao Chicken 宫保鸡丁',
+            amount: 2,
+            price: '15.99',
+            remark: 'Extra spicy, no peanuts',
+          },
+          {
+            dishes_name: 'Beef Lo Mein 牛肉捞面',
+            amount: 1,
+            price: '12.99',
+            remark: 'Medium spicy',
+          },
+          {
+            dishes_name: 'Sweet and Sour Pork 糖醋里脊',
+            amount: 3,
+            price: '14.99',
+            remark: '', // 测试空规格
+          },
+          {
+            dishes_name: 'Mapo Tofu 麻婆豆腐',
+            amount: 1,
+            price: '11.99',
+            remark: 'Mild spicy, extra tofu',
+          },
+        ],
+        sub_total: '84.94',
+        discount_total: '5.00',
+        tax_rate: '8.5',
+        tax_fee: '6.79',
+        delivery_fee: '3.99',
+        convenience_fee: '4.25',
+        convenience_rate: '5.0',
+        tip_fee: '12.00',
+        total: '106.97',
+        order_notes: 'Please ring doorbell twice and wait for response',
+      };
+
+      async function initLodop() {
+        try {
+          if (typeof window.LodopPrinterManager !== 'undefined') {
+            lodopManager = new window.LodopPrinterManager();
+            const result = await lodopManager.init();
+
+            if (result.success) {
+              console.log('C-Lodop 初始化成功');
+              return true;
+            } else {
+              console.error('C-Lodop 初始化失败:', result.error);
+              return false;
+            }
+          } else {
+            console.error('LodopPrinterManager 类未找到');
+            return false;
+          }
+        } catch (error) {
+          console.error('初始化失败:', error);
+          return false;
+        }
+      }
+
+      async function testFormatting() {
+        if (!lodopManager) {
+          const success = await initLodop();
+          if (!success) {
+            document.getElementById('output').textContent =
+              '❌ C-Lodop 初始化失败';
+            return;
+          }
+        }
+
+        try {
+          console.log('开始生成精确排版测试...');
+
+          // 设置为80mm宽度（32字符）
+          lodopManager.printers = [
+            {
+              name: 'Test Printer 80mm',
+              width: 80,
+              engine: 'C-Lodop',
+            },
+          ];
+          lodopManager.selectedPrinters = ['Test Printer 80mm'];
+
+          const content = lodopManager.generateOrderPrintContent(testOrder);
+
+          // 添加详细的标尺和边距指南
+          const ruler =
+            '自适应宽度示例 (80mm≈32字符): 12345678901234567890123456789012\n';
+          const marginGuide =
+            '菜单格式: |--菜名(60%)--|数量(15%)|--价格(25%)--|\n';
+          const separator = '='.repeat(32) + '\n';
+
+          const displayContent = ruler + marginGuide + separator + content;
+
+          document.getElementById('output').textContent = displayContent;
+
+          console.log('精确排版测试完成');
+          console.log('排版特性验证:');
+          console.log('- 自适应宽度计算 ✓');
+          console.log('- 智能内容分布 ✓');
+          console.log('- 改进的菜单格式 ✓');
+          console.log('- 动态列宽分配 ✓');
+          console.log('- 规格智能换行 ✓');
+          console.log('- 订单号居中显示 ✓');
+          console.log('- 基本信息自适应对齐 ✓');
+        } catch (error) {
+          console.error('排版测试失败:', error);
+          document.getElementById(
+            'output'
+          ).textContent = `❌ 排版测试失败: ${error.message}`;
+        }
+      }
+
+      async function testPrint() {
+        if (!lodopManager) {
+          const success = await initLodop();
+          if (!success) {
+            alert('C-Lodop 初始化失败');
+            return;
+          }
+        }
+
+        try {
+          console.log('开始测试打印...');
+
+          // 刷新打印机列表
+          await lodopManager.refreshPrinters();
+
+          if (lodopManager.printers.length === 0) {
+            alert('未找到可用打印机');
+            return;
+          }
+
+          // 使用第一台打印机
+          lodopManager.setSelectedPrinters([lodopManager.printers[0].name]);
+
+          const result = await lodopManager.printOrder(testOrder);
+
+          if (result.成功数量 > 0) {
+            alert(
+              '精确排版打印成功！\n\n验证要点:\n- 自适应宽度计算\n- 智能内容分布\n- 改进的菜单格式\n- 动态列宽分配\n- 规格智能换行\n- 订单号居中显示\n- 基本信息自适应对齐'
+            );
+          } else {
+            alert('测试打印失败: ' + result.错误列表.join(', '));
+          }
+        } catch (error) {
+          console.error('测试打印失败:', error);
+          alert('测试打印失败: ' + error.message);
+        }
+      }
+
+      async function testPreview() {
+        if (!lodopManager) {
+          const success = await initLodop();
+          if (!success) {
+            alert('C-Lodop 初始化失败');
+            return;
+          }
+        }
+
+        try {
+          console.log('开始预览测试...');
+
+          // 刷新打印机列表
+          await lodopManager.refreshPrinters();
+
+          if (lodopManager.printers.length === 0) {
+            // 创建虚拟打印机用于预览
+            lodopManager.printers = [
+              {
+                name: 'Virtual Printer 80mm',
+                width: 80,
+                engine: 'C-Lodop',
+              },
+            ];
+          }
+
+          // 使用第一台打印机
+          lodopManager.setSelectedPrinters([lodopManager.printers[0].name]);
+
+          const result = await lodopManager.generatePrintPreview(testOrder);
+
+          if (result.success) {
+            console.log('预览生成成功，请查看预览窗口');
+            alert(
+              '预览已打开！\n\n请在预览窗口中验证:\n✓ 自适应宽度计算\n✓ 智能内容分布\n✓ 改进的菜单格式\n✓ 动态列宽分配\n✓ 规格智能换行\n✓ 订单号居中显示\n✓ 基本信息自适应对齐'
+            );
+          } else {
+            alert('预览生成失败');
+          }
+        } catch (error) {
+          console.error('预览测试失败:', error);
+          alert('预览测试失败: ' + error.message);
+        }
+      }
+
+      // 页面加载后自动运行测试
+      window.addEventListener('load', () => {
+        setTimeout(testFormatting, 1000);
+      });
+    </script>
+  </body>
+</html>

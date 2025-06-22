@@ -5,12 +5,16 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder",
+    "build": "npm run clean && npm run prebuild && npm run build-rust && electron-builder",
+    "build:lodop": "npm run clean && npm run prebuild:lodop && npm run build-rust && electron-builder",
     "dev": "chcp 65001 >nul 2>&1 && set NODE_OPTIONS=--no-warnings && electron . --dev",
+    "dev:lodop": "chcp 65001 >nul 2>&1 && set NODE_OPTIONS=--no-warnings && cross-env BUILD_MODE=lodop electron . --dev",
     "pack": "electron-builder --publish=never",
     "dist": "electron-builder --publish=always",
     "build-rust": "cargo build --release",
-    "prebuild": "npm run build-rust"
+    "clean": "powershell -Command \"if (Test-Path 'dist') { Remove-Item -Recurse -Force 'dist' -ErrorAction SilentlyContinue }\"",
+    "prebuild": "node build-config.js",
+    "prebuild:lodop": "cross-env BUILD_MODE=lodop node build-config.js"
   },
   "build": {
     "appId": "com.restaurant.order.printer",
@@ -36,6 +40,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "build-config.js",
       "renderer/**/*",
       "src/**/*",
       "package.json"
@@ -56,6 +61,7 @@
   "author": "Restaurant Order Printer",
   "license": "MIT",
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "electron": "22.3.27",
     "electron-builder": "^23.0.0"
   },
