@@ -87,8 +87,99 @@ function createWindow() {
 
 // 创建托盘
 function createTray() {
-  // 创建一个简单的托盘图标（使用系统默认图标）
-  const trayIcon = nativeImage.createEmpty();
+  let trayIcon;
+
+  try {
+    // 获取正确的资源路径
+    const getResourcePath = (filename) => {
+      if (app.isPackaged) {
+        // 打包后文件在app.asar中，使用__dirname即可
+        return path.join(__dirname, 'assets', filename);
+      } else {
+        // 开发环境使用__dirname
+        return path.join(__dirname, 'assets', filename);
+      }
+    };
+
+    // 尝试多种图标格式和路径
+    const iconPaths = [
+      getResourcePath('tray-icon.png'),
+      getResourcePath('tray-icon.ico'),
+      getResourcePath('icon.ico'),
+      getResourcePath('icon.png'),
+    ];
+
+    console.log('🔍 尝试加载托盘图标');
+    console.log('📦 应用是否已打包:', app.isPackaged);
+    console.log('📁 当前目录:', __dirname);
+    if (app.isPackaged) {
+      console.log(
+        '📁 资源路径 (process.resourcesPath):',
+        process.resourcesPath
+      );
+      console.log('📁 应用路径 (app.getAppPath()):', app.getAppPath());
+    }
+
+    for (const iconPath of iconPaths) {
+      console.log('📁 检查图标路径:', iconPath);
+      console.log('📁 文件是否存在:', fs.existsSync(iconPath));
+
+      if (fs.existsSync(iconPath)) {
+        console.log('✅ 找到图标文件，尝试加载:', iconPath);
+
+        trayIcon = nativeImage.createFromPath(iconPath);
+
+        console.log('📏 图标是否为空:', trayIcon.isEmpty());
+        if (!trayIcon.isEmpty()) {
+          console.log('📏 图标大小:', trayIcon.getSize());
+
+          // 确保图标大小适合托盘 (Windows通常是16x16)
+          const size = trayIcon.getSize();
+          if (size.width !== 16 || size.height !== 16) {
+            console.log('🔄 调整图标大小到16x16');
+            trayIcon = trayIcon.resize({ width: 16, height: 16 });
+          }
+          break;
+        }
+      }
+    }
+
+    // 如果所有图标都加载失败，创建一个基础图标
+    if (!trayIcon || trayIcon.isEmpty()) {
+      console.warn('⚠️ 所有图标加载失败，创建基础图标');
+
+      // 创建一个16x16的基础图标数据（简单的蓝色方块）
+      const iconData = Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x10,
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x91, 0x68, 0x36, 0x00, 0x00, 0x00,
+        0x19, 0x74, 0x45, 0x58, 0x74, 0x53, 0x6f, 0x66, 0x74, 0x77, 0x61, 0x72,
+        0x65, 0x00, 0x41, 0x64, 0x6f, 0x62, 0x65, 0x20, 0x49, 0x6d, 0x61, 0x67,
+        0x65, 0x52, 0x65, 0x61, 0x64, 0x79, 0x71, 0xc9, 0x65, 0x3c, 0x00, 0x00,
+        0x00, 0x38, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x62, 0x20, 0x16, 0x8c,
+        0x48, 0x40, 0x12, 0x04, 0x83, 0x91, 0x48, 0x40, 0x12, 0x04, 0x83, 0x91,
+        0x48, 0x40, 0x12, 0x04, 0x83, 0x91, 0x48, 0x40, 0x12, 0x04, 0x83, 0x91,
+        0x48, 0x40, 0x12, 0x04, 0x83, 0x91, 0x48, 0x40, 0x12, 0x04, 0x83, 0x91,
+        0x48, 0x40, 0x12, 0x04, 0x83, 0x91, 0x48, 0x40, 0x12, 0x04, 0x00, 0x01,
+        0x01, 0x00, 0x02, 0x73, 0xd5, 0x6f, 0x99, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+      ]);
+
+      try {
+        trayIcon = nativeImage.createFromBuffer(iconData);
+        console.log('✅ 使用内置图标数据创建图标');
+      } catch (bufferError) {
+        console.warn('⚠️ 内置图标创建失败，使用空图标');
+        trayIcon = nativeImage.createEmpty();
+      }
+    }
+  } catch (error) {
+    console.error('❌ 托盘图标加载失败:', error);
+    trayIcon = nativeImage.createEmpty();
+  }
+
+  console.log('🎯 最终托盘图标状态 - 是否为空:', trayIcon.isEmpty());
+
   tray = new Tray(trayIcon);
 
   const contextMenu = Menu.buildFromTemplate([
@@ -122,7 +213,7 @@ function createTray() {
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setToolTip('MenuorgPrint');
+  tray.setToolTip('MenuorgPrint - 餐厅订单打印');
 
   // 双击托盘图标显示窗口
   tray.on('double-click', () => {
@@ -135,6 +226,8 @@ function createTray() {
       }
     }
   });
+
+  console.log('✅ 托盘创建完成');
 }
 
 app.whenReady().then(() => {

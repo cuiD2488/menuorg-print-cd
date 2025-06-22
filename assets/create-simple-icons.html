@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>餐厅打印机图标生成器</title>
+    <style>
+      body {
+        font-family: 'Microsoft YaHei', Arial, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #4a90e2;
+        text-align: center;
+      }
+      .icon-preview {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin: 20px 0;
+      }
+      .icon-item {
+        text-align: center;
+        background: #f9f9f9;
+        padding: 15px;
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+      }
+      canvas {
+        border: 1px solid #ddd;
+        margin: 10px 0;
+      }
+      .download-btn {
+        background: #4a90e2;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .download-btn:hover {
+        background: #2e5cb8;
+      }
+      .instructions {
+        background: #e3f2fd;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+      .step {
+        margin: 10px 0;
+        padding: 8px;
+        background: white;
+        border-left: 4px solid #4a90e2;
+        padding-left: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🖨️ 餐厅订单打印机图标生成器</h1>
+
+      <div class="instructions">
+        <h3>📋 使用说明：</h3>
+        <div class="step">1. 点击下方各个尺寸的"下载"按钮</div>
+        <div class="step">2. 将下载的PNG文件重命名并放入assets目录</div>
+        <div class="step">3. 使用在线工具转换为ICO和ICNS格式</div>
+        <div class="step">4. 完成！现在可以正常打包您的Electron应用</div>
+      </div>
+
+      <div class="icon-preview" id="iconPreview">
+        <!-- 图标将通过JavaScript生成 -->
+      </div>
+
+      <div class="instructions">
+        <h3>🔧 后续转换工具：</h3>
+        <p>
+          <strong>ICO格式 (Windows):</strong>
+          <a href="https://convertio.co/png-ico/" target="_blank"
+            >https://convertio.co/png-ico/</a
+          >
+        </p>
+        <p>
+          <strong>ICNS格式 (macOS):</strong>
+          <a href="https://iconverticons.com/online/" target="_blank"
+            >https://iconverticons.com/online/</a
+          >
+        </p>
+        <p><strong>建议：</strong>使用512x512的PNG文件转换为ICO和ICNS格式</p>
+      </div>
+    </div>
+
+    <script>
+      // 图标绘制函数
+      function drawIcon(ctx, size) {
+        const scale = size / 512;
+
+        // 清空画布
+        ctx.clearRect(0, 0, size, size);
+
+        // 背景圆形
+        ctx.fillStyle = '#4A90E2';
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2 - 4 * scale, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // 打印机主体
+        ctx.fillStyle = '#E8E8E8';
+        ctx.fillRect(120 * scale, 180 * scale, 272 * scale, 160 * scale);
+
+        // 打印机顶部
+        ctx.fillStyle = '#D0D0D0';
+        ctx.fillRect(130 * scale, 140 * scale, 252 * scale, 50 * scale);
+
+        // 显示屏
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(160 * scale, 200 * scale, 80 * scale, 40 * scale);
+        ctx.fillStyle = '#00FF00';
+        ctx.fillRect(164 * scale, 204 * scale, 72 * scale, 32 * scale);
+
+        // 控制按钮
+        ctx.fillStyle = '#FF4444';
+        ctx.beginPath();
+        ctx.arc(280 * scale, 210 * scale, 12 * scale, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.fillStyle = '#44FF44';
+        ctx.beginPath();
+        ctx.arc(310 * scale, 210 * scale, 12 * scale, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.fillStyle = '#4444FF';
+        ctx.beginPath();
+        ctx.arc(340 * scale, 210 * scale, 12 * scale, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // 打印纸张
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(170 * scale, 260 * scale, 172 * scale, 60 * scale);
+
+        // 纸张上的文字线条
+        ctx.strokeStyle = '#666666';
+        ctx.lineWidth = 2 * scale;
+        ctx.beginPath();
+        ctx.moveTo(185 * scale, 275 * scale);
+        ctx.lineTo(320 * scale, 275 * scale);
+        ctx.moveTo(185 * scale, 285 * scale);
+        ctx.lineTo(300 * scale, 285 * scale);
+        ctx.moveTo(185 * scale, 295 * scale);
+        ctx.lineTo(310 * scale, 295 * scale);
+        ctx.stroke();
+
+        // 餐具图标（简化版）
+        ctx.fillStyle = '#FF6B35';
+        ctx.fillRect(360 * scale, 120 * scale, 4 * scale, 35 * scale);
+        ctx.fillRect(380 * scale, 120 * scale, 4 * scale, 35 * scale);
+      }
+
+      // 生成不同尺寸的图标
+      const sizes = [16, 32, 48, 64, 128, 256, 512, 1024];
+      const preview = document.getElementById('iconPreview');
+
+      sizes.forEach((size) => {
+        const item = document.createElement('div');
+        item.className = 'icon-item';
+
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        canvas.style.width = Math.min(size, 128) + 'px';
+        canvas.style.height = Math.min(size, 128) + 'px';
+
+        const ctx = canvas.getContext('2d');
+        drawIcon(ctx, size);
+
+        const label = document.createElement('div');
+        label.textContent = `${size}×${size}`;
+        label.style.fontWeight = 'bold';
+        label.style.margin = '10px 0 5px 0';
+
+        const button = document.createElement('button');
+        button.className = 'download-btn';
+        button.textContent = '下载 PNG';
+        button.onclick = () => {
+          const link = document.createElement('a');
+          link.download = `icon-${size}.png`;
+          link.href = canvas.toDataURL();
+          link.click();
+        };
+
+        item.appendChild(label);
+        item.appendChild(canvas);
+        item.appendChild(button);
+        preview.appendChild(item);
+      });
+    </script>
+  </body>
+</html>
