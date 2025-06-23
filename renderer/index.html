@@ -141,6 +141,54 @@
                 </div>
               </div>
 
+              <!-- 🌍 新增：语言选择配置 -->
+              <div class="language-config">
+                <h4>🌍 打印语言配置</h4>
+
+                <!-- 语言选择选项 -->
+                <div class="config-row">
+                  <div class="language-options">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="enableEnglish" checked />
+                      <span class="checkmark"></span>
+                      English (英文)
+                    </label>
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="enableChinese" />
+                      <span class="checkmark"></span>
+                      中文 (Chinese)
+                    </label>
+                  </div>
+                </div>
+
+                <!-- 语言配置说明 -->
+                <div class="config-description">
+                  <div class="description-text">
+                    选择要在小票上打印的语言。可以单选或多选：
+                    <ul>
+                      <li><strong>仅英文</strong>：使用 name_en 字段</li>
+                      <li><strong>仅中文</strong>：使用 name_ch 字段</li>
+                      <li>
+                        <strong>双语</strong>：显示为 "English Name + 中文名称"
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <!-- 语言配置操作按钮 -->
+                <div class="config-actions">
+                  <button id="saveLanguageConfig" class="btn-small btn-primary">
+                    保存语言配置
+                  </button>
+                  <button
+                    id="resetLanguageConfig"
+                    class="btn-small btn-secondary"
+                  >
+                    重置为默认
+                  </button>
+                </div>
+              </div>
+
               <div class="auto-print-config">
                 <label class="checkbox-label">
                   <input type="checkbox" id="autoPrint" checked />
@@ -233,7 +281,7 @@
             <h4>功能概述</h4>
             <p>
               分菜打印功能允许根据菜品的
-              <code>printType</code>
+              <code>printer_type</code>
               字段将订单分配到不同的打印机，实现厨房分工打印。
             </p>
 
@@ -245,24 +293,24 @@
               </li>
               <li>
                 <strong>菜品配置</strong>：确保订单中的菜品有正确的
-                <code>printType</code> 值
+                <code>printer_type</code> 值
               </li>
               <li>
                 <strong>开始打印</strong>：新订单会根据
-                <code>printType</code> 自动分配到对应打印机
+                <code>printer_type</code> 自动分配到对应打印机
               </li>
             </ol>
 
             <h4>分菜逻辑</h4>
             <ul>
               <li>
-                <code>printType = 1</code> → 编号为 1 的打印机（如：热菜台）
+                <code>printer_type = 1</code> → 编号为 1 的打印机（如：热菜台）
               </li>
               <li>
-                <code>printType = 2</code> → 编号为 2 的打印机（如：凉菜台）
+                <code>printer_type = 2</code> → 编号为 2 的打印机（如：凉菜台）
               </li>
               <li>
-                <code>printType = 0</code> 或未设置 →
+                <code>printer_type = 0</code> 或未设置 →
                 没有编号的打印机（完整订单）
               </li>
             </ul>

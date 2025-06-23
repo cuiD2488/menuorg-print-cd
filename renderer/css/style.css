@@ -1281,3 +1281,152 @@ button:hover {
         width: 100%;
     }
 }
+
+/* 🌍 语言配置样式 */
+.language-config {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.language-config h4 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.language-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 15px;
+}
+
+.language-options .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.language-options .checkbox-label:hover {
+    border-color: #667eea;
+    background: #f8f9ff;
+}
+
+.language-options .checkbox-label input[type="checkbox"]:checked+.checkmark {
+    background: #667eea;
+    border-color: #667eea;
+}
+
+.language-options .checkbox-label input[type="checkbox"]:checked+.checkmark+span {
+    font-weight: 600;
+    color: #667eea;
+}
+
+.config-description {
+    margin: 15px 0;
+    padding: 15px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
+.description-text {
+    font-size: 13px;
+    color: #555;
+    line-height: 1.5;
+}
+
+.description-text ul {
+    margin: 10px 0 0 20px;
+    padding: 0;
+}
+
+.description-text li {
+    margin: 6px 0;
+    color: #666;
+}
+
+.description-text strong {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.config-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.config-actions .btn-small {
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* 语言配置状态指示 */
+.language-status {
+    margin: 10px 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.language-status.dual {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #bbdefb;
+}
+
+.language-status.english-only {
+    background: #f3e5f5;
+    color: #7b1fa2;
+    border: 1px solid #e1bee7;
+}
+
+.language-status.chinese-only {
+    background: #fff3e0;
+    color: #ef6c00;
+    border: 1px solid #ffcc02;
+}
+
+.language-status.none {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid #ffcdd2;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .language-options {
+        gap: 8px;
+    }
+
+    .language-options .checkbox-label {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+
+    .config-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .config-actions .btn-small {
+        width: 100%;
+    }
+}

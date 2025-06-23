@@ -167,12 +167,12 @@
         <ul>
           <li>
             每个菜品可以设置
-            <code>printType</code> 字段（数字，大于0表示要分菜）
+            <code>printer_type</code> 字段（数字，大于0表示要分菜）
           </li>
-          <li>每台打印机可以设置编号（对应 printType 值）</li>
-          <li>打印时，菜品根据 printType 分配到对应编号的打印机</li>
+          <li>每台打印机可以设置编号（对应 printer_type 值）</li>
+          <li>打印时，菜品根据 printer_type 分配到对应编号的打印机</li>
           <li>没有编号的打印机打印完整订单</li>
-          <li>没有 printType 或 printType=0 的菜品归入完整订单</li>
+          <li>没有 printer_type 或 printer_type=0 的菜品归入完整订单</li>
         </ul>
       </div>
 
@@ -249,35 +249,35 @@
             price: '18.50',
             amount: '1',
             remark: '微辣，不要花生',
-            printType: '1', // 热菜，分配给1号打印机
+            printer_type: '1', // 热菜，分配给1号打印机
           },
           {
             dishes_name: '麻婆豆腐',
             price: '16.00',
             amount: '1',
             remark: '中辣',
-            printType: '1', // 热菜，分配给1号打印机
+            printer_type: '1', // 热菜，分配给1号打印机
           },
           {
             dishes_name: '凉拌黄瓜',
             price: '8.00',
             amount: '1',
             remark: '多放蒜',
-            printType: '2', // 凉菜，分配给2号打印机
+            printer_type: '2', // 凉菜，分配给2号打印机
           },
           {
             dishes_name: '银耳莲子汤',
             price: '12.00',
             amount: '2',
             remark: '温热',
-            printType: '3', // 汤品，分配给3号打印机
+            printer_type: '3', // 汤品，分配给3号打印机
           },
           {
             dishes_name: '米饭',
             price: '3.00',
             amount: '2',
             remark: '',
-            printType: '0', // 主食，不分菜，完整订单
+            printer_type: '0', // 主食，不分菜，完整订单
           },
         ],
       };
@@ -385,22 +385,22 @@
                     <span style="flex: 1;">${dish.dishes_name} - $${
             dish.price
           }</span>
-                    <label>printType:</label>
+                    <label>printer_type:</label>
                     <input type="number" min="0" max="99" value="${
-                      dish.printType
+                      dish.printer_type
                     }"
                            onchange="updateDishPrintType(${index}, this.value)">
                     <span style="margin-left: 10px; color: #666; font-size: 12px;">
-                        ${getPrintTypeDescription(dish.printType)}
+                        ${getPrintTypeDescription(dish.printer_type)}
                     </span>
                 `;
           container.appendChild(div);
         });
       }
 
-      // 获取 printType 描述
-      function getPrintTypeDescription(printType) {
-        const type = parseInt(printType);
+      // 获取 printer_type 描述
+      function getPrintTypeDescription(printer_type) {
+        const type = parseInt(printer_type);
         if (type === 0) return '(完整订单)';
         if (type === 1) return '(热菜)';
         if (type === 2) return '(凉菜)';
@@ -440,12 +440,12 @@
         }
       }
 
-      // 更新菜品 printType
-      function updateDishPrintType(index, printType) {
-        testOrder.dishes_array[index].printType = printType;
+      // 更新菜品 printer_type
+      function updateDishPrintType(index, printer_type) {
+        testOrder.dishes_array[index].printer_type = printer_type;
         renderDishList(); // 重新渲染以更新描述
         updateStatus(
-          `更新菜品 printType: ${testOrder.dishes_array[index].dishes_name} -> ${printType}`,
+          `更新菜品 printer_type: ${testOrder.dishes_array[index].dishes_name} -> ${printer_type}`,
           'info'
         );
       }
@@ -543,7 +543,7 @@ ${result.打印详情
       `- ${detail.printer}: ${detail.success ? '成功' : '失败'} (${
         detail.type
       }, ${detail.dishCount}个菜品${
-        detail.printType ? ', printType:' + detail.printType : ''
+        detail.printer_type ? ', printer_type:' + detail.printer_type : ''
       })`
   )
   .join('\n')}

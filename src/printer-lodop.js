@@ -77,8 +77,14 @@ class LodopPrinterManager {
       enableSeparatePrinting: false,
     };
 
+    // 🌍 新增：语言配置管理
+    this.languageConfig = {
+      enableEnglish: true, // 默认启用英文
+      enableChinese: false, // 默认禁用中文
+    };
+
     console.log(
-      '[LODOP] C-Lodop 打印机管理器初始化（支持百分比排版和分菜打印）'
+      '[LODOP] C-Lodop 打印机管理器初始化（支持百分比排版、分菜打印和多语言）'
     );
   }
 
@@ -414,7 +420,7 @@ class LodopPrinterManager {
       throw new Error('未选择任何打印机');
     }
 
-    // 根据菜品 printType 分组
+    // 根据菜品 printer_type 分组
     const printerGroups = this.groupDishesByPrintType(order);
 
     if (printerGroups.size === 0) {
@@ -446,7 +452,7 @@ class LodopPrinterManager {
 
           const logMsg = group.hasFullOrder
             ? `完整订单打印成功: ${printerName}`
-            : `分菜打印成功: ${printerName} (${group.dishes.length}个菜品, printType: ${group.printType})`;
+            : `分菜打印成功: ${printerName} (${group.dishes.length}个菜品, printer_type: ${group.printer_type})`;
           console.log(`[LODOP] 🍽️ ${logMsg}`);
 
           return {
@@ -455,7 +461,7 @@ class LodopPrinterManager {
             type: group.hasFullOrder ? 'full' : 'partial',
             dishCount: group.dishes.length,
             printerNumber: group.printerNumber || null,
-            printType: group.printType || null,
+            printer_type: group.printer_type || null,
           };
         } catch (error) {
           errorCount++;
@@ -749,7 +755,7 @@ class LodopPrinterManager {
       const qtyStr = qty.toString();
 
       // 🔧 菜名处理：使用百分比计算的列宽
-      const dishName = dish.dishes_name || '';
+      const dishName = this.getFormattedDishName(dish);
       if (this.displayWidth(dishName) <= layout.table.nameWidth) {
         // 菜名不超宽，单行显示
         content += this.padText(dishName, layout.table.nameWidth, 'left');
@@ -1321,11 +1327,11 @@ class LodopPrinterManager {
     console.log(`[LODOP] 🍽️ 分菜打印模式: ${enabled ? '已启用' : '已禁用'}`);
   }
 
-  // 🍽️ 新增：根据菜品 printType 分组订单
+  // 🍽️ 新增：根据菜品 printer_type 分组订单
   groupDishesByPrintType(order) {
-    const printerGroups = new Map(); // printerName -> {dishes: [], hasFullOrder: boolean, printType: number}
+    const printerGroups = new Map(); // printerName -> {dishes: [], hasFullOrder: boolean, printer_type: number}
 
-    console.log('[LODOP] 🍽️ 开始按 printType 分菜分组...');
+    console.log('[LODOP] 🍽️ 开始按 printer_type 分菜分组...');
 
     // 如果未启用分菜打印，返回完整订单
     if (!this.printTypeConfig.enableSeparatePrinting) {
@@ -1336,26 +1342,26 @@ class LodopPrinterManager {
           dishes: order.dishes_array || [],
           hasFullOrder: true,
           printerName: printerName,
-          printType: null,
+          printer_type: null,
         });
       });
       return printerGroups;
     }
 
-    // 收集所有菜品的 printType
-    const dishesWithPrintType = new Map(); // printType -> dishes[]
+    // 收集所有菜品的 printer_type
+    const dishesWithPrintType = new Map(); // printer_type -> dishes[]
     const dishesWithoutPrintType = [];
 
     (order.dishes_array || []).forEach((dish) => {
-      const printType = parseInt(dish.printType || '0');
-
-      if (printType > 0) {
-        if (!dishesWithPrintType.has(printType)) {
-          dishesWithPrintType.set(printType, []);
+      const printer_type = parseInt(dish.printer_type || '0');
+      debugger;
+      if (printer_type > 0) {
+        if (!dishesWithPrintType.has(printer_type)) {
+          dishesWithPrintType.set(printer_type, []);
         }
-        dishesWithPrintType.get(printType).push(dish);
+        dishesWithPrintType.get(printer_type).push(dish);
         console.log(
-          `[LODOP] 🍽️ 菜品 "${dish.dishes_name}" printType: ${printType}`
+          `[LODOP] 🍽️ 菜品 "${dish.dishes_name}" printer_type: ${printer_type}`
         );
       } else {
         dishesWithoutPrintType.push(dish);
@@ -1364,12 +1370,12 @@ class LodopPrinterManager {
         );
       }
     });
-
-    // 为每个 printType 找到对应的打印机
-    dishesWithPrintType.forEach((dishes, printType) => {
+    debugger;
+    // 为每个 printer_type 找到对应的打印机
+    dishesWithPrintType.forEach((dishes, printer_type) => {
       const targetPrinter = this.printers.find(
         (p) =>
-          p.printerNumber === printType &&
+          p.printerNumber === printer_type &&
           this.selectedPrinters.includes(p.name)
       );
 
@@ -1378,21 +1384,21 @@ class LodopPrinterManager {
           dishes: dishes,
           hasFullOrder: false,
           printerName: targetPrinter.name,
-          printerNumber: printType,
-          printType: printType,
+          printerNumber: printer_type,
+          printer_type: printer_type,
         });
         console.log(
-          `[LODOP] 🍽️ printType ${printType} -> 打印机 "${targetPrinter.name}" (${dishes.length}个菜品)`
+          `[LODOP] 🍽️ printer_type ${printer_type} -> 打印机 "${targetPrinter.name}" (${dishes.length}个菜品)`
         );
       } else {
         console.log(
-          `[LODOP] 🍽️ 警告: printType ${printType} 没有找到对应的打印机，归入通用组`
+          `[LODOP] 🍽️ 警告: printer_type ${printer_type} 没有找到对应的打印机，归入通用组`
         );
         dishesWithoutPrintType.push(...dishes);
       }
     });
 
-    // 处理没有 printType 的菜品和没有编号的打印机
+    // 处理没有 printer_type 的菜品和没有编号的打印机
     if (dishesWithoutPrintType.length > 0) {
       console.log(
         `[LODOP] 🍽️ 处理 ${dishesWithoutPrintType.length} 个通用菜品`
@@ -1410,7 +1416,7 @@ class LodopPrinterManager {
             dishes: order.dishes_array || [], // 完整订单
             hasFullOrder: true,
             printerName: printerName,
-            printType: null,
+            printer_type: null,
           });
           console.log(
             `[LODOP] 🍽️ 未编号打印机 "${printerName}" 将打印完整订单`
@@ -1424,7 +1430,7 @@ class LodopPrinterManager {
             dishes: order.dishes_array || [],
             hasFullOrder: true,
             printerName: firstPrinter,
-            printType: null,
+            printer_type: null,
           });
           console.log(`[LODOP] 🍽️ 兜底: 使用 "${firstPrinter}" 打印完整订单`);
         }
@@ -1432,15 +1438,15 @@ class LodopPrinterManager {
     }
 
     console.log(
-      `[LODOP] 🍽️ printType 分菜分组完成，共分配到 ${printerGroups.size} 台打印机`
+      `[LODOP] 🍽️ printer_type 分菜分组完成，共分配到 ${printerGroups.size} 台打印机`
     );
     return printerGroups;
   }
 
-  // 🍽️ 新增：生成部分订单打印内容（仅包含指定 printType 的菜品）
+  // 🍽️ 新增：生成部分订单打印内容（仅包含指定 printer_type 的菜品）
   generatePartialOrderPrintContent(order, group) {
     console.log(
-      `[LODOP] 🍽️ 生成部分订单打印内容 (printType: ${group.printType}, ${group.dishes.length}个菜品)...`
+      `[LODOP] 🍽️ 生成部分订单打印内容 (printer_type: ${group.printer_type}, ${group.dishes.length}个菜品)...`
     );
 
     // 获取打印机宽度设置
@@ -1454,8 +1460,8 @@ class LodopPrinterManager {
 
     // ============= 订单号区域：靠左对齐 =============
     content += `#${order.order_id}`;
-    if (group.printType) {
-      content += ` - Type ${group.printType}`;
+    if (group.printer_type) {
+      content += ` - Type ${group.printer_type}`;
     }
     content += '\n';
     content += '\n';
@@ -1476,7 +1482,7 @@ class LodopPrinterManager {
     content += '\n';
     content += '='.repeat(layout.totalCharWidth) + '\n';
 
-    // ============= 菜单表格：仅显示指定 printType 的菜品 =============
+    // ============= 菜单表格：仅显示指定 printer_type 的菜品 =============
     console.log('[LODOP] 🍽️ 使用百分比表格布局 (部分菜品)');
 
     // 表头
@@ -1486,7 +1492,7 @@ class LodopPrinterManager {
     content += '\n';
     content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    // ============= 菜单明细：只显示指定 printType 的菜品 =============
+    // ============= 菜单明细：只显示指定 printer_type 的菜品 =============
     let totalAmount = 0;
     group.dishes.forEach((dish) => {
       const price = parseFloat(dish.price || '0');
@@ -1497,7 +1503,7 @@ class LodopPrinterManager {
       totalAmount += price;
 
       // 🔧 菜名处理：使用百分比计算的列宽
-      const dishName = dish.dishes_name || '';
+      const dishName = this.getFormattedDishName(dish);
       if (this.displayWidth(dishName) <= layout.table.nameWidth) {
         // 菜名不超宽，单行显示
         content += this.padText(dishName, layout.table.nameWidth, 'left');
@@ -1585,7 +1591,7 @@ class LodopPrinterManager {
     // 结尾
     content += '\n';
     content += '='.repeat(layout.totalCharWidth) + '\n';
-    content += `PrintType ${group.printType || '?'} - ${
+    content += `PrintType ${group.printer_type || '?'} - ${
       group.dishes.length
     }个菜品\n`;
 
@@ -1607,15 +1613,62 @@ class LodopPrinterManager {
 
   // 🍽️ 新增：重置分菜打印配置
   resetPrintTypeConfig() {
+    console.log('[LODOP] 🍽️ 重置分菜打印配置');
     this.printTypeConfig.printerNumbers.clear();
     this.printTypeConfig.enableSeparatePrinting = false;
 
-    // 重置打印机对象中的相关字段
-    this.printers.forEach((printer) => {
-      printer.printerNumber = null;
-    });
-
     console.log('[LODOP] 🍽️ 分菜打印配置已重置');
+    return true;
+  }
+
+  // 🌍 新增：语言配置相关方法
+  setLanguageConfig(config) {
+    this.languageConfig = {
+      ...this.languageConfig,
+      ...config,
+    };
+    console.log('[LODOP] 🌍 语言配置已更新:', this.languageConfig);
+  }
+
+  getLanguageConfig() {
+    return { ...this.languageConfig };
+  }
+
+  // 🌍 获取格式化的菜名（根据语言配置）
+  getFormattedDishName(dish) {
+    const { enableEnglish, enableChinese } = this.languageConfig;
+
+    let dishName = '';
+
+    if (enableEnglish && enableChinese) {
+      // 双语模式：显示 "English Name + 中文名称"
+      const englishName = dish.name_en || dish.dishes_name || '';
+      const chineseName = dish.name_ch || '';
+
+      if (englishName && chineseName) {
+        dishName = `${englishName} + ${chineseName}`;
+      } else if (englishName) {
+        dishName = englishName;
+      } else if (chineseName) {
+        dishName = chineseName;
+      } else {
+        dishName = dish.dishes_name || 'Unknown Dish';
+      }
+    } else if (enableEnglish) {
+      // 仅英文模式
+      dishName = dish.name_en || dish.dishes_name || 'Unknown Dish';
+    } else if (enableChinese) {
+      // 仅中文模式
+      dishName = dish.name_ch || dish.dishes_name || '未知菜品';
+    } else {
+      // 未选择任何语言，使用默认字段
+      dishName = dish.dishes_name || 'Unknown Dish';
+    }
+
+    console.log(
+      `[LODOP] 🌍 菜名格式化: 原始="${dish.dishes_name}" 英文="${dish.name_en}" 中文="${dish.name_ch}" -> 输出="${dishName}"`
+    );
+    return dishName;
   }
 }
 

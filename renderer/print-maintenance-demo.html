@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>打印维护功能演示 - LODOP打印系统</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 2.5em;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .header p {
+        font-size: 1.2em;
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 30px;
+      }
+
+      .section {
+        margin-bottom: 30px;
+        padding: 25px;
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        background: #fafafa;
+      }
+
+      .section h2 {
+        color: #333;
+        margin-bottom: 20px;
+        font-size: 1.5em;
+        border-bottom: 2px solid #4caf50;
+        padding-bottom: 10px;
+      }
+
+      .printer-actions {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+
+      .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-print {
+        background: linear-gradient(135deg, #4caf50, #45a049);
+        color: white;
+      }
+
+      .btn-preview {
+        background: linear-gradient(135deg, #2196f3, #1976d2);
+        color: white;
+      }
+
+      .btn-test {
+        background: linear-gradient(135deg, #ff9800, #f57c00);
+        color: white;
+      }
+
+      .btn-maintenance {
+        background: linear-gradient(135deg, #9c27b0, #7b1fa2);
+        color: white;
+      }
+
+      .btn-clear {
+        background: linear-gradient(135deg, #f44336, #d32f2f);
+        color: white;
+      }
+
+      .btn-setup {
+        background: linear-gradient(135deg, #607d8b, #455a64);
+        color: white;
+      }
+
+      .btn-custom {
+        background: linear-gradient(135deg, #795548, #5d4037);
+        color: white;
+      }
+
+      .btn-clear-specific {
+        background: linear-gradient(135deg, #e91e63, #c2185b);
+        color: white;
+      }
+
+      .btn-refresh {
+        background: linear-gradient(135deg, #009688, #00796b);
+        color: white;
+      }
+
+      .maintenance-panel {
+        background: #fff;
+        border: 2px solid #9c27b0;
+        border-radius: 10px;
+        padding: 25px;
+        margin-top: 20px;
+      }
+
+      .maintenance-panel h3 {
+        color: #9c27b0;
+        margin-bottom: 20px;
+        font-size: 1.4em;
+      }
+
+      .maintenance-info {
+        background: #f3e5f5;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+      }
+
+      .maintenance-info ul {
+        margin-left: 20px;
+      }
+
+      .maintenance-info li {
+        margin-bottom: 8px;
+        line-height: 1.6;
+      }
+
+      .maintenance-controls {
+        background: #fafafa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+      }
+
+      .control-group {
+        margin-bottom: 20px;
+      }
+
+      .control-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .control-group select,
+      .control-group input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        font-size: 16px;
+        transition: border-color 0.3s ease;
+      }
+
+      .control-group select:focus,
+      .control-group input:focus {
+        outline: none;
+        border-color: #9c27b0;
+      }
+
+      .control-group small {
+        display: block;
+        margin-top: 5px;
+        color: #666;
+        font-style: italic;
+      }
+
+      .control-buttons {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+      }
+
+      .maintenance-status {
+        background: #e8f5e8;
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 5px solid #4caf50;
+      }
+
+      .maintenance-status h4 {
+        color: #2e7d32;
+        margin-bottom: 15px;
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        margin: 15px 0;
+      }
+
+      .status-item {
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        border-left: 4px solid #4caf50;
+      }
+
+      .status-item strong {
+        display: block;
+        color: #2e7d32;
+        margin-bottom: 5px;
+      }
+
+      .printer-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 15px 0;
+      }
+
+      .printer-card {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+        transition: all 0.3s ease;
+      }
+
+      .printer-card:hover {
+        border-color: #4caf50;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .printer-card.selected {
+        border-color: #4caf50;
+        background: #f1f8e9;
+      }
+
+      .printer-card h4 {
+        color: #333;
+        margin-bottom: 10px;
+        font-size: 1.1em;
+      }
+
+      .printer-card .printer-info {
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 10px;
+      }
+
+      .printer-card .printer-actions {
+        margin-top: 10px;
+        justify-content: flex-start;
+      }
+
+      .printer-card .btn {
+        font-size: 12px;
+        padding: 8px 12px;
+      }
+
+      .log-panel {
+        background: #263238;
+        color: #4caf50;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+        font-family: 'Courier New', monospace;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .log-panel h4 {
+        color: #81c784;
+        margin-bottom: 15px;
+      }
+
+      .log-entry {
+        margin-bottom: 5px;
+        padding: 5px 0;
+        border-bottom: 1px solid #37474f;
+      }
+
+      .log-timestamp {
+        color: #90a4ae;
+        font-size: 0.8em;
+      }
+
+      .log-message {
+        margin-left: 15px;
+      }
+
+      .alert {
+        padding: 15px;
+        border-radius: 6px;
+        margin: 15px 0;
+      }
+
+      .alert-info {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        color: #1565c0;
+      }
+
+      .alert-success {
+        background: #e8f5e8;
+        border-left: 4px solid #4caf50;
+        color: #2e7d32;
+      }
+
+      .alert-warning {
+        background: #fff3e0;
+        border-left: 4px solid #ff9800;
+        color: #ef6c00;
+      }
+
+      .alert-error {
+        background: #ffebee;
+        border-left: 4px solid #f44336;
+        color: #c62828;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 768px) {
+        .printer-actions,
+        .control-buttons {
+          flex-direction: column;
+        }
+
+        .btn {
+          width: 100%;
+          margin-bottom: 10px;
+        }
+
+        .status-grid,
+        .printer-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🔧 打印维护功能演示</h1>
+        <p>LODOP 打印系统 - 客户端打印位置微调工具</p>
+      </div>
+
+      <div class="content">
+        <!-- 🎯 打印机管理区域 -->
+        <div class="section">
+          <h2>🖨️ 打印机管理</h2>
+          <div class="alert alert-info">
+            <strong>📋 说明：</strong>
+            系统将自动检测可用打印机。请选择需要进行位置调整的打印机。
+          </div>
+
+          <div class="printer-actions">
+            <button onclick="initSystem()" class="btn btn-primary">
+              🚀 初始化系统
+            </button>
+            <button onclick="refreshPrinters()" class="btn btn-info">
+              🔄 刷新打印机
+            </button>
+            <button onclick="manualCheckCLodopStatus()" class="btn btn-warning">
+              🔍 检查C-Lodop状态
+            </button>
+            <button onclick="selectAllPrinters()" class="btn btn-secondary">
+              ✅ 选择全部
+            </button>
+          </div>
+
+          <div id="printer-list" class="printer-grid">
+            <!-- 动态生成打印机列表 -->
+          </div>
+        </div>
+
+        <!-- 🔧 打印维护控制区域 -->
+        <div class="section">
+          <h2>🔧 打印维护控制</h2>
+          <div class="alert alert-warning">
+            <strong>⚠️ 重要：</strong>
+            打印维护功能用于调整打印位置偏移，配置保存在客户端本地。每台打印机和每个任务名可以有独立的偏移配置。
+          </div>
+
+          <!-- 🔧 新增：打印维护面板 -->
+          <div class="maintenance-panel">
+            <h3>🔧 打印维护功能</h3>
+            <div class="maintenance-info">
+              <p>📝 <strong>使用说明：</strong></p>
+              <ul>
+                <li>打印维护用于调整打印位置偏移，配置保存在客户端本地</li>
+                <li>不同打印机可能需要不同的偏移调整</li>
+                <li>调整后点击【应用】保存，点击【恢复缺省】可重置</li>
+                <li>任务名相同的打印任务会使用相同的偏移配置</li>
+              </ul>
+            </div>
+
+            <div class="maintenance-controls">
+              <div class="control-group">
+                <label for="maintenance-printer">选择打印机：</label>
+                <select id="maintenance-printer">
+                  <option value="">使用当前选中的打印机</option>
+                </select>
+              </div>
+
+              <div class="control-group">
+                <label for="maintenance-task-name">任务名称：</label>
+                <input
+                  type="text"
+                  id="maintenance-task-name"
+                  placeholder="留空使用默认任务名"
+                />
+                <small>相同任务名的打印会使用相同的偏移配置</small>
+              </div>
+
+              <div class="control-buttons">
+                <button onclick="openPrintSetup()" class="btn btn-setup">
+                  打开打印维护
+                </button>
+                <button onclick="createCustomSetup()" class="btn btn-custom">
+                  自定义任务维护
+                </button>
+                <button
+                  onclick="clearSpecificConfig()"
+                  class="btn btn-clear-specific"
+                >
+                  清除指定配置
+                </button>
+              </div>
+            </div>
+
+            <div class="maintenance-status" id="maintenance-status">
+              <h4>📊 维护状态</h4>
+              <div id="maintenance-status-content">
+                点击刷新状态按钮获取当前状态
+              </div>
+              <button
+                onclick="refreshMaintenanceStatus()"
+                class="btn btn-refresh"
+              >
+                刷新状态
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 🧪 测试打印区域 -->
+        <div class="section">
+          <h2>🧪 测试打印</h2>
+          <div class="alert alert-success">
+            <strong>✅ 功能：</strong>
+            使用测试订单验证打印位置调整效果。建议先进行维护调整，再测试打印效果。
+          </div>
+
+          <div class="printer-actions">
+            <button onclick="testOrderPrint()" class="btn btn-print">
+              测试订单打印
+            </button>
+            <button onclick="previewOrderPrint()" class="btn btn-preview">
+              预览订单
+            </button>
+            <button onclick="testSimplePrint()" class="btn btn-test">
+              简单测试打印
+            </button>
+          </div>
+
+          <div id="test-order-info" class="alert alert-info hidden">
+            <strong>📄 测试订单信息：</strong>
+            <div id="test-order-details"></div>
+          </div>
+        </div>
+
+        <!-- 📊 操作日志区域 -->
+        <div class="section">
+          <h2>📊 操作日志</h2>
+          <div class="printer-actions">
+            <button onclick="clearLog()" class="btn btn-clear">清空日志</button>
+            <button onclick="exportLog()" class="btn btn-custom">
+              导出日志
+            </button>
+          </div>
+
+          <div id="operation-log" class="log-panel">
+            <h4>🔍 实时操作日志</h4>
+            <div id="log-content">
+              <div class="log-entry">
+                <span class="log-timestamp">[系统启动]</span>
+                <div class="log-message">打印维护演示系统就绪</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🔧 修正路径：使用renderer目录下的正确文件 -->
+    <script src="LodopFuncs.js"></script>
+    <script src="../src/printer-lodop.js"></script>
+
+    <script>
+      // 全局变量
+      let printerManager = null;
+      let selectedPrinters = [];
+      let systemInitialized = false;
+
+      // 测试订单数据
+      const testOrder = {
+        order_id: 'TEST-' + Date.now(),
+        create_time: new Date().toISOString(),
+        delivery_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        paystyle: 1,
+        recipient_name: '张三',
+        recipient_phone: '13800138000',
+        delivery_type: 2,
+        recipient_address: '北京市朝阳区某某街道123号',
+        dishes_array: [
+          {
+            dishes_name: '宫保鸡丁',
+            price: '28.00',
+            amount: '2',
+            remark: '不要花生，微辣',
+            printer_type: '1',
+          },
+          {
+            dishes_name: '麻婆豆腐',
+            price: '22.00',
+            amount: '1',
+            remark: '正常辣度',
+            printer_type: '1',
+          },
+          {
+            dishes_name: '白米饭',
+            price: '3.00',
+            amount: '3',
+            remark: '',
+            printer_type: '2',
+          },
+          {
+            dishes_name: '冬瓜排骨汤',
+            price: '18.00',
+            amount: '1',
+            remark: '清淡',
+            printer_type: '3',
+          },
+        ],
+        sub_total: '109.00',
+        discount_total: '0.00',
+        tax_fee: '8.72',
+        tax_rate: '8.0',
+        delivery_fee: '5.00',
+        convenience_fee: '3.27',
+        convenience_rate: '3.0',
+        tip_fee: '10.00',
+        total: '136.00',
+        order_notes: '请按时送达，谢谢！',
+      };
+
+      // 📋 日志管理
+      function addLog(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logContent = document.getElementById('log-content');
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry';
+
+        let icon = '';
+        switch (type) {
+          case 'success':
+            icon = '✅';
+            break;
+          case 'error':
+            icon = '❌';
+            break;
+          case 'warning':
+            icon = '⚠️';
+            break;
+          case 'maintenance':
+            icon = '🔧';
+            break;
+          default:
+            icon = '📝';
+        }
+
+        logEntry.innerHTML = `
+                <span class="log-timestamp">[${timestamp}]</span>
+                <div class="log-message">${icon} ${message}</div>
+            `;
+
+        logContent.appendChild(logEntry);
+        logContent.scrollTop = logContent.scrollHeight;
+
+        console.log(`[打印维护] ${message}`);
+      }
+
+      function clearLog() {
+        document.getElementById('log-content').innerHTML = `
+                <div class="log-entry">
+                    <span class="log-timestamp">[日志已清空]</span>
+                    <div class="log-message">📝 操作日志已清空</div>
+                </div>
+            `;
+        addLog('操作日志已清空');
+      }
+
+      function exportLog() {
+        const logContent = document.getElementById('log-content').textContent;
+        const blob = new Blob([logContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `print-maintenance-log-${new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace(/:/g, '-')}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        addLog('操作日志已导出');
+      }
+
+      // 🏗️ 系统初始化
+      async function initSystem() {
+        try {
+          addLog('正在初始化打印系统...', 'info');
+
+          // 🔧 新增：检查C-Lodop状态
+          addLog('检查C-Lodop服务状态...', 'info');
+
+          if (typeof window.checkCLodopStatus === 'function') {
+            const clodopStatus = window.checkCLodopStatus();
+            addLog(`C-Lodop状态: ${JSON.stringify(clodopStatus)}`, 'info');
+
+            if (!clodopStatus.available) {
+              addLog('C-Lodop服务不可用，请检查服务是否启动', 'error');
+              if (clodopStatus.error) {
+                addLog(`C-Lodop错误: ${clodopStatus.error}`, 'error');
+              }
+              // 继续尝试初始化，可能在后续步骤中成功
+            } else {
+              addLog(
+                `C-Lodop版本: ${clodopStatus.version}, 打印机数量: ${clodopStatus.printerCount}`,
+                'success'
+              );
+            }
+          } else {
+            addLog(
+              'checkCLodopStatus函数未定义，可能是LodopFuncs.js加载问题',
+              'warning'
+            );
+          }
+
+          // 🔧 新增：检查getLodop函数
+          if (typeof window.getLodop !== 'function') {
+            addLog('getLodop函数未定义，LodopFuncs.js可能加载失败', 'error');
+            throw new Error('LodopFuncs.js加载失败：getLodop函数不可用');
+          }
+
+          // 🔧 新增：检查LodopPrinterManager类
+          if (typeof LodopPrinterManager !== 'function') {
+            addLog(
+              'LodopPrinterManager类未定义，printer-lodop.js可能加载失败',
+              'error'
+            );
+            throw new Error(
+              'printer-lodop.js加载失败：LodopPrinterManager类不可用'
+            );
+          }
+
+          printerManager = new LodopPrinterManager();
+          addLog('LodopPrinterManager实例已创建', 'info');
+
+          const result = await printerManager.init();
+          addLog(`打印管理器初始化结果: ${JSON.stringify(result)}`, 'info');
+
+          if (result.success) {
+            systemInitialized = true;
+            addLog(`打印系统初始化成功 - 引擎: ${result.engine}`, 'success');
+            await refreshPrinters();
+          } else {
+            throw new Error(result.error || '初始化失败');
+          }
+        } catch (error) {
+          addLog(`系统初始化失败: ${error.message}`, 'error');
+          addLog('可能的解决方案：', 'info');
+          addLog('1. 确认C-Lodop服务已安装并启动', 'info');
+          addLog('2. 检查浏览器是否允许localhost连接', 'info');
+          addLog('3. 尝试重新加载页面', 'info');
+          console.error('系统初始化失败:', error);
+
+          // 🔧 新增：显示详细错误信息
+          const errorDetails = {
+            message: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            windowLodop: typeof window.getLodop,
+            lodopManager: typeof LodopPrinterManager,
+          };
+          console.error('详细错误信息:', errorDetails);
+        }
+      }
+
+      // 🔄 刷新打印机列表
+      async function refreshPrinters() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          addLog('正在刷新打印机列表...', 'info');
+
+          const printers = await printerManager.refreshPrinters();
+          renderPrinterList(printers);
+          updateMaintenancePrinterSelect(printers);
+
+          addLog(`发现 ${printers.length} 台打印机`, 'success');
+        } catch (error) {
+          addLog(`刷新打印机失败: ${error.message}`, 'error');
+          console.error('刷新打印机失败:', error);
+        }
+      }
+
+      // 🖨️ 渲染打印机列表
+      function renderPrinterList(printers) {
+        const container = document.getElementById('printer-list');
+        container.innerHTML = '';
+
+        if (printers.length === 0) {
+          container.innerHTML = `
+                    <div class="alert alert-warning">
+                        <strong>⚠️ 注意：</strong> 未发现可用打印机，请检查打印机连接和驱动安装。
+                    </div>
+                `;
+          return;
+        }
+
+        printers.forEach((printer, index) => {
+          const printerCard = document.createElement('div');
+          printerCard.className = 'printer-card';
+          printerCard.id = `printer-${index}`;
+
+          const isSelected = selectedPrinters.includes(printer.name);
+          if (isSelected) {
+            printerCard.classList.add('selected');
+          }
+
+          printerCard.innerHTML = `
+                    <h4>${printer.name}</h4>
+                    <div class="printer-info">
+                        <div>🔸 宽度: ${printer.width}mm</div>
+                        <div>🔸 类型: ${
+                          printer.isThermal ? '热敏' : '普通'
+                        }</div>
+                        <div>🔸 状态: ${printer.status}</div>
+                        ${
+                          printer.isDefault
+                            ? '<div>🔸 <strong>默认打印机</strong></div>'
+                            : ''
+                        }
+                    </div>
+                    <div class="printer-actions">
+                        <button onclick="togglePrinterSelection('${
+                          printer.name
+                        }')" class="btn ${
+            isSelected ? 'btn-clear' : 'btn-setup'
+          }">
+                            ${isSelected ? '取消选择' : '选择打印机'}
+                        </button>
+                        <button onclick="testSinglePrinter('${
+                          printer.name
+                        }')" class="btn btn-test">
+                            测试打印
+                        </button>
+                    </div>
+                `;
+
+          printerCard.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('btn')) {
+              togglePrinterSelection(printer.name);
+            }
+          });
+
+          container.appendChild(printerCard);
+        });
+      }
+
+      // ✅ 切换打印机选择状态
+      function togglePrinterSelection(printerName) {
+        const index = selectedPrinters.indexOf(printerName);
+        if (index > -1) {
+          selectedPrinters.splice(index, 1);
+          addLog(`取消选择打印机: ${printerName}`, 'info');
+        } else {
+          selectedPrinters.push(printerName);
+          addLog(`选择打印机: ${printerName}`, 'info');
+        }
+
+        // 更新打印机管理器
+        if (printerManager) {
+          printerManager.setSelectedPrinters(selectedPrinters);
+        }
+
+        // 更新UI
+        const printers = printerManager ? printerManager.getAllPrinters() : [];
+        renderPrinterList(printers);
+      }
+
+      // 🔧 选择所有打印机
+      function selectAllPrinters() {
+        if (!printerManager) {
+          addLog('请先初始化系统', 'warning');
+          return;
+        }
+
+        const printers = printerManager.getAllPrinters();
+        selectedPrinters = printers.map((p) => p.name);
+        printerManager.setSelectedPrinters(selectedPrinters);
+
+        renderPrinterList(printers);
+        addLog(`已选择所有 ${printers.length} 台打印机`, 'success');
+      }
+
+      // 🧪 测试单个打印机
+      async function testSinglePrinter(printerName) {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          addLog(`正在测试打印机: ${printerName}...`, 'info');
+
+          const result = await printerManager.testPrint(printerName);
+          if (result.success) {
+            addLog(`打印机 ${printerName} 测试成功`, 'success');
+          } else {
+            throw new Error(result.error || '测试失败');
+          }
+        } catch (error) {
+          addLog(`打印机 ${printerName} 测试失败: ${error.message}`, 'error');
+          console.error('测试打印失败:', error);
+        }
+      }
+
+      // 🔧 更新维护面板打印机选择
+      function updateMaintenancePrinterSelect(printers) {
+        const select = document.getElementById('maintenance-printer');
+        select.innerHTML = '<option value="">使用当前选中的打印机</option>';
+
+        printers.forEach((printer) => {
+          const option = document.createElement('option');
+          option.value = printer.name;
+          option.textContent = `${printer.name} (${printer.width}mm)`;
+          select.appendChild(option);
+        });
+      }
+
+      // 🔧 打开打印维护界面
+      async function openPrintSetup() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          if (selectedPrinters.length === 0) {
+            addLog('请先选择至少一台打印机', 'warning');
+            return;
+          }
+
+          const printerSelect = document.getElementById('maintenance-printer');
+          const printerName = printerSelect.value || selectedPrinters[0];
+
+          addLog(`正在打开打印维护界面: ${printerName}...`, 'maintenance');
+
+          const result = await printerManager.showPrintSetup(printerName);
+
+          if (result.success) {
+            addLog(
+              `打印维护界面已打开 - 打印机: ${result.printer}, 任务名: ${result.taskName}`,
+              'maintenance'
+            );
+            addLog('请在维护界面中调整位置后点击【应用】保存配置', 'info');
+          } else {
+            throw new Error(result.error || '打开维护界面失败');
+          }
+        } catch (error) {
+          addLog(`打开打印维护界面失败: ${error.message}`, 'error');
+          console.error('打开打印维护界面失败:', error);
+        }
+      }
+
+      // 🔧 自定义任务维护
+      async function createCustomSetup() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          const printerSelect = document.getElementById('maintenance-printer');
+          const taskNameInput = document.getElementById(
+            'maintenance-task-name'
+          );
+
+          const printerName = printerSelect.value || selectedPrinters[0];
+          const customTaskName = taskNameInput.value.trim();
+
+          if (!customTaskName) {
+            addLog('请输入自定义任务名称', 'warning');
+            return;
+          }
+
+          addLog(
+            `正在创建自定义任务维护: ${customTaskName} (${printerName})...`,
+            'maintenance'
+          );
+
+          const result = await printerManager.showPrintSetupWithTaskName(
+            printerName,
+            customTaskName
+          );
+
+          if (result.success) {
+            addLog(
+              `自定义维护界面已打开 - 任务名: ${result.taskName}`,
+              'maintenance'
+            );
+          } else {
+            throw new Error(result.error || '创建自定义维护失败');
+          }
+        } catch (error) {
+          addLog(`创建自定义维护失败: ${error.message}`, 'error');
+          console.error('创建自定义维护失败:', error);
+        }
+      }
+
+      // 🧹 清除指定配置
+      async function clearSpecificConfig() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          const taskNameInput = document.getElementById(
+            'maintenance-task-name'
+          );
+          const taskName = taskNameInput.value.trim();
+
+          const confirmMessage = taskName
+            ? `确定要清除任务 "${taskName}" 的打印配置吗？`
+            : '确定要清除默认打印配置吗？';
+
+          if (!confirm(confirmMessage)) {
+            return;
+          }
+
+          addLog(`正在清除配置: ${taskName || '默认'}...`, 'maintenance');
+
+          const result = await printerManager.clearLocalPrintConfig(taskName);
+
+          if (result.success) {
+            addLog(`配置清除成功 - 任务名: ${result.taskName}`, 'maintenance');
+            addLog('下次打印将使用默认设置', 'info');
+          } else {
+            throw new Error(result.error || '清除配置失败');
+          }
+        } catch (error) {
+          addLog(`清除配置失败: ${error.message}`, 'error');
+          console.error('清除配置失败:', error);
+        }
+      }
+
+      // 📊 刷新维护状态
+      async function refreshMaintenanceStatus() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          addLog('正在刷新维护状态...', 'info');
+
+          const status = printerManager.getPrintMaintenanceStatus();
+          renderMaintenanceStatus(status);
+
+          addLog('维护状态已刷新', 'success');
+        } catch (error) {
+          addLog(`刷新维护状态失败: ${error.message}`, 'error');
+          console.error('刷新维护状态失败:', error);
+        }
+      }
+
+      // 🎨 渲染维护状态
+      function renderMaintenanceStatus(status) {
+        const container = document.getElementById('maintenance-status-content');
+
+        const statusHTML = `
+                <div class="status-grid">
+                    <div class="status-item">
+                        <strong>LODOP 状态</strong>
+                        ${status.lodopAvailable ? '✅ 可用' : '❌ 不可用'}
+                    </div>
+                    <div class="status-item">
+                        <strong>已选择打印机</strong>
+                        ${status.selectedPrinters.length} 台
+                    </div>
+                    <div class="status-item">
+                        <strong>总打印机数</strong>
+                        ${status.availablePrinters.length} 台
+                    </div>
+                    <div class="status-item">
+                        <strong>维护支持</strong>
+                        ${status.supportsPrintSetup ? '✅ 支持' : '❌ 不支持'}
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>📋 可用打印机列表：</strong>
+                    <ul>
+                        ${status.availablePrinters
+                          .map(
+                            (p) =>
+                              `<li>${p.name} (${p.width}mm, ${
+                                p.isThermal ? '热敏' : '普通'
+                              }${p.isDefault ? ', 默认' : ''})</li>`
+                          )
+                          .join('')}
+                    </ul>
+                </div>
+
+                <div class="alert alert-success">
+                    <strong>💡 使用提示：</strong>
+                    <ul>
+                        ${status.tips.map((tip) => `<li>${tip}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+
+        container.innerHTML = statusHTML;
+      }
+
+      // 🧪 测试订单打印
+      async function testOrderPrint() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          if (selectedPrinters.length === 0) {
+            addLog('请先选择至少一台打印机', 'warning');
+            return;
+          }
+
+          addLog(`正在打印测试订单: ${testOrder.order_id}...`, 'info');
+          showTestOrderInfo();
+
+          const result = await printerManager.printOrder(testOrder);
+
+          addLog(
+            `测试订单打印完成 - 成功: ${result.成功数量}, 失败: ${result.失败数量}`,
+            result.失败数量 > 0 ? 'warning' : 'success'
+          );
+
+          if (result.错误列表.length > 0) {
+            result.错误列表.forEach((error) => {
+              addLog(`打印错误: ${error}`, 'error');
+            });
+          }
+        } catch (error) {
+          addLog(`测试订单打印失败: ${error.message}`, 'error');
+          console.error('测试订单打印失败:', error);
+        }
+      }
+
+      // 👁️ 预览订单打印
+      async function previewOrderPrint() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          if (selectedPrinters.length === 0) {
+            addLog('请先选择至少一台打印机', 'warning');
+            return;
+          }
+
+          addLog('正在生成订单预览...', 'info');
+          showTestOrderInfo();
+
+          const result = await printerManager.generatePrintPreview(testOrder);
+
+          if (result.success) {
+            addLog('订单预览已生成，请查看预览窗口', 'success');
+          } else {
+            throw new Error(result.error || '预览生成失败');
+          }
+        } catch (error) {
+          addLog(`订单预览失败: ${error.message}`, 'error');
+          console.error('订单预览失败:', error);
+        }
+      }
+
+      // 🧪 简单测试打印
+      async function testSimplePrint() {
+        try {
+          if (!printerManager) {
+            addLog('请先初始化系统', 'warning');
+            return;
+          }
+
+          if (selectedPrinters.length === 0) {
+            addLog('请先选择至少一台打印机', 'warning');
+            return;
+          }
+
+          addLog('正在执行简单测试打印...', 'info');
+
+          let successCount = 0;
+          let errorCount = 0;
+
+          for (const printerName of selectedPrinters) {
+            try {
+              const result = await printerManager.testPrint(printerName);
+              if (result.success) {
+                successCount++;
+                addLog(`简单测试打印成功: ${printerName}`, 'success');
+              } else {
+                errorCount++;
+                addLog(`简单测试打印失败: ${printerName}`, 'error');
+              }
+            } catch (error) {
+              errorCount++;
+              addLog(
+                `简单测试打印异常 ${printerName}: ${error.message}`,
+                'error'
+              );
+            }
+          }
+
+          addLog(
+            `简单测试打印完成 - 成功: ${successCount}, 失败: ${errorCount}`,
+            errorCount > 0 ? 'warning' : 'success'
+          );
+        } catch (error) {
+          addLog(`简单测试打印失败: ${error.message}`, 'error');
+          console.error('简单测试打印失败:', error);
+        }
+      }
+
+      // 📄 显示测试订单信息
+      function showTestOrderInfo() {
+        const infoPanel = document.getElementById('test-order-info');
+        const detailsDiv = document.getElementById('test-order-details');
+
+        const orderInfo = `
+                <div><strong>订单号：</strong>${testOrder.order_id}</div>
+                <div><strong>客户：</strong>${testOrder.recipient_name} (${
+          testOrder.recipient_phone
+        })</div>
+                <div><strong>类型：</strong>${
+                  testOrder.delivery_type == 1 ? '外送' : '自取'
+                }</div>
+                <div><strong>菜品数：</strong>${
+                  testOrder.dishes_array.length
+                } 个</div>
+                <div><strong>总金额：</strong>$${testOrder.total}</div>
+                <div><strong>备注：</strong>${
+                  testOrder.order_notes || '无'
+                }</div>
+            `;
+
+        detailsDiv.innerHTML = orderInfo;
+        infoPanel.classList.remove('hidden');
+
+        // 3秒后隐藏
+        setTimeout(() => {
+          infoPanel.classList.add('hidden');
+        }, 3000);
+      }
+
+      // 🚀 页面加载完成后自动初始化
+      window.addEventListener('load', () => {
+        addLog('页面加载完成，请点击"初始化系统"开始使用', 'info');
+
+        // 自动初始化（可选）
+        setTimeout(() => {
+          initSystem();
+        }, 1000);
+      });
+
+      // 📱 响应式处理
+      window.addEventListener('resize', () => {
+        // 这里可以添加响应式调整逻辑
+      });
+
+      // 🔍 检查C-Lodop状态（手动诊断）
+      function manualCheckCLodopStatus() {
+        addLog('=== C-Lodop 状态检查 ===', 'info');
+
+        try {
+          // 检查函数可用性
+          if (typeof window.checkCLodopStatus !== 'function') {
+            addLog('❌ checkCLodopStatus函数不可用', 'error');
+            addLog('请检查LodopFuncs.js是否正确加载', 'error');
+            return;
+          }
+
+          if (typeof window.getLodop !== 'function') {
+            addLog('❌ getLodop函数不可用', 'error');
+            addLog('请检查LodopFuncs.js是否正确加载', 'error');
+            return;
+          }
+
+          // 获取状态
+          const status = window.checkCLodopStatus();
+          addLog(`📊 C-Lodop状态检查结果:`, 'info');
+          addLog(
+            `- 可用性: ${status.available ? '✅ 可用' : '❌ 不可用'}`,
+            status.available ? 'success' : 'error'
+          );
+          addLog(`- 版本: ${status.version || '未知'}`, 'info');
+          addLog(`- 本地服务: ${status.isLocal ? '✅ 是' : '❌ 否'}`, 'info');
+          addLog(`- 打印机数量: ${status.printerCount || 0}`, 'info');
+
+          if (status.error) {
+            addLog(`- 错误信息: ${status.error}`, 'error');
+          }
+
+          // 如果不可用，提供解决建议
+          if (!status.available) {
+            addLog('🔧 解决建议:', 'warning');
+            addLog('1. 确认已安装C-Lodop软件', 'info');
+            addLog('2. 检查C-Lodop服务是否启动（通常在系统托盘中）', 'info');
+            addLog('3. 尝试重启C-Lodop服务', 'info');
+            addLog('4. 检查防火墙是否阻止localhost连接', 'info');
+            addLog('5. 如果问题持续，尝试重新安装C-Lodop', 'info');
+          } else {
+            addLog('✅ C-Lodop状态正常，可以开始使用', 'success');
+          }
+        } catch (error) {
+          addLog(`❌ 状态检查失败: ${error.message}`, 'error');
+          console.error('C-Lodop状态检查异常:', error);
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -2,25 +2,25 @@
 
 ## 🍽️ 功能概述
 
-PrintType 分菜打印功能允许根据菜品的 `printType` 字段将订单分配到不同的打印机，实现厨房分工打印。
+PrintType 分菜打印功能允许根据菜品的 `printer_type` 字段将订单分配到不同的打印机，实现厨房分工打印。
 
 ## 🔧 核心原理
 
-### 1. printType 字段
-- 每个菜品可以设置 `printType` 字段（数字类型）
-- `printType = 0` 或未设置：归入完整订单
-- `printType > 0`：分配到对应编号的打印机
+### 1. printer_type 字段
+- 每个菜品可以设置 `printer_type` 字段（数字类型）
+- `printer_type = 0` 或未设置：归入完整订单
+- `printer_type > 0`：分配到对应编号的打印机
 
 ### 2. 打印机编号
 - 每台打印机可以设置编号（1-99）
-- 编号对应菜品的 `printType` 值
+- 编号对应菜品的 `printer_type` 值
 - 没有编号的打印机打印完整订单
 
 ### 3. 分菜逻辑
 ```
-菜品 printType = 1 → 编号为 1 的打印机
-菜品 printType = 2 → 编号为 2 的打印机
-菜品 printType = 0 → 没有编号的打印机（完整订单）
+菜品 printer_type = 1 → 编号为 1 的打印机
+菜品 printer_type = 2 → 编号为 2 的打印机
+菜品 printer_type = 0 → 没有编号的打印机（完整订单）
 ```
 
 ## 📝 使用步骤
@@ -50,19 +50,19 @@ const order = {
       dishes_name: '宫保鸡丁',
       price: '18.50',
       amount: '1',
-      printType: '1' // 分配给1号打印机（热菜）
+      printer_type: '1' // 分配给1号打印机（热菜）
     },
     {
       dishes_name: '凉拌黄瓜',
       price: '8.00',
       amount: '1',
-      printType: '2' // 分配给2号打印机（凉菜）
+      printer_type: '2' // 分配给2号打印机（凉菜）
     },
     {
       dishes_name: '米饭',
       price: '3.00',
       amount: '2',
-      printType: '0' // 完整订单（主食）
+      printer_type: '0' // 完整订单（主食）
     }
   ]
 };
@@ -78,9 +78,9 @@ console.log(result);
 ## 🎯 实际应用场景
 
 ### 餐厅厨房分工
-- **热菜台**：printType = 1，处理炒菜、煎炸等
-- **凉菜台**：printType = 2，处理凉拌菜、沙拉等
-- **汤品台**：printType = 3，处理汤类、粥类等
+- **热菜台**：printer_type = 1，处理炒菜、煎炸等
+- **凉菜台**：printer_type = 2，处理凉拌菜、沙拉等
+- **汤品台**：printer_type = 3，处理汤类、粥类等
 - **收银台**：无编号，打印完整订单用于核对
 
 ### 配置示例
@@ -96,10 +96,10 @@ printerManager.setSeparatePrintingMode(true);
 
 // 菜品配置
 const dishes = [
-  { dishes_name: '红烧肉', printType: '1' },      // → 热菜台
-  { dishes_name: '拍黄瓜', printType: '2' },      // → 凉菜台
-  { dishes_name: '紫菜蛋花汤', printType: '3' },  // → 汤品台
-  { dishes_name: '米饭', printType: '0' }         // → 收银台（完整订单）
+  { dishes_name: '红烧肉', printer_type: '1' },      // → 热菜台
+  { dishes_name: '拍黄瓜', printer_type: '2' },      // → 凉菜台
+  { dishes_name: '紫菜蛋花汤', printer_type: '3' },  // → 汤品台
+  { dishes_name: '米饭', printer_type: '0' }         // → 收银台（完整订单）
 ];
 ```
 
@@ -146,21 +146,21 @@ printerManager.resetPrintTypeConfig();
       success: true,
       type: 'partial',
       dishCount: 2,
-      printType: 1
+      printer_type: 1
     },
     {
       printer: '凉菜打印机',
       success: true,
       type: 'partial',
       dishCount: 1,
-      printType: 2
+      printer_type: 2
     },
     {
       printer: '收银打印机',
       success: true,
       type: 'full',
       dishCount: 5,
-      printType: null
+      printer_type: null
     }
   ]
 }
@@ -235,14 +235,14 @@ TOTAL                   $54.14
 2. 点击"初始化打印机"
 3. 设置打印机编号
 4. 启用分菜模式
-5. 调整菜品的 printType 值
+5. 调整菜品的 printer_type 值
 6. 点击"测试分菜打印"
 
 ## ⚠️ 注意事项
 
 1. **向后兼容**：如果不启用分菜模式，所有打印机都打印完整订单
 2. **兜底机制**：如果找不到对应编号的打印机，菜品会归入完整订单
-3. **数据格式**：printType 字段应为字符串格式的数字
+3. **数据格式**：printer_type 字段应为字符串格式的数字
 4. **编号范围**：打印机编号建议使用 1-99 范围内的数字
 5. **配置持久化**：当前配置在页面刷新后会丢失，实际使用时需要持久化存储
 
@@ -253,7 +253,7 @@ TOTAL                   $54.14
 1. **分菜不生效**
    - 检查是否启用了分菜模式
    - 确认打印机编号设置正确
-   - 验证菜品的 printType 字段值
+   - 验证菜品的 printer_type 字段值
 
 2. **打印机找不到**
    - 确认打印机已选中

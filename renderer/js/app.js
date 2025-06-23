@@ -15,6 +15,12 @@ class OrderPrintApp {
     // ✅ 修复：将打印机管理器设置到全局window对象上
     window.printerManager = this.printerManager;
 
+    // 🌍 新增：语言配置管理
+    this.languageConfig = {
+      enableEnglish: true, // 默认启用英文
+      enableChinese: false, // 默认禁用中文
+    };
+
     // ✅ 调试：检查CLodop相关函数是否正确加载
     console.log('[APP] 检查CLodop相关函数加载状态:');
     console.log('[APP] - window.getLodop:', typeof window.getLodop);
@@ -72,6 +78,8 @@ class OrderPrintApp {
     await this.loadUIConfig();
     // 🍽️ 加载分菜打印配置
     this.loadDishPrintConfig();
+    // 🌍 加载语言配置
+    this.loadLanguageConfig();
   }
 
   async updatePrinterSelect() {
@@ -328,6 +336,27 @@ class OrderPrintApp {
     document.getElementById('testDishPrint').addEventListener('click', () => {
       this.testDishPrint();
     });
+
+    // 🌍 新增：语言配置事件监听器
+    document.getElementById('enableEnglish').addEventListener('change', () => {
+      this.handleLanguageConfigChange();
+    });
+
+    document.getElementById('enableChinese').addEventListener('change', () => {
+      this.handleLanguageConfigChange();
+    });
+
+    document
+      .getElementById('saveLanguageConfig')
+      .addEventListener('click', () => {
+        this.saveLanguageConfig();
+      });
+
+    document
+      .getElementById('resetLanguageConfig')
+      .addEventListener('click', () => {
+        this.resetLanguageConfig();
+      });
 
     // 帮助模态框关闭事件
     document
@@ -859,7 +888,15 @@ class OrderPrintApp {
         `[APP] 开始自动打印订单 ${order.order_id} 到 ${selectedPrinters.length} 台打印机`
       );
 
-      // 使用与手动打印完全相同的打印逻辑
+      // 🌍 同步语言配置到打印机管理器
+      if (this.printerManager && this.printerManager.lodopManager) {
+        this.printerManager.lodopManager.setLanguageConfig(this.languageConfig);
+        console.log(
+          '[APP] 🌍 已同步语言配置到打印机管理器:',
+          this.languageConfig
+        );
+      }
+
       const printResult = await this.printerManager.printOrder(order);
 
       if (printResult.成功数量 > 0) {
@@ -1567,6 +1604,15 @@ class OrderPrintApp {
         `[APP] 开始向 ${selectedPrinters.length} 台打印机打印订单 ${orderId}`
       );
 
+      // 🌍 同步语言配置到打印机管理器
+      if (this.printerManager && this.printerManager.lodopManager) {
+        this.printerManager.lodopManager.setLanguageConfig(this.languageConfig);
+        console.log(
+          '[APP] 🌍 已同步语言配置到打印机管理器:',
+          this.languageConfig
+        );
+      }
+
       const printResult = await this.printerManager.printOrder(order);
 
       if (printResult.成功数量 > 0) {
@@ -1745,7 +1791,7 @@ class OrderPrintApp {
                value="${currentNumber}"
                placeholder="编号"
                data-printer-name="${printer.name}">
-        <span class="number-hint">(0=完整订单, 1-99=printType)</span>
+        <span class="number-hint">(0=完整订单, 1-99=printer_type)</span>
       `;
 
       // 添加输入事件监听
@@ -1906,28 +1952,28 @@ class OrderPrintApp {
             price: '18.50',
             amount: '1',
             remark: '微辣，不要花生',
-            printType: '1',
+            printer_type: '1',
           },
           {
             dishes_name: '麻婆豆腐',
             price: '16.00',
             amount: '1',
             remark: '中辣',
-            printType: '1',
+            printer_type: '1',
           },
           {
             dishes_name: '凉拌黄瓜',
             price: '8.00',
             amount: '1',
             remark: '多放蒜',
-            printType: '2',
+            printer_type: '2',
           },
           {
             dishes_name: '米饭',
             price: '3.00',
             amount: '2',
             remark: '',
-            printType: '0',
+            printer_type: '0',
           },
         ],
       };
@@ -2022,6 +2068,134 @@ class OrderPrintApp {
       // 简单的alert作为临时方案
       alert(message);
     }
+  }
+
+  // 🌍 加载语言配置
+  loadLanguageConfig() {
+    console.log('[APP] 加载语言配置');
+
+    try {
+      // 从 localStorage 加载保存的配置
+      const savedConfig = localStorage.getItem('languageConfig');
+      if (savedConfig) {
+        this.languageConfig = {
+          ...this.languageConfig,
+          ...JSON.parse(savedConfig),
+        };
+        console.log('[APP] 已加载保存的语言配置:', this.languageConfig);
+      } else {
+        console.log('[APP] 使用默认语言配置:', this.languageConfig);
+      }
+
+      // 更新UI状态
+      document.getElementById('enableEnglish').checked =
+        this.languageConfig.enableEnglish;
+      document.getElementById('enableChinese').checked =
+        this.languageConfig.enableChinese;
+
+      // 更新状态显示
+      this.updateLanguageStatus();
+    } catch (error) {
+      console.error('[APP] 加载语言配置失败:', error);
+      // 如果加载失败，使用默认配置
+      this.resetLanguageConfig();
+    }
+  }
+
+  handleLanguageConfigChange() {
+    this.languageConfig.enableEnglish =
+      document.getElementById('enableEnglish').checked;
+    this.languageConfig.enableChinese =
+      document.getElementById('enableChinese').checked;
+    this.saveLanguageConfig();
+    this.updateLanguageStatus();
+  }
+
+  saveLanguageConfig() {
+    try {
+      localStorage.setItem(
+        'languageConfig',
+        JSON.stringify(this.languageConfig)
+      );
+      console.log('[APP] 语言配置已保存:', this.languageConfig);
+      this.showNotification('语言配置已保存', 'success');
+    } catch (error) {
+      console.error('[APP] 保存语言配置失败:', error);
+      this.showNotification('保存语言配置失败', 'error');
+    }
+  }
+
+  resetLanguageConfig() {
+    // 重置为默认配置
+    this.languageConfig.enableEnglish = true;
+    this.languageConfig.enableChinese = false;
+
+    // 更新UI
+    document.getElementById('enableEnglish').checked =
+      this.languageConfig.enableEnglish;
+    document.getElementById('enableChinese').checked =
+      this.languageConfig.enableChinese;
+
+    // 清除本地存储
+    localStorage.removeItem('languageConfig');
+
+    // 更新状态显示
+    this.updateLanguageStatus();
+
+    console.log('[APP] 语言配置已重置为默认');
+    this.showNotification('语言配置已重置为默认（英文）', 'success');
+  }
+
+  updateLanguageStatus() {
+    const { enableEnglish, enableChinese } = this.languageConfig;
+
+    // 检查状态并显示相应的提示
+    if (!enableEnglish && !enableChinese) {
+      this.showNotification(
+        '警告：未选择任何语言，打印可能无法显示菜名',
+        'warning'
+      );
+    } else if (enableEnglish && enableChinese) {
+      console.log('[APP] 语言状态：双语模式（英文+中文）');
+    } else if (enableEnglish) {
+      console.log('[APP] 语言状态：仅英文');
+    } else {
+      console.log('[APP] 语言状态：仅中文');
+    }
+  }
+
+  // 🌍 获取格式化的菜名（根据语言配置）
+  getFormattedDishName(dish) {
+    const { enableEnglish, enableChinese } = this.languageConfig;
+
+    let dishName = '';
+
+    if (enableEnglish && enableChinese) {
+      // 双语模式：显示 "English Name + 中文名称"
+      const englishName = dish.name_en || dish.dishes_name || '';
+      const chineseName = dish.name_ch || '';
+
+      if (englishName && chineseName) {
+        dishName = `${englishName} + ${chineseName}`;
+      } else if (englishName) {
+        dishName = englishName;
+      } else if (chineseName) {
+        dishName = chineseName;
+      } else {
+        dishName = dish.dishes_name || 'Unknown Dish';
+      }
+    } else if (enableEnglish) {
+      // 仅英文模式
+      dishName = dish.name_en || dish.dishes_name || 'Unknown Dish';
+    } else if (enableChinese) {
+      // 仅中文模式
+      dishName = dish.name_ch || dish.dishes_name || '未知菜品';
+    } else {
+      // 未选择任何语言，使用默认字段
+      dishName = dish.dishes_name || 'Unknown Dish';
+    }
+
+    return dishName;
   }
 }
 
