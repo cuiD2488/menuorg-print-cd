@@ -1460,9 +1460,7 @@ class LodopPrinterManager {
 
     // ============= 订单号区域：靠左对齐 =============
     content += `#${order.order_id}`;
-    if (group.printer_type) {
-      content += ` - Type ${group.printer_type}`;
-    }
+
     content += '\n';
     content += '\n';
 
@@ -1562,10 +1560,100 @@ class LodopPrinterManager {
 
     content += '='.repeat(layout.totalCharWidth) + '\n';
 
-    // ============= 部分订单小计 =============
-    content += this.padText('部分小计', layout.fee.labelWidth, 'left');
+    // ============= 费用明细：使用百分比布局 =============
+    const subtotal = parseFloat(order.sub_total || '0');
+    const discount = parseFloat(order.discount_total || '0');
+    const taxFee = parseFloat(order.tax_fee || '0');
+    const taxRate = parseFloat(order.tax_rate || '0');
+    const deliveryFee = parseFloat(order.delivery_fee || '0');
+    const serviceFee = parseFloat(order.convenience_fee || '0');
+    const serviceRate = parseFloat(order.convenience_rate || '0');
+    const tip = parseFloat(order.tip_fee || '0');
+    const total = parseFloat(order.total || '0');
+
+    console.log('[LODOP] 🍽️ 部分订单使用百分比费用布局:', {
+      标签列: `${layout.fee.labelWidth}字符 (${Math.round(
+        (layout.fee.labelWidth / layout.totalCharWidth) * 100
+      )}%)`,
+      金额列: `${layout.fee.amountWidth}字符 (${Math.round(
+        (layout.fee.amountWidth / layout.totalCharWidth) * 100
+      )}%)`,
+    });
+
+    // 🔧 费用行：使用百分比列宽
+    // 小计
+    content += this.padText('Subtotal', layout.fee.labelWidth, 'left');
     content += this.padText(
-      `$${totalAmount.toFixed(2)}`,
+      `$${subtotal.toFixed(2)}`,
+      layout.fee.amountWidth,
+      'right'
+    );
+    content += '\n';
+
+    // 折扣
+    if (discount > 0) {
+      content += this.padText('Discount', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `-$${discount.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
+    }
+
+    // 税费
+    if (taxFee > 0) {
+      const taxLabel = taxRate > 0 ? `Tax (${taxRate.toFixed(1)}%)` : 'Tax';
+      content += this.padText(taxLabel, layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${taxFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
+    }
+
+    // 配送费
+    if (deliveryFee > 0) {
+      content += this.padText('Delivery Fee', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${deliveryFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
+    }
+
+    // 服务费
+    if (serviceFee > 0) {
+      const serviceLabel =
+        serviceRate > 0
+          ? `Service Rate (${serviceRate.toFixed(4)}%)`
+          : 'Service Fee';
+      content += this.padText(serviceLabel, layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${serviceFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
+    }
+
+    // 小费
+    if (tip > 0) {
+      content += this.padText('Tip', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${tip.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
+    }
+
+    // 总计（加粗显示）
+    content += this.padText('TOTAL', layout.fee.labelWidth, 'left');
+    content += this.padText(
+      `$${total.toFixed(2)}`,
       layout.fee.amountWidth,
       'right'
     );
@@ -1591,9 +1679,6 @@ class LodopPrinterManager {
     // 结尾
     content += '\n';
     content += '='.repeat(layout.totalCharWidth) + '\n';
-    content += `PrintType ${group.printer_type || '?'} - ${
-      group.dishes.length
-    }个菜品\n`;
 
     console.log('[LODOP] 🍽️ 部分订单内容生成完成');
     return content;

@@ -614,6 +614,10 @@ class OrderPrintApp {
 
   async handleRefreshPrinters() {
     await this.printerManager.refreshPrinters();
+
+    // 🎯 在刷新打印机后加载缓存的选择配置
+    await this.loadPrinterSelectionConfig();
+
     await this.updatePrinterSelect();
   }
 
@@ -1170,9 +1174,6 @@ class OrderPrintApp {
             )}</span>
             <span class="order-items">${dishesCount} items</span>
           </div>
-        </div>
-        <div class="order-status">
-          <span class="status-badge ${statusClass}">${statusText}</span>
         </div>
         <div class="order-actions">
           <button class="btn-small btn-info" onclick="app.showOrderDetails('${
