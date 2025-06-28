@@ -12,6 +12,9 @@ class OrderPrintApp {
     this.lastWebSocketConnectTime = null; // 记录最后连接时间
     this.lastOrderCheckTime = null; // 记录最后检查订单的时间
 
+    // 🎯 新增：待处理的打印机选择配置
+    this._pendingPrinterSelection = null;
+
     // ✅ 修复：将打印机管理器设置到全局window对象上
     window.printerManager = this.printerManager;
 
@@ -74,12 +77,17 @@ class OrderPrintApp {
   }
 
   async initUI() {
+    // 🎯 首先加载缓存的打印机选择配置
+    await this.loadPrinterSelectionConfig();
+
     await this.updatePrinterSelect();
     await this.loadUIConfig();
     // 🍽️ 加载分菜打印配置
     this.loadDishPrintConfig();
     // 🌍 加载语言配置
     this.loadLanguageConfig();
+    // 🚀 加载开机自动运行配置
+    await this.loadAutoStartConfig();
   }
 
   async updatePrinterSelect() {
@@ -195,6 +203,10 @@ class OrderPrintApp {
     }
 
     this.printerManager.setSelectedPrinters(selectedPrinters);
+
+    // 🎯 新增：自动保存打印机选择配置到本地缓存
+    this.savePrinterSelectionConfig(selectedPrinters);
+
     this.updatePrinterSelect(); // 重新渲染列表
   }
 
@@ -443,6 +455,13 @@ class OrderPrintApp {
     document.getElementById('printOrderBtn').addEventListener('click', () => {
       this.printCurrentOrder();
     });
+
+    // 🚀 新增：开机自动运行事件监听器
+    document
+      .getElementById('autoStart')
+      .addEventListener('change', async (e) => {
+        await this.handleAutoStartToggle(e.target.checked);
+      });
   }
 
   async checkAutoLogin() {
@@ -613,10 +632,40 @@ class OrderPrintApp {
   }
 
   async handleRefreshPrinters() {
+    console.log('[APP] 🔄 开始刷新打印机...');
     await this.printerManager.refreshPrinters();
 
     // 🎯 在刷新打印机后加载缓存的选择配置
     await this.loadPrinterSelectionConfig();
+
+    // 🎯 如果有待处理的打印机选择配置，现在应用它
+    if (
+      this._pendingPrinterSelection &&
+      this._pendingPrinterSelection.length > 0
+    ) {
+      console.log(
+        '[APP] 🔄 应用待处理的打印机选择配置:',
+        this._pendingPrinterSelection
+      );
+
+      const availablePrinters = this.printerManager.getAllPrinters();
+      const availablePrinterNames = availablePrinters.map((p) => p.name);
+      const validPrinters = this._pendingPrinterSelection.filter((name) =>
+        availablePrinterNames.includes(name)
+      );
+
+      if (validPrinters.length > 0) {
+        this.printerManager.setSelectedPrinters(validPrinters);
+        console.log('[APP] ✅ 已应用待处理的打印机选择:', validPrinters);
+        this.showNotification(
+          `已恢复${validPrinters.length}台打印机的选择状态`,
+          'info'
+        );
+      }
+
+      // 清除待处理的配置
+      this._pendingPrinterSelection = null;
+    }
 
     await this.updatePrinterSelect();
   }
@@ -627,6 +676,10 @@ class OrderPrintApp {
     const allPrinterNames = allPrinters.map((p) => p.name);
 
     this.printerManager.setSelectedPrinters(allPrinterNames);
+
+    // 🎯 保存配置
+    this.savePrinterSelectionConfig(allPrinterNames);
+
     this.updatePrinterSelect();
 
     this.showTrayNotification(`已选择所有 ${allPrinterNames.length} 台打印机`);
@@ -641,6 +694,10 @@ class OrderPrintApp {
     }
 
     this.printerManager.setSelectedPrinters([]);
+
+    // 🎯 保存配置
+    this.savePrinterSelectionConfig([]);
+
     this.updatePrinterSelect();
 
     this.showTrayNotification('已清空所有打印机选择');
@@ -755,11 +812,120 @@ class OrderPrintApp {
 
   async saveUIConfig() {
     const config = {
-      selectedPrinters: this.printerManager.getSelectedPrinters(),
       autoPrint: document.getElementById('autoPrint').checked,
     };
 
     await window.electronAPI.saveConfig(config);
+  }
+
+  // 🎯 新增：保存打印机选择配置到本地缓存
+  async savePrinterSelectionConfig(selectedPrinters) {
+    try {
+      const config = await window.electronAPI.getConfig();
+      config.selectedPrinters = selectedPrinters;
+      config.lastPrinterSelectionUpdate = new Date().toISOString();
+
+      const success = await window.electronAPI.saveConfig(config);
+      if (success) {
+        console.log(
+          '[APP] ✅ 打印机选择配置已保存到本地缓存:',
+          selectedPrinters
+        );
+        // 减少通知频率，只在控制台记录
+      } else {
+        console.error('[APP] ❌ 保存打印机选择配置失败');
+        this.showNotification('保存打印机配置失败', 'error');
+      }
+    } catch (error) {
+      console.error('[APP] ❌ 保存打印机选择配置时出错:', error);
+      this.showNotification('保存打印机配置时出错', 'error');
+    }
+  }
+
+  // 🎯 新增：从本地缓存加载打印机选择配置
+  async loadPrinterSelectionConfig() {
+    try {
+      console.log('[APP] 📂 开始加载打印机选择配置...');
+
+      const config = await window.electronAPI.getConfig();
+      console.log('[APP] 📂 获取到的完整配置:', config);
+
+      if (
+        config &&
+        config.selectedPrinters &&
+        Array.isArray(config.selectedPrinters)
+      ) {
+        const savedPrinters = config.selectedPrinters;
+        const lastUpdate = config.lastPrinterSelectionUpdate;
+
+        console.log('[APP] 📂 从本地缓存加载打印机选择配置:', {
+          printers: savedPrinters,
+          count: savedPrinters.length,
+          lastUpdate,
+        });
+
+        // 获取当前可用的打印机
+        const availablePrinters = this.printerManager.getAllPrinters();
+        console.log(
+          '[APP] 📂 当前可用打印机:',
+          availablePrinters.map((p) => p.name)
+        );
+
+        if (availablePrinters.length === 0) {
+          console.log(
+            '[APP] 📂 当前没有可用打印机，缓存配置将在刷新打印机后应用'
+          );
+          // 暂时保存配置，等待打印机刷新后应用
+          this._pendingPrinterSelection = savedPrinters;
+          return savedPrinters;
+        }
+
+        // 验证保存的打印机是否仍然可用
+        const availablePrinterNames = availablePrinters.map((p) => p.name);
+        const validSavedPrinters = savedPrinters.filter((printerName) =>
+          availablePrinterNames.includes(printerName)
+        );
+
+        console.log('[APP] 📂 有效的缓存打印机:', validSavedPrinters);
+
+        if (validSavedPrinters.length !== savedPrinters.length) {
+          const removedPrinters = savedPrinters.filter(
+            (name) => !availablePrinterNames.includes(name)
+          );
+          console.warn('[APP] ⚠️ 部分已保存的打印机不再可用:', removedPrinters);
+
+          // 自动更新配置，移除不可用的打印机
+          if (validSavedPrinters.length > 0) {
+            await this.savePrinterSelectionConfig(validSavedPrinters);
+            this.showNotification(
+              `已移除${removedPrinters.length}台不可用的打印机`,
+              'warning'
+            );
+          }
+        }
+
+        // 应用有效的打印机选择
+        if (validSavedPrinters.length > 0) {
+          this.printerManager.setSelectedPrinters(validSavedPrinters);
+          console.log('[APP] ✅ 已应用缓存的打印机选择:', validSavedPrinters);
+          this.showNotification(
+            `已恢复${validSavedPrinters.length}台打印机的选择状态`,
+            'info'
+          );
+        } else {
+          console.log('[APP] ℹ️ 没有可用的已保存打印机选择');
+        }
+
+        return validSavedPrinters;
+      } else {
+        console.log('[APP] ℹ️ 没有找到已保存的打印机选择配置');
+        return [];
+      }
+    } catch (error) {
+      console.error('[APP] ❌ 加载打印机选择配置时出错:', error);
+      this.showNotification('加载打印机配置时出错', 'error');
+      return [];
+    }
   }
 
   connectWebSocket() {
@@ -2059,16 +2225,49 @@ class OrderPrintApp {
 
   // 显示通知消息
   showNotification(message, type = 'info') {
-    // 简单的通知实现，可以根据需要改进
-    console.log(`[NOTIFICATION-${type.toUpperCase()}] ${message}`);
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
 
-    // 如果有现成的通知系统，可以调用
-    if (typeof this.showTrayNotification === 'function') {
-      this.showTrayNotification(message);
-    } else {
-      // 简单的alert作为临时方案
-      alert(message);
-    }
+    // 添加样式
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${
+        type === 'success'
+          ? '#4CAF50'
+          : type === 'error'
+          ? '#f44336'
+          : type === 'warning'
+          ? '#ff9800'
+          : '#2196F3'
+      };
+      color: white;
+      padding: 12px 20px;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      z-index: 10000;
+      font-size: 14px;
+      max-width: 300px;
+      word-wrap: break-word;
+      animation: slideInRight 0.3s ease-out;
+    `;
+
+    document.body.appendChild(notification);
+
+    // 3秒后自动移除
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.style.animation = 'slideOutRight 0.3s ease-in';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 300);
+      }
+    }, 3000);
   }
 
   // 🌍 加载语言配置
@@ -2197,6 +2396,105 @@ class OrderPrintApp {
     }
 
     return dishName;
+  }
+
+  // 🚀 新增：开机自动运行功能实现
+  async handleAutoStartToggle(enabled) {
+    try {
+      console.log('[APP] 🚀 设置开机自动运行:', enabled);
+
+      const result = await window.electronAPI.setAutoStart(enabled);
+      console.log('[APP] 📱 开机自动运行设置结果:', result);
+
+      if (result.success) {
+        const isVerified =
+          result.verified !== undefined ? result.verified : true;
+        const actualStatus = result.enabled;
+
+        console.log('[APP] ✅ 开机自动运行设置成功:', {
+          requested: enabled,
+          actualStatus,
+          verified: isVerified,
+        });
+
+        if (isVerified) {
+          this.showNotification(
+            `开机自动运行已${actualStatus ? '启用' : '禁用'}`,
+            'success'
+          );
+        } else {
+          // 检查是否为开发模式的特殊情况
+          if (result.devModeNote) {
+            this.showNotification(
+              `开机自动运行配置已保存（开发模式）。打包后将正常工作。`,
+              'warning'
+            );
+          } else {
+            this.showNotification(
+              `开机自动运行设置可能未完全生效，当前状态：${
+                actualStatus ? '启用' : '禁用'
+              }`,
+              'warning'
+            );
+          }
+        }
+
+        // 确保UI状态与实际状态同步
+        document.getElementById('autoStart').checked = actualStatus;
+      } else {
+        console.error('[APP] ❌ 设置开机自动运行失败:', result.error);
+        this.showNotification(
+          `设置开机自动运行失败: ${result.error || '未知错误'}`,
+          'error'
+        );
+        // 恢复checkbox状态到实际状态
+        document.getElementById('autoStart').checked = result.enabled || false;
+      }
+    } catch (error) {
+      console.error('[APP] ❌ 开机自动运行设置异常:', error);
+      this.showNotification('设置开机自动运行时发生错误', 'error');
+      // 恢复checkbox状态
+      document.getElementById('autoStart').checked = !enabled;
+    }
+  }
+
+  async loadAutoStartConfig() {
+    try {
+      console.log('[APP] 🚀 加载开机自动运行配置');
+
+      const result = await window.electronAPI.getAutoStart();
+
+      if (result.success) {
+        const isEnabled = result.enabled;
+        document.getElementById('autoStart').checked = isEnabled;
+        console.log('[APP] ✅ 开机自动运行配置已加载:', isEnabled);
+
+        // 🎯 检查是否由安装程序设置并显示提示
+        const config = await window.electronAPI.getConfig();
+        if (config.autoStartSetByInstaller && isEnabled) {
+          // 显示一次性提示，告知用户开机自动运行是由安装程序设置的
+          setTimeout(() => {
+            this.showNotification(
+              '开机自动运行已在安装时启用，您可以随时在此处修改设置',
+              'info'
+            );
+          }, 2000);
+
+          // 清除标记，避免重复提示
+          if (!config.autoStartNotificationShown) {
+            config.autoStartNotificationShown = true;
+            await window.electronAPI.saveConfig(config);
+          }
+        }
+      } else {
+        console.warn('[APP] ⚠️ 获取开机自动运行状态失败:', result.error);
+        // 默认为未启用
+        document.getElementById('autoStart').checked = false;
+      }
+    } catch (error) {
+      console.error('[APP] ❌ 加载开机自动运行配置失败:', error);
+      document.getElementById('autoStart').checked = false;
+    }
   }
 }
 

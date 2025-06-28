@@ -1,65 +1,69 @@
 {
   "name": "restaurant-order-printer",
   "version": "1.0.0",
-  "description": "MenuorgPrint - CLodop打印方案",
+  "description": "Menuorg Order Print",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "npm run clean && npm run prebuild && electron-builder",
-    "dev": "chcp 65001 >nul 2>&1 && set NODE_OPTIONS=--no-warnings && electron . --dev",
-    "pack": "electron-builder --publish=never",
-    "dist": "electron-builder --publish=always",
-    "clean": "powershell -Command \"if (Test-Path 'dist') { Remove-Item -Recurse -Force 'dist' -ErrorAction SilentlyContinue }\"",
-    "prebuild": "node build-config.js"
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "dist": "electron-builder --publish=never",
+    "pack": "electron-builder --dir"
   },
   "build": {
-    "appId": "com.restaurant.order.printer",
-    "productName": "Restaurant Order Printer",
-    "removePackageScripts": false,
+    "appId": "com.restaurant.orderprinter",
+    "productName": "MenuorgPrint",
     "directories": {
       "output": "dist"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    },
-    "win": {
-      "icon": "assets/icon.ico",
-      "target": "nsis"
-    },
-    "mac": {
-      "icon": "assets/icon.icns"
-    },
-    "linux": {
-      "icon": "assets/icon.png"
     },
     "files": [
       "main.js",
       "preload.js",
-      "build-config.js",
       "renderer/**/*",
       "src/**/*",
-      "CLodop/**/*",
       "assets/**/*",
-      "package.json"
-    ]
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MenuorgPrint",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeader": "assets/installer-header.bmp",
+      "installerSidebar": "assets/installer-sidebar.bmp",
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "menuCategory": "Restaurant Tools",
+      "include": "installer/installer-script.nsh"
+    }
   },
   "keywords": [
     "restaurant",
+    "printing",
     "order",
-    "printer",
-    "electron",
-    "clodop"
+    "electron"
   ],
-  "author": "Restaurant Order Printer",
+  "author": "Restaurant Team",
   "license": "MIT",
   "devDependencies": {
-    "cross-env": "^7.0.3",
-    "electron": "22.3.27",
-    "electron-builder": "^23.0.0"
+    "electron": "^22.3.27",
+    "electron-builder": "^26.0.12"
   },
-  "dependencies": {
-    "axios": "^1.4.0",
-    "ws": "^8.13.0"
-  }
+  "dependencies": {}
 }

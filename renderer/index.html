@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Restaurant Order Print System</title>
+    <title>Menuorg Order Print</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
@@ -49,7 +49,7 @@
       <!-- Main Section -->
       <div id="mainSection" class="section hidden">
         <div class="header">
-          <h1>Restaurant Order Print System</h1>
+          <h1>Menuorg Order Print</h1>
           <div class="user-info">
             <span id="userInfo"></span>
             <button id="logoutBtn" class="btn-secondary">Logout</button>
@@ -195,6 +195,18 @@
                   <span class="checkmark"></span>
                   自动打印新订单
                 </label>
+              </div>
+
+              <!-- 🚀 新增：开机自动运行设置 -->
+              <div class="auto-start-config">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="autoStart" />
+                  <span class="checkmark"></span>
+                  开机自动运行
+                </label>
+                <small class="config-description"
+                  >启用后，系统开机时自动启动应用到托盘</small
+                >
               </div>
             </div>
 

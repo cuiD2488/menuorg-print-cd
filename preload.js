@@ -25,6 +25,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   generatePrintPreview: (orderData, settings) =>
     ipcRenderer.invoke('print-preview', orderData, settings),
 
+  // 🚀 开机自动运行
+  setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
+  getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
+
   // 中文编码相关API已移除
 
   // 错误监听

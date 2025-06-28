@@ -1430,3 +1430,117 @@ button:hover {
         width: 100%;
     }
 }
+
+/* 🚀 开机自动运行配置样式 */
+.auto-start-config {
+    margin: 15px 0;
+    padding: 15px;
+    background: #fff3e0;
+    border: 2px solid #ffcc02;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.auto-start-config:hover {
+    background: #ffeaa7;
+    border-color: #fdcb6e;
+}
+
+.auto-start-config .checkbox-label {
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #d68910;
+}
+
+.auto-start-config .checkbox-label input[type="checkbox"]:checked+.checkmark {
+    background: #f39c12;
+    border-color: #f39c12;
+}
+
+.auto-start-config .config-description {
+    margin: 8px 0 0 28px;
+    font-size: 11px;
+    color: #7d6608;
+    line-height: 1.4;
+    font-style: italic;
+    display: block;
+}
+
+/* 自动打印配置样式增强 */
+.auto-print-config {
+    margin: 15px 0;
+    padding: 15px;
+    background: #e8f5e8;
+    border: 2px solid #4caf50;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.auto-print-config:hover {
+    background: #d4edda;
+    border-color: #28a745;
+}
+
+.auto-print-config .checkbox-label {
+    font-weight: 600;
+    color: #2e7d32;
+}
+
+.auto-print-config .checkbox-label input[type="checkbox"]:checked+.checkmark {
+    background: #4caf50;
+    border-color: #4caf50;
+}
+
+/* 🔔 通知动画样式 */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: all 0.3s ease;
+}
+
+.notification-success {
+    background: #4CAF50;
+    border-left: 4px solid #2E7D32;
+}
+
+.notification-error {
+    background: #f44336;
+    border-left: 4px solid #c62828;
+}
+
+.notification-warning {
+    background: #ff9800;
+    border-left: 4px solid #f57c00;
+}
+
+.notification-info {
+    background: #2196F3;
+    border-left: 4px solid #1565C0;
+}

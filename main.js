@@ -37,52 +37,306 @@ function getConfig() {
   }
 }
 
+// 🚀 开机自动运行管理
+function setAutoStart(enabled) {
+  try {
+    const appName = app.getName();
+    const executablePath = process.execPath;
+    const isDevMode = !app.isPackaged;
+
+    console.log('📱 设置开机自动运行:', {
+      enabled,
+      appName,
+      executablePath,
+      isPackaged: app.isPackaged,
+      isDevMode,
+    });
+
+    // 如果是开发模式，给出警告
+    if (isDevMode) {
+      console.warn('⚠️ 开发模式下开机自动运行可能无法生效，需要打包后测试');
+    }
+
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      openAsHidden: enabled, // 开机时在后台启动（最小化到托盘）
+      path: executablePath,
+      args: enabled ? ['--auto-start'] : [],
+    });
+
+    // 保存设置到配置文件
+    const config = getConfig();
+    config.autoStart = enabled;
+    config.autoStartLastUpdate = new Date().toISOString();
+    config.isDevMode = isDevMode; // 记录是否为开发模式
+    saveConfig(config);
+
+    console.log('✅ 开机自动运行设置已保存:', enabled);
+    return true;
+  } catch (error) {
+    console.error('❌ 设置开机自动运行失败:', error);
+    return false;
+  }
+}
+
+function getAutoStartStatus() {
+  try {
+    const loginItemSettings = app.getLoginItemSettings();
+    const config = getConfig();
+    const configAutoStart = config.autoStart;
+    const isDevMode = !app.isPackaged;
+
+    console.log('📱 当前开机自动运行状态:', {
+      systemEnabled: loginItemSettings.openAtLogin,
+      configEnabled: configAutoStart,
+      isDevMode,
+      loginItemSettings,
+    });
+
+    // 在开发模式下，如果系统设置失败但配置文件中已保存，则返回配置文件的值
+    if (
+      isDevMode &&
+      configAutoStart !== undefined &&
+      !loginItemSettings.openAtLogin
+    ) {
+      console.log('🔧 开发模式：使用配置文件中的设置');
+      return configAutoStart;
+    }
+
+    // 以系统设置为准
+    return loginItemSettings.openAtLogin;
+  } catch (error) {
+    console.error('❌ 获取开机自动运行状态失败:', error);
+    return false;
+  }
+}
+
+// 🚀 异步验证开机自动运行状态（用于解决时序问题）
+async function verifyAutoStartStatus(expectedStatus, maxRetries = 3) {
+  const isDevMode = !app.isPackaged;
+
+  for (let i = 0; i < maxRetries; i++) {
+    const currentStatus = getAutoStartStatus();
+
+    if (currentStatus === expectedStatus) {
+      console.log('✅ 开机自动运行状态验证成功:', currentStatus);
+      return { status: currentStatus, isDevMode, verified: true };
+    }
+
+    console.log(
+      `🔄 开机自动运行状态验证中... (${
+        i + 1
+      }/${maxRetries}) 期望:${expectedStatus}, 实际:${currentStatus}`
+    );
+
+    // 等待一段时间后重试
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  const finalStatus = getAutoStartStatus();
+  const config = getConfig();
+
+  // 在开发模式下，如果系统设置未生效但配置已保存，仍认为设置成功
+  if (isDevMode && config.autoStart === expectedStatus) {
+    console.log('🔧 开发模式：配置已保存，系统设置将在打包后生效');
+    return {
+      status: expectedStatus,
+      isDevMode,
+      verified: false,
+      devModeNote: true,
+    };
+  }
+
+  console.warn('⚠️ 开机自动运行状态验证最终结果:', finalStatus);
+  return { status: finalStatus, isDevMode, verified: false };
+}
+
+function initAutoStart() {
+  try {
+    // 检查启动参数
+    const isAutoStarted = process.argv.includes('--auto-start');
+
+    if (isAutoStarted) {
+      console.log('🚀 应用通过开机自动运行启动');
+
+      // 自动启动时默认最小化到托盘
+      if (mainWindow) {
+        mainWindow.hide();
+      }
+
+      // 显示简短的托盘通知
+      setTimeout(() => {
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'MenuorgPrint',
+            body: '应用已在后台启动，随时为您处理订单打印',
+            silent: true,
+          }).show();
+        }
+      }, 3000);
+    }
+
+    // 🎯 检查安装程序设置的开机自动运行标记
+    const autoStartFlagPath = path.join(__dirname, 'auto-start-enabled.flag');
+    const installerSetAutoStart = fs.existsSync(autoStartFlagPath);
+
+    if (installerSetAutoStart && app.isPackaged) {
+      console.log('🔧 检测到安装程序启用了开机自动运行，同步到应用配置');
+
+      // 读取标记文件
+      try {
+        const flagContent = fs.readFileSync(autoStartFlagPath, 'utf8').trim();
+        if (flagContent === '1') {
+          // 同步到应用配置
+          const config = getConfig();
+          config.autoStart = true;
+          config.autoStartSetByInstaller = true;
+          config.autoStartLastUpdate = new Date().toISOString();
+          saveConfig(config);
+
+          // 删除标记文件，避免重复处理
+          fs.unlinkSync(autoStartFlagPath);
+          console.log('✅ 安装程序的开机自动运行设置已同步到应用配置');
+        }
+      } catch (error) {
+        console.warn('⚠️ 处理安装程序开机自动运行标记失败:', error);
+      }
+    }
+
+    // 同步系统设置和配置文件
+    const systemEnabled = app.getLoginItemSettings().openAtLogin;
+    const config = getConfig();
+
+    if (config.autoStart !== systemEnabled) {
+      console.log('🔄 同步开机自动运行设置:', systemEnabled);
+      config.autoStart = systemEnabled;
+      saveConfig(config);
+    }
+  } catch (error) {
+    console.error('❌ 初始化开机自动运行失败:', error);
+  }
+}
+
 let mainWindow;
 let tray;
 
 function createWindow() {
+  // 检查是否为自动启动
+  const isAutoStart = process.argv.includes('--auto-start');
+
+  console.log('🚀 创建主窗口:', {
+    isAutoStart,
+    args: process.argv,
+  });
+
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    width: 1400,
+    height: 900,
+    minWidth: 1200,
+    minHeight: 700,
+    show: !isAutoStart, // 自动启动时不显示窗口
+    autoHideMenuBar: true,
+    icon: path.join(__dirname, 'icon.ico'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    // icon: path.join(__dirname, 'assets/icon.ico'), // 暂时移除图标
-    show: false,
-    titleBarStyle: 'default',
   });
 
   mainWindow.loadFile('renderer/index.html');
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    // 默认打开开发者工具以便查看控制台
-    // mainWindow.webContents.openDevTools();
-  });
+  // 如果是自动启动，直接最小化到托盘
+  if (isAutoStart) {
+    mainWindow.hide();
+    console.log('🚀 自动启动模式：应用已启动到托盘');
+  }
 
-  // 处理窗口关闭
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 
-  // 处理窗口最小化到托盘
-  mainWindow.on('minimize', () => {
-    if (tray) {
-      mainWindow.hide();
-    }
-  });
+  // mainWindow.webContents.openDevTools();
 
-  // 阻止窗口关闭，改为隐藏到托盘
+  // 点击关闭按钮时最小化到托盘而不是退出
   mainWindow.on('close', (event) => {
-    if (!app.isQuiting && tray) {
+    if (!app.isQuiting) {
       event.preventDefault();
       mainWindow.hide();
+      console.log('✅ 应用已最小化到托盘');
     }
+    return false;
   });
+}
+
+// 🚀 创建托盘菜单的全局函数
+function createTrayMenu() {
+  const isAutoStartEnabled = getAutoStartStatus();
+
+  return Menu.buildFromTemplate([
+    {
+      label: '打开应用',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createWindow();
+        }
+      },
+    },
+    {
+      label: '隐藏窗口',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.hide();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '🚀 开机自动运行',
+      type: 'checkbox',
+      checked: isAutoStartEnabled,
+      click: (menuItem) => {
+        const success = setAutoStart(menuItem.checked);
+        if (success) {
+          // 重新创建菜单以更新状态
+          setTimeout(() => {
+            if (tray) {
+              tray.setContextMenu(createTrayMenu());
+            }
+          }, 100);
+
+          // 显示状态通知
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'MenuorgPrint',
+              body: menuItem.checked
+                ? '已启用开机自动运行，下次开机时将自动在后台启动'
+                : '已禁用开机自动运行',
+              silent: false,
+            }).show();
+          }
+        } else {
+          // 如果设置失败，恢复菜单状态
+          setTimeout(() => {
+            if (tray) {
+              tray.setContextMenu(createTrayMenu());
+            }
+          }, 100);
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '退出应用',
+      click: () => {
+        app.isQuiting = true;
+        app.quit();
+      },
+    },
+  ]);
 }
 
 // 创建托盘
@@ -182,37 +436,10 @@ function createTray() {
 
   tray = new Tray(trayIcon);
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: '打开应用',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        } else {
-          createWindow();
-        }
-      },
-    },
-    {
-      label: '隐藏窗口',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.hide();
-        }
-      },
-    },
-    { type: 'separator' },
-    {
-      label: '退出应用',
-      click: () => {
-        app.isQuiting = true;
-        app.quit();
-      },
-    },
-  ]);
-
+  // 设置初始菜单
+  const contextMenu = createTrayMenu();
   tray.setContextMenu(contextMenu);
+
   tray.setToolTip('MenuorgPrint - 餐厅订单打印');
 
   // 双击托盘图标显示窗口
@@ -233,6 +460,9 @@ function createTray() {
 app.whenReady().then(() => {
   createWindow();
   createTray();
+
+  // 🚀 初始化开机自动运行功能
+  initAutoStart();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -400,5 +630,58 @@ ipcMain.handle('get-print-settings', async () => {
   } catch (error) {
     console.error('获取打印设置失败:', error);
     return {};
+  }
+});
+
+// 🚀 开机自动运行 IPC 处理程序
+ipcMain.handle('set-auto-start', async (event, enabled) => {
+  try {
+    console.log('📱 IPC请求设置开机自动运行:', enabled);
+    const success = setAutoStart(enabled);
+
+    if (success) {
+      // 🔄 异步验证设置是否生效
+      const verifiedStatus = await verifyAutoStartStatus(enabled);
+
+      if (tray) {
+        // 更新托盘菜单状态
+        setTimeout(() => {
+          tray.setContextMenu(createTrayMenu());
+        }, 100);
+      }
+
+      return {
+        success: true,
+        enabled: verifiedStatus.status,
+        requested: enabled,
+        verified: verifiedStatus.verified,
+        isDevMode: verifiedStatus.isDevMode,
+        devModeNote: verifiedStatus.devModeNote,
+      };
+    } else {
+      return {
+        success: false,
+        enabled: getAutoStartStatus(),
+        error: '设置失败',
+      };
+    }
+  } catch (error) {
+    console.error('❌ IPC设置开机自动运行失败:', error);
+    return {
+      success: false,
+      enabled: getAutoStartStatus(),
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('get-auto-start', async () => {
+  try {
+    const enabled = getAutoStartStatus();
+    console.log('📱 IPC获取开机自动运行状态:', enabled);
+    return { success: true, enabled };
+  } catch (error) {
+    console.error('❌ IPC获取开机自动运行状态失败:', error);
+    return { success: false, enabled: false, error: error.message };
   }
 });
