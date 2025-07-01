@@ -623,6 +623,11 @@ class LodopPrinterManager {
             this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
           }
 
+          this.LODOP.SET_PRINT_STYLE('FontSize', 10);
+          this.LODOP.SET_PRINT_STYLE('FontName', '微软雅黑');
+          // this.LODOP.SET_PRINT_STYLEA(-1, 'FontName', '微软雅黑');
+          // this.LODOP.SET_PRINT_STYLEA(-1, 'Alignment', 1); // 左对齐避免拉伸
+
           yPosMm += lineHeightMm;
         } else {
           yPosMm += 2; // 空行间距2mm
@@ -1283,6 +1288,9 @@ class LodopPrinterManager {
             this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
             this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
           }
+
+          this.LODOP.SET_PRINT_STYLE('FontSize', 10);
+          this.LODOP.SET_PRINT_STYLE('FontName', '华文行楷');
 
           yPosMm += lineHeightMm;
         } else {
