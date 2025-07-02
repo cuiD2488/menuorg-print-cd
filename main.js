@@ -256,7 +256,12 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // mainWindow.webContents.openDevTools();
+  // 本地运行打开，其他清空关闭控制台
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 
   // 点击关闭按钮时最小化到托盘而不是退出
   mainWindow.on('close', (event) => {

@@ -506,40 +506,26 @@ class LodopPrinterManager {
       // 获取打印机信息
       const printer = this.printers.find((p) => p.name === printerName);
       const paperWidth = printer ? printer.width : 80;
-
-      // 🎯 使用新的固定模板布局系统
       const layout = this.calculateLayoutParams(paperWidth);
 
-      console.log(`[LODOP] 🎯 ${printerName} 使用固定模板布局参数:`, {
-        纸张宽度: `${layout.paperWidth}mm`,
-        模板类型: layout.debug.templateType,
-        边距: `左${layout.margins.left}mm, 右${layout.margins.right}mm`,
-        文本区域: `${layout.textAreaWidth}mm`,
-        字体: `基础${layout.fonts.base}pt, 标题${layout.fonts.title}pt, 菜品${layout.fonts.item}pt`,
-      });
-
-      // 优化纸张高度计算 - 更精确的计算，减少底部空白
-      const lines = content.split('\n');
-      const nonEmptyLines = lines.filter((line) => line.trim()).length;
-      const emptyLines = lines.length - nonEmptyLines;
-
-      // 精确计算：非空行4mm + 空行2mm + 上下边距
+      // 纸张高度估算
+      const baseLines = 13; // 订单号+信息+分隔线+费用+备注等基础行数
+      const dishLines = (order.dishes_array || []).length + 2; // 菜品+表头
+      const noteLines = order.order_notes
+        ? this.wrapText(order.order_notes, layout.totalCharWidth - 2).split(
+            '\n'
+          ).length
+        : 0;
       const estimatedHeight = Math.max(
-        nonEmptyLines * 4 +
-          emptyLines * 2 +
+        (baseLines + dishLines + noteLines) * 4 +
           layout.margins.top +
-          layout.margins.bottom,
+          layout.margins.bottom +
+          30,
         80
       );
       const paperHeightMm = `${estimatedHeight}mm`;
       const paperWidthMm = `${paperWidth}mm`;
 
-      console.log(`[LODOP] 设置纸张尺寸: ${paperWidthMm} x ${paperHeightMm}`);
-      console.log(
-        `[LODOP] 内容行数: ${lines.length} (非空: ${nonEmptyLines}, 空行: ${emptyLines})`
-      );
-
-      // 创建打印任务 - 使用PRINT_INITA而不是PRINT_INIT
       this.LODOP.PRINT_INITA(
         0,
         0,
@@ -547,107 +533,211 @@ class LodopPrinterManager {
         paperHeightMm,
         `订单-${order.order_id}`
       );
-
-      // 选择打印机 - 使用SET_PRINTER_INDEXA
       this.LODOP.SET_PRINTER_INDEXA(printerName);
-
-      // 设置页面属性
       this.LODOP.SET_PRINT_PAGESIZE(1, paperWidthMm, paperHeightMm, '');
 
-      let yPosMm = layout.margins.top; // 🔧 使用计算出的顶部边距
-      const lineHeightMm = 4; // 行高4mm
+      let yPosMm = layout.margins.top;
+      const lineHeightMm = 4;
+      let lineIdx = 0;
 
-      console.log(`[LODOP] 🎯 固定模板打印设置:`, {
-        起始Y位置: `${yPosMm}mm`,
-        左边距: `${layout.margins.left}mm`,
-        文本宽度: `${layout.textAreaWidth}mm`,
-        行高: `${lineHeightMm}mm`,
-      });
+      // 1. 订单号
+      this.LODOP.ADD_PRINT_TEXT(
+        `${yPosMm}mm`,
+        `${layout.margins.left}mm`,
+        `${layout.textAreaWidth}mm`,
+        `${lineHeightMm}mm`,
+        `#${order.order_id}`
+      );
+      this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.title);
+      this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'Bold', 1);
+      this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+      yPosMm += lineHeightMm + 2;
 
-      // 逐行添加打印内容
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
+      // 2. 订单信息
+      const infoLines = [
+        `Order Date: ${this.formatDateTime(order.create_time)}`,
+        `Pickup Time: ${this.formatDateTime(order.delivery_time)}`,
+        `Payment: ${order.paystyle == 1 ? 'Card' : 'Cash'}`,
+        `Customer: ${order.recipient_name || 'N/A'}`,
+        `Phone: ${order.recipient_phone || 'N/A'}`,
+        `Type: ${order.delivery_type == 1 ? 'Delivery' : 'Pickup'}`,
+      ];
+      for (let i = 0; i < infoLines.length; i++) {
+        this.LODOP.ADD_PRINT_TEXT(
+          `${yPosMm}mm`,
+          `${layout.margins.left}mm`,
+          `${layout.textAreaWidth}mm`,
+          `${lineHeightMm}mm`,
+          infoLines[i]
+        );
+        this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.normal);
+        this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+        yPosMm += lineHeightMm;
+      }
+      yPosMm += 2;
 
-        if (line.trim()) {
-          // 🎯 使用固定模板计算的参数
-          this.LODOP.ADD_PRINT_TEXT(
-            `${yPosMm}mm`, // Top - 使用计算出的Y位置
-            `${layout.margins.left}mm`, // Left - 使用固定模板计算的左边距
-            `${layout.textAreaWidth}mm`, // Width - 使用固定模板计算的文本宽度
-            `${lineHeightMm}mm`, // Height - 行高
-            line
-          );
+      // 3. 分隔线
+      this.LODOP.ADD_PRINT_TEXT(
+        `${yPosMm}mm`,
+        `${layout.margins.left}mm`,
+        `${layout.textAreaWidth}mm`,
+        `${lineHeightMm}mm`,
+        '='.repeat(layout.totalCharWidth)
+      );
+      this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.normal);
+      this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+      yPosMm += lineHeightMm;
 
-          // 🎯 使用固定模板的字体设置
-          if (line.includes('Order #:')) {
-            // 订单号 - 标题字体
-            this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.title);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 1);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1); // 左对齐
-          } else if (line.includes('TOTAL')) {
-            // 总计 - 菜品字体，加粗
-            this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.item);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 1);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1); // 左对齐
-          } else if (
-            line.includes('Subtotal') ||
-            line.includes('Tax') ||
-            line.includes('Fee') ||
-            line.includes('Tip') ||
-            line.includes('Discount')
-          ) {
-            // 费用项 - 普通字体
-            this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
-          } else if (line.startsWith('---') || line.startsWith('===')) {
-            // 分隔线 - 普通字体
-            this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
-          } else if (
-            this.isItemLine(line) ||
-            line.includes('Item') ||
-            line.includes('Qty') ||
-            line.includes('Price')
-          ) {
-            // 菜品行和表头 - 菜品字体
-            this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.item);
+      // 4. 菜单表格
+      const tableHTML = this.generateOrderTableHTML(order, layout);
+      this.LODOP.ADD_PRINT_TABLE(
+        `${yPosMm}mm`,
+        `${layout.margins.left}mm`,
+        `${layout.textAreaWidth}mm`,
+        'Auto',
+        tableHTML
+      );
+      yPosMm +=
+        4 + (order.dishes_array ? order.dishes_array.length * 4 : 8) + 8; // 估算表格高度
+
+      // 5. 分隔线
+      this.LODOP.ADD_PRINT_TEXT(
+        `${yPosMm}mm`,
+        `${layout.margins.left}mm`,
+        `${layout.textAreaWidth}mm`,
+        `${lineHeightMm}mm`,
+        '='.repeat(layout.totalCharWidth)
+      );
+      this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.normal);
+      this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+      yPosMm += lineHeightMm;
+
+      // 6. 费用明细
+      const subtotal = parseFloat(order.sub_total || '0');
+      const discount = parseFloat(order.discount_total || '0');
+      const taxFee = parseFloat(order.tax_fee || '0');
+      const taxRate = parseFloat(order.tax_rate || '0');
+      const deliveryFee = parseFloat(order.delivery_fee || '0');
+      const serviceFee = parseFloat(order.convenience_fee || '0');
+      const serviceRate = parseFloat(order.convenience_rate || '0');
+      const tip = parseFloat(order.tip_fee || '0');
+      const total = parseFloat(order.total || '0');
+      const feeLines = [
+        this.formatFeeLine('Subtotal', `$${subtotal.toFixed(2)}`, layout),
+      ];
+      if (discount > 0)
+        feeLines.push(
+          this.formatFeeLine('Discount', `-$${discount.toFixed(2)}`, layout)
+        );
+      if (taxFee > 0)
+        feeLines.push(
+          this.formatFeeLine(
+            taxRate > 0 ? `Tax (${taxRate.toFixed(1)}%)` : 'Tax',
+            `$${taxFee.toFixed(2)}`,
+            layout
+          )
+        );
+      if (deliveryFee > 0)
+        feeLines.push(
+          this.formatFeeLine(
+            'Delivery Fee',
+            `$${deliveryFee.toFixed(2)}`,
+            layout
+          )
+        );
+      if (serviceFee > 0)
+        feeLines.push(
+          this.formatFeeLine(
+            serviceRate > 0
+              ? `Service Rate (${serviceRate.toFixed(4)}%)`
+              : 'Service Fee',
+            `$${serviceFee.toFixed(2)}`,
+            layout
+          )
+        );
+      if (tip > 0)
+        feeLines.push(this.formatFeeLine('Tip', `$${tip.toFixed(2)}`, layout));
+      feeLines.push(
+        this.formatFeeLine('TOTAL', `$${total.toFixed(2)}`, layout)
+      );
+      for (let i = 0; i < feeLines.length; i++) {
+        this.LODOP.ADD_PRINT_TEXT(
+          `${yPosMm}mm`,
+          `${layout.margins.left}mm`,
+          `${layout.textAreaWidth}mm`,
+          `${lineHeightMm}mm`,
+          feeLines[i]
+        );
+        this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.normal);
+        this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+        yPosMm += lineHeightMm;
+      }
+
+      // 7. 分隔线
+      this.LODOP.ADD_PRINT_TEXT(
+        `${yPosMm}mm`,
+        `${layout.margins.left}mm`,
+        `${layout.textAreaWidth}mm`,
+        `${lineHeightMm}mm`,
+        '-'.repeat(layout.totalCharWidth)
+      );
+      this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.normal);
+      this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+      yPosMm += lineHeightMm;
+
+      // 8. 备注
+      if (order.order_notes && order.order_notes.trim()) {
+        this.LODOP.ADD_PRINT_TEXT(
+          `${yPosMm}mm`,
+          `${layout.margins.left}mm`,
+          `${layout.textAreaWidth}mm`,
+          `${lineHeightMm}mm`,
+          'Notes:'
+        );
+        this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.normal);
+        this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+        yPosMm += lineHeightMm;
+        const wrappedNotes = this.wrapText(
+          order.order_notes,
+          layout.totalCharWidth - 2
+        );
+        const noteLines = wrappedNotes.split('\n');
+        for (let i = 0; i < noteLines.length; i++) {
+          if (noteLines[i].trim()) {
+            this.LODOP.ADD_PRINT_TEXT(
+              `${yPosMm}mm`,
+              `${layout.margins.left + 2}mm`,
+              `${layout.textAreaWidth - 2}mm`,
+              `${lineHeightMm}mm`,
+              noteLines[i]
+            );
             this.LODOP.SET_PRINT_STYLEA(
-              i,
-              'Bold',
-              line.includes('Item') ? 1 : 0
-            ); // 表头加粗
-            this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
-          } else {
-            // 其他文本 - 普通字体
-            this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
-            this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
+              lineIdx++,
+              'FontSize',
+              layout.fonts.normal
+            );
+            this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
+            yPosMm += lineHeightMm;
           }
-
-          this.LODOP.SET_PRINT_STYLE('FontSize', 10);
-          this.LODOP.SET_PRINT_STYLE('FontName', '微软雅黑');
-          // this.LODOP.SET_PRINT_STYLEA(-1, 'FontName', '微软雅黑');
-          // this.LODOP.SET_PRINT_STYLEA(-1, 'Alignment', 1); // 左对齐避免拉伸
-
-          yPosMm += lineHeightMm;
-        } else {
-          yPosMm += 2; // 空行间距2mm
         }
       }
 
-      console.log(
-        `[LODOP] 共添加了 ${lines.filter((l) => l.trim()).length} 个文本项`
+      // 9. 结尾分隔线
+      this.LODOP.ADD_PRINT_TEXT(
+        `${yPosMm}mm`,
+        `${layout.margins.left}mm`,
+        `${layout.textAreaWidth}mm`,
+        `${lineHeightMm}mm`,
+        '='.repeat(layout.totalCharWidth)
       );
+      this.LODOP.SET_PRINT_STYLEA(lineIdx++, 'FontSize', layout.fonts.normal);
+      this.LODOP.SET_PRINT_STYLEA(lineIdx - 1, 'FontName', 'Consolas');
 
       // 执行打印
       const result = this.LODOP.PRINT();
-
       if (!result) {
         throw new Error('C-Lodop 打印命令执行失败');
       }
-
       console.log(`[LODOP] 订单 ${order.order_id} 打印到 ${printerName} 成功`);
     } catch (error) {
       console.error(`[LODOP] 打印到 ${printerName} 失败:`, error);
@@ -1725,6 +1815,37 @@ class LodopPrinterManager {
       `[LODOP] 🌍 菜名格式化: 原始="${dish.dishes_name}" 英文="${dish.name_en}" 中文="${dish.name_ch}" -> 输出="${dishName}"`
     );
     return dishName;
+  }
+
+  generateOrderTableHTML(order, layout) {
+    // 表头
+    let html = `<table border="0" cellspacing="0" cellpadding="2" style="font-size:${layout.fonts.normal}pt;width:100%;">`;
+    html += `<tr>
+      <th align="left" style="width:${
+        (layout.table.nameWidth / layout.totalCharWidth) * 100
+      }%;">Item</th>
+      <th align="center" style="width:${
+        (layout.table.qtyWidth / layout.totalCharWidth) * 100
+      }%;">Qty</th>
+      <th align="right" style="width:${
+        (layout.table.priceWidth / layout.totalCharWidth) * 100
+      }%;">Price</th>
+    </tr>`;
+
+    // 菜品
+    (order.dishes_array || []).forEach((dish) => {
+      const price = parseFloat(dish.price || '0');
+      const qty = parseInt(dish.amount || '1');
+      const dishName = this.getFormattedDishName(dish);
+      html += `<tr>
+        <td align="left">${dishName}</td>
+        <td align="center">${qty}</td>
+        <td align="right">$${price.toFixed(2)}</td>
+      </tr>`;
+    });
+
+    html += `</table>`;
+    return html;
   }
 }
 
