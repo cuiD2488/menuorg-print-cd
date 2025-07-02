@@ -502,7 +502,7 @@ class LodopPrinterManager {
 
       // 获取打印机信息
       const printer = this.printers.find((p) => p.name === printerName);
-      const paperWidth = printer ? printer.width : 80;
+      const paperWidth = (printer ? printer.width : 80) + 8;
 
       // 🔧 使用新的百分比布局系统
       const layout = this.calculateLayoutParams(paperWidth);
@@ -729,7 +729,7 @@ class LodopPrinterManager {
     }
 
     content += '\n';
-    content += '='.repeat(layout.totalCharWidth) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
     // ============= 菜单表格：百分比列宽设计 =============
     console.log('[LODOP] 🎯 使用百分比表格布局:', {
@@ -817,7 +817,7 @@ class LodopPrinterManager {
       content += '\n'; // 每个菜品后空一行
     });
 
-    content += '='.repeat(layout.totalCharWidth) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
     // ============= 费用明细：使用百分比布局 =============
     const subtotal = parseFloat(order.sub_total || '0');
@@ -937,7 +937,7 @@ class LodopPrinterManager {
 
     // 结尾
     content += '\n';
-    content += '='.repeat(layout.totalCharWidth) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
     console.log('[LODOP] 🎯 百分比布局小票内容生成完成');
     console.log('[LODOP] 内容预览:\n', content);
@@ -1486,7 +1486,7 @@ class LodopPrinterManager {
     content += `Type: ${deliveryType}\n`;
 
     content += '\n';
-    content += '='.repeat(layout.totalCharWidth) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
     // ============= 菜单表格：仅显示指定 printer_type 的菜品 =============
     console.log('[LODOP] 🍽️ 使用百分比表格布局 (部分菜品)');
@@ -1566,7 +1566,7 @@ class LodopPrinterManager {
       content += '\n'; // 每个菜品后空一行
     });
 
-    content += '='.repeat(layout.totalCharWidth) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
     // ============= 费用明细：使用百分比布局 =============
     const subtotal = parseFloat(order.sub_total || '0');
@@ -1686,7 +1686,7 @@ class LodopPrinterManager {
 
     // 结尾
     content += '\n';
-    content += '='.repeat(layout.totalCharWidth) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
     console.log('[LODOP] 🍽️ 部分订单内容生成完成');
     return content;
