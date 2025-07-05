@@ -624,7 +624,7 @@ class LodopPrinterManager {
           }
 
           this.LODOP.SET_PRINT_STYLE('FontSize', 10);
-          this.LODOP.SET_PRINT_STYLE('FontName', '微软雅黑');
+          // this.LODOP.SET_PRINT_STYLE('FontName', '微软雅黑');
           // this.LODOP.SET_PRINT_STYLEA(-1, 'FontName', '微软雅黑');
           // this.LODOP.SET_PRINT_STYLEA(-1, 'Alignment', 1); // 左对齐避免拉伸
 
