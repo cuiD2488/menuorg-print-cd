@@ -45,12 +45,9 @@
       "shortcutName": "MenuorgPrint",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "installerHeader": "assets/installer-header.bmp",
-      "installerSidebar": "assets/installer-sidebar.bmp",
       "allowElevation": true,
       "runAfterFinish": true,
-      "menuCategory": "Restaurant Tools",
-      "include": "installer/installer-script.nsh"
+      "menuCategory": "Restaurant Tools"
     }
   },
   "keywords": [

@@ -49,7 +49,7 @@ class API {
           password: encodedPassword,
           login_method: 'password',
           login_type: 'platform',
-          terminal: 1,
+          terminal: 7,
         }),
       });
 

@@ -73,6 +73,9 @@ class OrderPrintApp {
     await this.loadPrintedOrdersRecord(); // 加载已打印订单记录
     await this.checkAutoLogin();
 
+    // 将toggleSpecs函数添加到window对象，使其可以在HTML中访问
+    window.toggleSpecs = this.toggleSpecs.bind(this);
+
     console.log('[APP] Application initialization completed');
   }
 
@@ -1451,23 +1454,121 @@ class OrderPrintApp {
     // Handle dishes list
     const dishes = order.dishes_array || [];
     const dishesHtml = dishes
-      .map(
-        (dish) => `
-      <tr>
-        <td class="dish-name">${dish.dishes_name}</td>
-        <td class="dish-qty">${dish.amount}</td>
-        <td class="dish-price">$${parseFloat(dish.unit_price || 0).toFixed(
-          2
-        )}</td>
-        <td class="dish-total">$${parseFloat(dish.price || 0).toFixed(2)}</td>
-        ${
-          dish.remark
-            ? `<td class="dish-remark">${dish.remark}</td>`
-            : '<td>-</td>'
+      .map((dish) => {
+        // 计算基础信息
+        const dishNameResult = this.getFormattedDishName(dish);
+        const isMultiLine = dishNameResult && dishNameResult.isMultiLine;
+        const dishNames = isMultiLine ? dishNameResult.lines : [dishNameResult];
+        const quantity = dish.amount || 1;
+        const unitPrice = parseFloat(dish.unit_price || 0);
+        const totalPrice = parseFloat(dish.price || 0);
+
+        // 处理规格信息 - 正确解析dishes_specs_id中的value_info
+        const remarkSpecs =
+          dish.remark && dish.remark.trim() ? dish.remark.trim() : '';
+        const dishSpecs =
+          dish.dishes_specs_id && Array.isArray(dish.dishes_specs_id)
+            ? dish.dishes_specs_id
+            : [];
+
+        // 构建规格信息显示
+        let specsInfo = [];
+        let hasSpecs = false;
+
+        // 如果有remark，作为额外备注信息
+        if (remarkSpecs) {
+          specsInfo.push(`备注: ${remarkSpecs}`);
+          hasSpecs = true;
         }
-      </tr>
-    `
-      )
+
+        // 解析dishes_specs_id中的规格信息
+        if (dishSpecs.length > 0) {
+          dishSpecs.forEach((specGroup, specIndex) => {
+            if (specGroup.value_info && Array.isArray(specGroup.value_info)) {
+              specGroup.value_info.forEach((valueItem, valueIndex) => {
+                const specName = valueItem.name || '';
+                const specCount = valueItem.count || 1;
+                const specMoney = parseFloat(valueItem.money || 0);
+
+                if (specName) {
+                  let specText = `${specName}`;
+                  if (specCount > 1) {
+                    specText += ` x${specCount}`;
+                  }
+                  if (specMoney > 0) {
+                    specText += ` (+$${specMoney.toFixed(2)})`;
+                  }
+                  specsInfo.push(specText);
+                  hasSpecs = true;
+                }
+              });
+            }
+          });
+        }
+
+        // 如果有dishes_describe，也添加到规格信息中
+        if (dish.dishes_describe && dish.dishes_describe.trim()) {
+          specsInfo.push(`描述: ${dish.dishes_describe.trim()}`);
+          hasSpecs = true;
+        }
+
+        // 生成表格行 - 支持多行菜名显示
+        const specsDisplay =
+          specsInfo.length > 0
+            ? specsInfo
+                .map((spec) => `<div class="spec-item">${spec}</div>`)
+                .join('')
+            : '';
+        const specsRowId = `specs-${dish.dishes_id}-${Date.now()}`;
+
+        // 构建菜名显示HTML（支持多行）
+        let dishNameHtml = '';
+        if (isMultiLine) {
+          dishNameHtml = dishNames
+            .map(
+              (name, index) =>
+                `<div class="dish-name-line ${
+                  index === 0 ? 'first-line' : 'additional-line'
+                }">${name}</div>`
+            )
+            .join('');
+        } else {
+          dishNameHtml = `<div class="dish-name-main">${
+            dishNames[0] || 'Unknown Dish'
+          }</div>`;
+        }
+
+        let dishRow = `
+            <tr>
+              <td class="dish-name">
+                ${dishNameHtml}
+                ${hasSpecs ? `<span class="has-specs-indicator">📋</span>` : ''}
+              </td>
+              <td class="dish-qty">${quantity}</td>
+              <td class="dish-price">$${unitPrice.toFixed(2)}</td>
+              <td class="dish-price">$${totalPrice.toFixed(2)}</td>
+              <td class="dish-actions">
+                ${
+                  hasSpecs
+                    ? `<span class="specs-toggle" onclick="toggleSpecs(this)" data-target="${specsRowId}">详情</span>`
+                    : '-'
+                }
+              </td>
+            </tr>`;
+
+        // 添加规格详情行
+        if (hasSpecs) {
+          dishRow += `
+            <tr id="${specsRowId}" class="dish-specs-row">
+              <td colspan="5" class="dish-specs">
+                <span class="specs-label">规格信息:</span>
+                ${specsDisplay}
+              </td>
+            </tr>`;
+        }
+
+        return dishRow;
+      })
       .join('');
 
     detailsEl.innerHTML = `
@@ -1551,7 +1652,7 @@ class OrderPrintApp {
                 <th>Quantity</th>
                 <th>Unit Price</th>
                 <th>Subtotal</th>
-                <th>Notes</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -2348,19 +2449,22 @@ class OrderPrintApp {
 
   updateLanguageStatus() {
     const { enableEnglish, enableChinese } = this.languageConfig;
+    const statusEl = document.querySelector('.language-status');
 
-    // 检查状态并显示相应的提示
-    if (!enableEnglish && !enableChinese) {
-      this.showNotification(
-        '警告：未选择任何语言，打印可能无法显示菜名',
-        'warning'
-      );
-    } else if (enableEnglish && enableChinese) {
-      console.log('[APP] 语言状态：双语模式（英文+中文）');
+    if (!statusEl) return;
+
+    if (enableEnglish && enableChinese) {
+      statusEl.textContent = '双语模式 (English + 中文)';
+      statusEl.className = 'language-status dual';
     } else if (enableEnglish) {
-      console.log('[APP] 语言状态：仅英文');
+      statusEl.textContent = '英文模式 (English Only)';
+      statusEl.className = 'language-status english-only';
+    } else if (enableChinese) {
+      statusEl.textContent = '中文模式 (中文 Only)';
+      statusEl.className = 'language-status chinese-only';
     } else {
-      console.log('[APP] 语言状态：仅中文');
+      statusEl.textContent = '未选择语言';
+      statusEl.className = 'language-status none';
     }
   }
 
@@ -2371,12 +2475,16 @@ class OrderPrintApp {
     let dishName = '';
 
     if (enableEnglish && enableChinese) {
-      // 双语模式：显示 "English Name + 中文名称"
+      // 双语模式：中英文各自单独占行，不使用+号
       const englishName = dish.name_en || dish.dishes_name || '';
       const chineseName = dish.name_ch || '';
 
       if (englishName && chineseName) {
-        dishName = `${englishName} + ${chineseName}`;
+        // 返回对象，包含多行信息
+        return {
+          isMultiLine: true,
+          lines: [englishName, chineseName],
+        };
       } else if (englishName) {
         dishName = englishName;
       } else if (chineseName) {
@@ -2496,6 +2604,27 @@ class OrderPrintApp {
       document.getElementById('autoStart').checked = false;
     }
   }
+
+  // 🔧 切换规格信息显示/隐藏
+  toggleSpecs(toggleElement) {
+    // 从data-target属性获取目标规格行的ID
+    const targetId = toggleElement.getAttribute('data-target');
+    if (!targetId) return;
+
+    const specsRow = document.getElementById(targetId);
+    if (!specsRow) return;
+
+    // 切换显示状态
+    const isVisible = specsRow.classList.contains('show');
+
+    if (isVisible) {
+      specsRow.classList.remove('show');
+      toggleElement.textContent = '详情';
+    } else {
+      specsRow.classList.add('show');
+      toggleElement.textContent = '隐藏';
+    }
+  }
 }
 
 let app;
@@ -2506,110 +2635,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.app = app;
 
-// 添加CLodop状态检查功能
-async function checkCLodopInstallation() {
-  console.log('[App] 检查CLodop安装状态...');
-
-  // 检查CLodop服务端口
-  const ports = [8000, 18000];
-  let clodopAvailable = false;
-  let connectedPort = null;
-
-  for (const port of ports) {
-    try {
-      const response = await fetch(`http://localhost:${port}/CLodopfuncs.js`, {
-        method: 'GET',
-        timeout: 3000,
-      });
-
-      if (response.ok) {
-        console.log(`[App] CLodop服务在端口 ${port} 可用`);
-        clodopAvailable = true;
-        connectedPort = port;
-        break;
-      }
-    } catch (error) {
-      console.log(`[App] 端口 ${port} 不可用:`, error.message);
-    }
-  }
-
-  if (!clodopAvailable) {
-    console.warn('[App] CLodop服务不可用');
-    showCLodopInstallationGuide();
-    return false;
-  }
-
-  console.log(`[App] CLodop服务可用，端口: ${connectedPort}`);
-  return true;
-}
-
-// 显示CLodop安装指导
-function showCLodopInstallationGuide() {
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  modal.innerHTML = `
-    <div class="modal-content" style="max-width: 600px;">
-      <div class="modal-header">
-        <h3>🖨️ CLodop打印控件安装指导</h3>
-        <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
-      </div>
-      <div class="modal-body">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h4 style="color: #e74c3c;">检测到CLodop打印控件未安装或未启动</h4>
-          <p>为了正常使用打印功能，请按照以下步骤安装CLodop：</p>
-        </div>
-
-        <div style="text-align: left; margin: 20px 0;">
-          <h4>📥 安装步骤：</h4>
-          <ol style="line-height: 1.8;">
-            <li><strong>下载CLodop：</strong> 访问 <a href="http://www.lodop.net/download.html" target="_blank">http://www.lodop.net/download.html</a></li>
-            <li><strong>选择版本：</strong> 下载适合您系统的CLodop版本</li>
-            <li><strong>安装程序：</strong> 运行下载的安装程序</li>
-            <li><strong>启动服务：</strong> 安装完成后，CLodop服务会自动启动</li>
-            <li><strong>重启应用：</strong> 重新启动本应用程序</li>
-          </ol>
-        </div>
-
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;">
-          <h4>🔧 故障排除：</h4>
-          <ul style="line-height: 1.6;">
-            <li>确保CLodop服务正在运行（查看系统托盘图标）</li>
-            <li>检查防火墙是否阻止了端口8000或18000</li>
-            <li>尝试重启CLodop服务</li>
-            <li>如果问题持续，请重新安装CLodop</li>
-          </ul>
-        </div>
-
-        <div style="background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 15px 0;">
-          <h4>✅ 临时解决方案：</h4>
-          <p>在安装CLodop之前，应用会显示虚拟打印机用于测试界面功能。</p>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button onclick="window.open('http://www.lodop.net/download.html', '_blank')" class="btn-primary">
-          立即下载CLodop
-        </button>
-        <button onclick="this.closest('.modal').remove()" class="btn-secondary">
-          稍后安装
-        </button>
-        <button onclick="location.reload()" class="btn-success">
-          重新检测
-        </button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(modal);
-  modal.style.display = 'block';
-}
-
 // 修改原有的初始化函数
 async function initializePrinterSystem() {
   try {
     console.log('[App] 初始化打印系统...');
-
-    // 首先检查CLodop安装状态
-    const clodopAvailable = await checkCLodopInstallation();
 
     // ✅ 修复：确保printerManager存在
     if (!window.printerManager) {
@@ -2629,16 +2658,6 @@ async function initializePrinterSystem() {
       // 刷新打印机列表 - 使用正确的方法名
       if (window.app && typeof window.app.updatePrinterSelect === 'function') {
         await window.app.updatePrinterSelect();
-      }
-
-      if (!clodopAvailable && result.engine !== 'C-Lodop') {
-        console.log('[App] 使用回退模式，显示安装提示');
-        // 延迟显示安装指导，避免与其他弹窗冲突
-        setTimeout(() => {
-          if (document.querySelectorAll('.modal').length === 0) {
-            showCLodopInstallationGuide();
-          }
-        }, 2000);
       }
     } else {
       console.error('[App] 打印系统初始化失败:', result.error);

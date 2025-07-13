@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>餐厅信息功能测试</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      .test-section {
+        margin: 20px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        background: #f9f9f9;
+      }
+      .test-title {
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 10px;
+      }
+      button {
+        background: #3498db;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin: 5px;
+      }
+      button:hover {
+        background: #2980b9;
+      }
+      .result {
+        margin-top: 10px;
+        padding: 10px;
+        background: #ecf0f1;
+        border-radius: 3px;
+        white-space: pre-wrap;
+        font-family: monospace;
+        font-size: 12px;
+      }
+      .success {
+        color: #27ae60;
+      }
+      .error {
+        color: #e74c3c;
+      }
+      .info {
+        color: #3498db;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🏪 餐厅信息功能测试</h1>
+
+      <div class="test-section">
+        <div class="test-title">1. 初始化打印管理器</div>
+        <button onclick="initializePrinter()">
+          初始化 LodopPrinterManager
+        </button>
+        <div id="init-result" class="result"></div>
+      </div>
+
+      <div class="test-section">
+        <div class="test-title">2. 测试餐厅信息API</div>
+        <button onclick="testRestaurantAPI()">
+          获取餐厅信息 (rd_id: 35863)
+        </button>
+        <div id="api-result" class="result"></div>
+      </div>
+
+      <div class="test-section">
+        <div class="test-title">3. 测试电话号码格式化</div>
+        <button onclick="testPhoneFormatting()">测试电话号码格式化</button>
+        <div id="phone-result" class="result"></div>
+      </div>
+
+      <div class="test-section">
+        <div class="test-title">4. 测试文本居中功能</div>
+        <button onclick="testTextCentering()">测试文本居中对齐</button>
+        <div id="center-result" class="result"></div>
+      </div>
+
+      <div class="test-section">
+        <div class="test-title">5. 生成餐厅头部信息</div>
+        <button onclick="generateRestaurantHeader()">生成餐厅头部信息</button>
+        <div id="header-result" class="result"></div>
+      </div>
+
+      <div class="test-section">
+        <div class="test-title">6. 测试完整订单打印内容</div>
+        <button onclick="generateFullOrderContent()">
+          生成包含餐厅信息的订单内容
+        </button>
+        <div id="order-result" class="result"></div>
+      </div>
+    </div>
+
+    <!-- 加载 LodopPrinterManager -->
+    <script src="src/printer-lodop.js"></script>
+
+    <script>
+      let printerManager = null;
+
+      // 模拟订单数据
+      const mockOrder = {
+        order_id: 'TEST-001',
+        rd_id: 35863,
+        create_time: '2024-01-15 14:30:00',
+        delivery_time: '2024-01-15 15:00:00',
+        paystyle: 1,
+        recipient_name: '张三',
+        recipient_phone: '1234567890',
+        delivery_type: 2,
+        dishes_array: [
+          {
+            dishes_name: '麻婆豆腐',
+            name_en: 'Mapo Tofu',
+            name_ch: '麻婆豆腐',
+            price: '15.99',
+            amount: '2',
+          },
+          {
+            dishes_name: '宫保鸡丁',
+            name_en: 'Kung Pao Chicken',
+            name_ch: '宫保鸡丁',
+            price: '18.50',
+            amount: '1',
+          },
+        ],
+        sub_total: '50.48',
+        tax_fee: '4.04',
+        tip_fee: '8.00',
+        total: '62.52',
+      };
+
+      function log(elementId, message, type = 'info') {
+        const element = document.getElementById(elementId);
+        const timestamp = new Date().toLocaleTimeString();
+        const className =
+          type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+        element.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+        element.scrollTop = element.scrollHeight;
+      }
+
+      async function initializePrinter() {
+        try {
+          log('init-result', '正在初始化 LodopPrinterManager...', 'info');
+          printerManager = new LodopPrinterManager();
+
+          // 设置语言配置
+          printerManager.setLanguageConfig({
+            enableEnglish: true,
+            enableChinese: true,
+          });
+
+          log('init-result', '✅ LodopPrinterManager 初始化成功', 'success');
+          log(
+            'init-result',
+            `语言配置: ${JSON.stringify(printerManager.getLanguageConfig())}`,
+            'info'
+          );
+        } catch (error) {
+          log('init-result', `❌ 初始化失败: ${error.message}`, 'error');
+        }
+      }
+
+      async function testRestaurantAPI() {
+        if (!printerManager) {
+          log('api-result', '❌ 请先初始化打印管理器', 'error');
+          return;
+        }
+
+        try {
+          log('api-result', '正在获取餐厅信息 (rd_id: 35863)...', 'info');
+          const restaurantInfo = await printerManager.fetchRestaurantInfo(
+            35863
+          );
+
+          if (restaurantInfo) {
+            log('api-result', '✅ 餐厅信息获取成功:', 'success');
+            log('api-result', JSON.stringify(restaurantInfo, null, 2), 'info');
+          } else {
+            log('api-result', '❌ 餐厅信息获取失败', 'error');
+          }
+        } catch (error) {
+          log('api-result', `❌ API 请求失败: ${error.message}`, 'error');
+        }
+      }
+
+      function testPhoneFormatting() {
+        if (!printerManager) {
+          log('phone-result', '❌ 请先初始化打印管理器', 'error');
+          return;
+        }
+
+        const testPhones = [
+          '1234567890',
+          '(123) 456-7890',
+          '123-456-7890',
+          '123.456.7890',
+          '+1 123 456 7890',
+          '12345',
+          '',
+        ];
+
+        log('phone-result', '测试电话号码格式化:', 'info');
+        testPhones.forEach((phone) => {
+          const formatted = printerManager.formatPhoneNumber(phone);
+          log('phone-result', `"${phone}" → "${formatted}"`, 'info');
+        });
+      }
+
+      function testTextCentering() {
+        if (!printerManager) {
+          log('center-result', '❌ 请先初始化打印管理器', 'error');
+          return;
+        }
+
+        const testTexts = [
+          { text: 'Restaurant Name', width: 32 },
+          { text: '中文餐厅名称', width: 32 },
+          {
+            text: 'Very Long Restaurant Name That Might Be Truncated',
+            width: 32,
+          },
+          { text: 'Short', width: 20 },
+          { text: '电话', width: 15 },
+        ];
+
+        log('center-result', '测试文本居中对齐:', 'info');
+        testTexts.forEach(({ text, width }) => {
+          const centered = printerManager.centerText(text, width);
+          log(
+            'center-result',
+            `宽度${width}: "${text}" → "${centered}" (长度: ${centered.length})`,
+            'info'
+          );
+        });
+      }
+
+      function generateRestaurantHeader() {
+        if (!printerManager) {
+          log('header-result', '❌ 请先初始化打印管理器', 'error');
+          return;
+        }
+
+        const restaurantInfo = printerManager.getRestaurantInfo();
+        if (!restaurantInfo) {
+          log('header-result', '❌ 没有餐厅信息，请先获取餐厅信息', 'error');
+          return;
+        }
+
+        try {
+          // 计算布局参数
+          const layout = printerManager.calculateLayoutParams(80);
+          const header = printerManager.generateRestaurantHeader(layout);
+
+          log('header-result', '✅ 餐厅头部信息生成成功:', 'success');
+          log('header-result', '生成的头部内容:', 'info');
+          log('header-result', header, 'info');
+        } catch (error) {
+          log(
+            'header-result',
+            `❌ 生成头部信息失败: ${error.message}`,
+            'error'
+          );
+        }
+      }
+
+      function generateFullOrderContent() {
+        if (!printerManager) {
+          log('order-result', '❌ 请先初始化打印管理器', 'error');
+          return;
+        }
+
+        const restaurantInfo = printerManager.getRestaurantInfo();
+        if (!restaurantInfo) {
+          log('order-result', '❌ 没有餐厅信息，请先获取餐厅信息', 'error');
+          return;
+        }
+
+        try {
+          log('order-result', '正在生成包含餐厅信息的订单内容...', 'info');
+          const content = printerManager.generateOrderPrintContent(mockOrder);
+
+          log('order-result', '✅ 订单内容生成成功:', 'success');
+          log('order-result', '生成的订单内容:', 'info');
+          log('order-result', content, 'info');
+        } catch (error) {
+          log('order-result', `❌ 生成订单内容失败: ${error.message}`, 'error');
+        }
+      }
+
+      // 页面加载时的说明
+      window.onload = function () {
+        console.log('🏪 餐厅信息功能测试页面已加载');
+        console.log('请按顺序执行测试：');
+        console.log('1. 首先初始化打印管理器');
+        console.log('2. 然后获取餐厅信息');
+        console.log('3. 最后测试各项功能');
+      };
+    </script>
+  </body>
+</html>

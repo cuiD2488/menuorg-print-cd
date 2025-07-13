@@ -10,38 +10,61 @@ class LodopPrinterManager {
     this.printers = [];
     this.selectedPrinters = [];
 
-    // 🔧 固定宽度布局配置
+    // 🔧 新增：百分比排版配置
     this.layoutConfig = {
-      // 边距配置（毫米）
+      // 边距配置（百分比）
       margins: {
-        left: 2.0, // 左边距2mm
-        right: 2.0, // 右边距2mm
-        top: 3.0, // 顶部边距3mm
-        bottom: 3.0, // 底部边距3mm
+        left: 1.0, // 左边距：纸张宽度的1%
+        right: 1.0, // 右边距：纸张宽度的1%
+        top: 3.0, // 顶部边距：3mm固定
+        bottom: 3.0, // 底部边距：3mm固定
       },
 
-      // 固定表格列宽配置（毫米）
-      fixedTableLayout: {
-        nameColumn: 64, // 菜名列：64mm
-        qtyColumn: 2, // 数量列：2mm
-        priceColumn: 'auto', // 价格列：自适应
-        qtyPriceSpacing: 2, // 数量与价格间距：2mm
-        totalWidth: 79, // 总宽度：79mm
+      // 字符宽度配置（相对于纸张宽度的系数）
+      charWidthRatio: {
+        58: 0.42, // 58mm纸张：字符宽度 = 纸张宽度 * 0.42
+        80: 0.43, // 80mm纸张：字符宽度 = 纸张宽度 * 0.43
+        default: 0.4, // 其他尺寸：默认系数
       },
 
-      // 费用明细布局配置（毫米）
-      fixedFeeLayout: {
-        labelColumn: 54, // 费用标签列：54mm
-        amountColumn: 25, // 金额列：25mm
-        totalWidth: 79, // 总宽度：79mm
+      // 表格列宽配置（百分比分配）- 针对华文黑体优化
+      tableLayout: {
+        // 标准布局（适用于80mm）- 华文黑体优化
+        standard: {
+          nameColumn: 62, // 菜名列占62%（华文黑体较宽，从65%减少到62%）
+          qtyColumn: 16, // 数量列占16%（从15%增加到16%）
+          priceColumn: 22, // 价格列占22%（从20%增加到22%）
+        },
+        // 紧凑布局（适用于58mm）- 华文黑体优化
+        compact: {
+          nameColumn: 57, // 菜名列占57%（华文黑体较宽，从60%减少到57%）
+          qtyColumn: 17, // 数量列占17%（从15%增加到17%）
+          priceColumn: 26, // 价格列占26%（从25%增加到26%）
+        },
+        // 超紧凑布局（适用于更小纸张）- 华文黑体优化
+        minimal: {
+          nameColumn: 52, // 菜名列占52%（华文黑体较宽，从55%减少到52%）
+          qtyColumn: 22, // 数量列占22%（从20%增加到22%）
+          priceColumn: 26, // 价格列占26%（从25%增加到26%）
+        },
       },
 
-      // 字体大小配置
+      // 费用明细布局配置（百分比）- 华文黑体优化
+      feeLayout: {
+        labelColumn: 68, // 费用标签列占68%（华文黑体较宽，从70%减少到68%）
+        amountColumn: 32, // 金额列占32%（从30%增加到32%）
+      },
+
+      // 字体大小配置（基于纸张宽度）
       fontSize: {
-        base: 10, // 基础字体10pt
-        title: 14, // 标题字体14pt
-        item: 11, // 菜品字体11pt
-        normal: 10, // 普通字体10pt
+        base: {
+          58: 11, // 58mm基础字体11pt
+          80: 12, // 80mm基础字体12pt
+          default: 10, // 其他尺寸默认10pt
+        },
+        title: 2, // 标题字体 = 基础字体 + 2pt
+        item: 1, // 菜品字体 = 基础字体 + 1pt
+        normal: 0, // 普通字体 = 基础字体 + 0pt
       },
     };
 
@@ -151,51 +174,92 @@ class LodopPrinterManager {
     }
   }
 
-  // 🔧 新增：根据固定宽度计算布局参数
+  // 🔧 新增：根据纸张宽度计算布局参数
   calculateLayoutParams(paperWidth) {
     const config = this.layoutConfig;
 
-    // 使用固定边距
-    const leftMarginMm = config.margins.left;
-    const rightMarginMm = config.margins.right;
+    // 🔧 修复边距计算 - 使用更合理的固定边距
+    // 热敏打印机边距不应该用百分比，应该用固定毫米数
+    const leftMarginMm = paperWidth >= 80 ? 2.0 : 1.5; // 80mm用2mm，58mm用1.5mm
+    const rightMarginMm = paperWidth >= 80 ? 2.0 : 1.5;
     const topMarginMm = config.margins.top;
     const bottomMarginMm = config.margins.bottom;
+
+    console.log('[LODOP] 🔧 边距修复:', {
+      纸张宽度: `${paperWidth}mm`,
+      左边距: `${leftMarginMm}mm`,
+      右边距: `${rightMarginMm}mm`,
+      原百分比计算: `${(paperWidth * config.margins.left) / 100}mm`,
+    });
 
     // 计算可用宽度
     const availableWidthMm = paperWidth - leftMarginMm - rightMarginMm;
 
-    // 使用固定表格列宽（毫米）
-    const tableLayout = config.fixedTableLayout;
-    const nameWidthMm = tableLayout.nameColumn;
-    const qtyWidthMm = tableLayout.qtyColumn;
-    const qtyPriceSpacingMm = tableLayout.qtyPriceSpacing;
+    // 🔧 修复字符宽度计算 - 针对华文黑体字体优化
+    // 华文黑体字符相比微软雅黑稍宽，需要调整字符宽度系数
+    const avgCharWidthMm = paperWidth >= 80 ? 2.2 : 2.0; // 华文黑体字符实际宽度（毫米）- 比原来增加0.2mm
+    const maxCharsFromWidth = Math.floor(availableWidthMm / avgCharWidthMm);
 
-    // 计算自适应价格列宽
-    const usedWidth = nameWidthMm + qtyWidthMm + qtyPriceSpacingMm;
-    const priceWidthMm = tableLayout.totalWidth - usedWidth;
-    const tableWidthMm = tableLayout.totalWidth;
+    // 使用更保守的字符宽度设置，适应华文黑体
+    const totalCharWidth = Math.min(
+      maxCharsFromWidth,
+      paperWidth >= 80 ? 33 : 24 // 华文黑体: 80mm用33字符，58mm用24字符（比原来减少3-2字符）
+    );
 
-    // 使用固定费用列宽（毫米）
-    const feeLayout = config.fixedFeeLayout;
-    const feeLabelWidthMm = feeLayout.labelColumn;
-    const feeAmountWidthMm = feeLayout.amountColumn;
-    const feeWidthMm = feeLayout.totalWidth;
-
-    // 使用固定字体大小
-    const fonts = config.fontSize;
-
-    // 🔧 计算总字符宽度（基于纸张宽度）
-    // 80mm打印机大约可容纳38个字符，58mm大约28个字符
-    const totalCharWidth = Math.floor(paperWidth * 0.475); // 约0.475个字符/mm
-
-    console.log('[LODOP] 🔧 固定宽度布局计算:', {
-      纸张宽度: `${paperWidth}mm`,
-      边距: `左${leftMarginMm}mm, 右${rightMarginMm}mm`,
+    console.log('[LODOP] 🔧 字符宽度修复:', {
       可用宽度: `${availableWidthMm}mm`,
-      表格列宽: `菜名${nameWidthMm}mm + 数量${qtyWidthMm}mm + 间距${qtyPriceSpacingMm}mm + 价格${priceWidthMm}mm = ${tableWidthMm}mm`,
-      费用列宽: `标签${feeLabelWidthMm}mm + 金额${feeAmountWidthMm}mm = ${feeWidthMm}mm`,
-      字体大小: `基础${fonts.base}pt, 标题${fonts.title}pt, 菜品${fonts.item}pt, 普通${fonts.normal}pt`,
-      总字符宽度: `${totalCharWidth}字符`,
+      字符宽度: `${avgCharWidthMm}mm`,
+      理论最大: `${maxCharsFromWidth}字符`,
+      实际使用: `${totalCharWidth}字符`,
+      原系数计算: `${Math.floor(
+        paperWidth *
+          (config.charWidthRatio[paperWidth] || config.charWidthRatio.default)
+      )}字符`,
+    });
+
+    // 选择表格布局
+    let tableLayout;
+    if (paperWidth >= 80) {
+      tableLayout = config.tableLayout.standard;
+    } else if (paperWidth >= 58) {
+      tableLayout = config.tableLayout.compact;
+    } else {
+      tableLayout = config.tableLayout.minimal;
+    }
+
+    // 计算表格列宽（字符数）
+    const nameWidth = Math.floor(
+      (totalCharWidth * tableLayout.nameColumn) / 100
+    );
+    const qtyWidth = Math.floor((totalCharWidth * tableLayout.qtyColumn) / 100);
+    const priceWidth = Math.floor(
+      (totalCharWidth * tableLayout.priceColumn) / 100
+    );
+
+    // 计算费用明细列宽
+    const feeLayout = config.feeLayout;
+    const feeLabelWidth = Math.floor(
+      (totalCharWidth * feeLayout.labelColumn) / 100
+    );
+    const feeAmountWidth = Math.floor(
+      (totalCharWidth * feeLayout.amountColumn) / 100
+    );
+
+    // 计算字体大小
+    const baseFontSize =
+      config.fontSize.base[paperWidth] || config.fontSize.base.default;
+    const titleFontSize = baseFontSize + config.fontSize.title;
+    const itemFontSize = baseFontSize + config.fontSize.item;
+    const normalFontSize = baseFontSize + config.fontSize.normal;
+
+    // 🔧 修复文本区域宽度计算 - 直接使用可用宽度
+    // 不再通过字符数量估算，直接使用物理宽度
+    const textAreaWidthMm = availableWidthMm; // 直接使用可用宽度
+
+    console.log('[LODOP] 🔧 文本宽度修复:', {
+      可用宽度: `${availableWidthMm}mm`,
+      文本区域: `${textAreaWidthMm}mm`,
+      原估算方式: `${totalCharWidth * (baseFontSize * 0.15)}mm`,
     });
 
     return {
@@ -210,35 +274,53 @@ class LodopPrinterManager {
       // 宽度信息
       paperWidth: paperWidth,
       availableWidth: availableWidthMm,
-      textAreaWidth: Math.max(tableWidthMm, feeWidthMm), // 使用表格或费用区域的最大宽度
-      totalCharWidth: totalCharWidth, // 🔧 新增：总字符宽度
+      totalCharWidth: totalCharWidth,
+      textAreaWidth: textAreaWidthMm, // 🔧 使用修复后的文本宽度
 
-      // 表格布局（毫米）
+      // 表格布局
       table: {
-        nameWidth: nameWidthMm,
-        qtyWidth: qtyWidthMm,
-        priceWidth: priceWidthMm,
-        qtyPriceSpacing: qtyPriceSpacingMm,
-        totalWidth: tableWidthMm,
+        nameWidth: nameWidth,
+        qtyWidth: qtyWidth,
+        priceWidth: priceWidth,
+        // 验证总宽度
+        totalWidth: nameWidth + qtyWidth + priceWidth,
       },
 
-      // 费用布局（毫米）
+      // 费用布局
       fee: {
-        labelWidth: feeLabelWidthMm,
-        amountWidth: feeAmountWidthMm,
-        totalWidth: feeWidthMm,
+        labelWidth: feeLabelWidth,
+        amountWidth: feeAmountWidth,
+        totalWidth: feeLabelWidth + feeAmountWidth,
       },
 
       // 字体信息
-      fonts: fonts,
+      fonts: {
+        base: baseFontSize,
+        title: titleFontSize,
+        item: itemFontSize,
+        normal: normalFontSize,
+      },
 
       // 调试信息
       debug: {
-        layoutType: 'fixed-width',
-        textAreaUtilization: `${(
-          (Math.max(tableWidthMm, feeWidthMm) / paperWidth) *
-          100
-        ).toFixed(1)}%`,
+        charWidthRatio: `${totalCharWidth}/${paperWidth} = ${(
+          totalCharWidth / paperWidth
+        ).toFixed(3)}`,
+        avgCharWidthMm: avgCharWidthMm,
+        layoutType:
+          paperWidth >= 80
+            ? 'standard'
+            : paperWidth >= 58
+            ? 'compact'
+            : 'minimal',
+        calculations: {
+          理论最大字符: maxCharsFromWidth,
+          实际字符宽度: totalCharWidth,
+          边距总计: leftMarginMm + rightMarginMm,
+          文本区域利用率: `${((textAreaWidthMm / paperWidth) * 100).toFixed(
+            1
+          )}%`,
+        },
       },
     };
   }
@@ -339,7 +421,7 @@ class LodopPrinterManager {
     // 🏪 获取餐厅信息（如果还没有获取或者rd_id不同）
     const rdId = order.rd_id;
     if (rdId && (!this.restaurantInfo || this.restaurantInfo.rd_id !== rdId)) {
-      console.log(`[LODOP] �� 需要获取餐厅信息: rd_id=${rdId}`);
+      console.log(`[LODOP] 🏪 需要获取餐厅信息: rd_id=${rdId}`);
       await this.fetchRestaurantInfo(rdId);
     }
 
@@ -432,10 +514,10 @@ class LodopPrinterManager {
       const printer = this.printers.find((p) => p.name === printerName);
       const paperWidth = (printer ? printer.width : 80) + 8;
 
-      // 🔧 使用新的固定宽度布局系统
+      // 🔧 使用新的百分比布局系统
       const layout = this.calculateLayoutParams(paperWidth);
 
-      console.log(`[LODOP] 🎯 ${printerName} 使用固定宽度布局参数:`, {
+      console.log(`[LODOP] 🎯 ${printerName} 使用百分比布局参数:`, {
         纸张宽度: `${layout.paperWidth}mm`,
         布局类型: layout.debug.layoutType,
         边距: `左${layout.margins.left}mm, 右${layout.margins.right}mm`,
@@ -482,7 +564,7 @@ class LodopPrinterManager {
       let yPosMm = layout.margins.top; // 🔧 使用计算出的顶部边距
       const lineHeightMm = 4; // 行高4mm
 
-      console.log(`[LODOP] 🎯 固定宽度布局打印设置:`, {
+      console.log(`[LODOP] 🎯 百分比布局打印设置:`, {
         起始Y位置: `${yPosMm}mm`,
         左边距: `${layout.margins.left}mm`,
         文本宽度: `${layout.textAreaWidth}mm`,
@@ -494,17 +576,17 @@ class LodopPrinterManager {
         const line = lines[i];
 
         if (line.trim()) {
-          // 🔧 使用固定宽度布局计算的参数
+          // 🔧 使用百分比布局计算的参数
           this.LODOP.ADD_PRINT_TEXT(
             `${yPosMm}mm`, // Top - 使用计算出的Y位置
-            `${layout.margins.left}mm`, // Left - 使用固定宽度计算的左边距
-            `${layout.textAreaWidth}mm`, // Width - 使用固定宽度计算的文本宽度
+            `${layout.margins.left}mm`, // Left - 使用百分比计算的左边距
+            `${layout.textAreaWidth}mm`, // Width - 使用百分比计算的文本宽度
             `${lineHeightMm}mm`, // Height - 行高
             line
           );
 
-          // 🔧 使用固定宽度布局的字体设置
-          if (line.includes('#')) {
+          // 🔧 使用百分比布局的字体设置
+          if (line.includes('Order #:')) {
             // 订单号 - 标题字体
             this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.title);
             this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 1);
@@ -525,7 +607,7 @@ class LodopPrinterManager {
             this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
             this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
             this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
-          } else if (line.startsWith('===') || line.startsWith('=')) {
+          } else if (line.startsWith('---') || line.startsWith('===')) {
             // 分隔线 - 普通字体
             this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
             this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
@@ -546,9 +628,23 @@ class LodopPrinterManager {
             this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 1);
           } else if (this.isRestaurantHeaderLine(line)) {
             // 🏪 餐厅头部信息 - 特殊格式
+            // if (
+            //   this.restaurantInfo &&
+            //   line.trim() === this.restaurantInfo.name.trim()
+            // ) {
+            //   // 餐厅名称：标题字体，加粗，居中
+            //   this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.title);
+            //   this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 1);
+            //   this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 2); // 居中对齐
+            // } else {
+            //   // 餐厅地址、电话：普通字体，居中
+            //   this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
+            //   this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
+            //   this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 2); // 居中对齐
+            // }
             this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
             this.LODOP.SET_PRINT_STYLEA(i, 'Bold', 0);
-            this.LODOP.SET_PRINT_STYLE('FontName', '华文行楷');
+            // this.LODOP.SET_PRINT_STYLEA(i, 'Alignment', 2); // 居中对齐
           } else {
             // 其他文本 - 普通字体
             this.LODOP.SET_PRINT_STYLEA(i, 'FontSize', layout.fonts.normal);
@@ -558,6 +654,8 @@ class LodopPrinterManager {
 
           this.LODOP.SET_PRINT_STYLE('FontSize', 10);
           this.LODOP.SET_PRINT_STYLE('FontName', '华文行楷');
+          // this.LODOP.SET_PRINT_STYLEA(-1, 'FontName', '微软雅黑');
+          // this.LODOP.SET_PRINT_STYLEA(-1, 'Alignment', 1); // 左对齐避免拉伸
 
           yPosMm += lineHeightMm;
         } else {
@@ -598,22 +696,24 @@ class LodopPrinterManager {
   }
 
   generateOrderPrintContent(order) {
-    console.log('[LODOP] 生成热敏小票打印内容（固定宽度布局）...');
+    console.log('[LODOP] 生成热敏小票打印内容（百分比布局）...');
 
     // 获取打印机宽度设置
     const printer = this.printers.find((p) =>
       this.selectedPrinters.includes(p.name)
     );
-    const paperWidth = printer ? printer.width : 80;
+    // const paperWidth = printer ? printer.width : 80;
+    const paperWidth = 190;
 
-    // 🔧 使用新的固定宽度布局系统
+    // 🔧 使用新的百分比布局系统
     const layout = this.calculateLayoutParams(paperWidth);
 
-    console.log('[LODOP] 🎯 固定宽度布局计算结果:', {
+    console.log('[LODOP] 🎯 百分比布局计算结果:', {
       纸张宽度: `${layout.paperWidth}mm`,
       布局类型: layout.debug.layoutType,
-      表格列宽: `菜名${layout.table.nameWidth}mm + 数量${layout.table.qtyWidth}mm + 价格${layout.table.priceWidth}mm = ${layout.table.totalWidth}mm`,
-      费用列宽: `标签${layout.fee.labelWidth}mm + 金额${layout.fee.amountWidth}mm = ${layout.fee.totalWidth}mm`,
+      字符宽度: layout.totalCharWidth,
+      表格列宽: `菜名${layout.table.nameWidth} + 数量${layout.table.qtyWidth} + 价格${layout.table.priceWidth} = ${layout.table.totalWidth}`,
+      费用列宽: `标签${layout.fee.labelWidth} + 金额${layout.fee.amountWidth} = ${layout.fee.totalWidth}`,
       字体大小: `基础${layout.fonts.base}pt, 标题${layout.fonts.title}pt, 菜品${layout.fonts.item}pt`,
       边距: `左${layout.margins.left}mm, 右${layout.margins.right}mm`,
     });
@@ -628,7 +728,7 @@ class LodopPrinterManager {
     content += `#${order.order_id}\n`;
     content += '\n';
 
-    // ============= 订单信息：靠左对齐 =============
+    // ============= 订单信息：靠左对齐，无间隔字符 =============
     content += `Order Date: ${this.formatDateTime(order.create_time)}\n`;
     content += `Pickup Time: ${this.formatDateTime(order.delivery_time)}\n`;
 
@@ -641,32 +741,51 @@ class LodopPrinterManager {
     const deliveryType = order.delivery_type == 1 ? 'Delivery' : 'Pickup';
     content += `Type: ${deliveryType}\n`;
 
-    // 如果是外送，显示地址
+    // 如果是外送，显示地址（可能需要换行）
     if (order.delivery_type == 1 && order.recipient_address) {
-      content += `Address: ${order.recipient_address}\n`;
+      const address = order.recipient_address;
+      if (this.displayWidth(`Address: ${address}`) <= layout.totalCharWidth) {
+        content += `Address: ${address}\n`;
+      } else {
+        content += `Address:\n`;
+        // 地址换行显示，每行缩进2个空格
+        const wrappedAddress = this.wrapText(
+          address,
+          layout.totalCharWidth - 2
+        );
+        const addressLines = wrappedAddress.split('\n');
+        addressLines.forEach((line) => {
+          if (line.trim()) {
+            content += `  ${line}\n`;
+          }
+        });
+      }
     }
 
     content += '\n';
-    content += '='.repeat(Math.floor(layout.textAreaWidth / 2)) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    // ============= 菜单明细：固定宽度布局 =============
-    console.log('[LODOP] 🎯 使用固定宽度表格布局');
+    // ============= 菜单表格：百分比列宽设计 =============
+    console.log('[LODOP] 🎯 使用百分比表格布局:', {
+      菜名列: `${layout.table.nameWidth}字符 (${Math.round(
+        (layout.table.nameWidth / layout.totalCharWidth) * 100
+      )}%)`,
+      数量列: `${layout.table.qtyWidth}字符 (${Math.round(
+        (layout.table.qtyWidth / layout.totalCharWidth) * 100
+      )}%)`,
+      价格列: `${layout.table.priceWidth}字符 (${Math.round(
+        (layout.table.priceWidth / layout.totalCharWidth) * 100
+      )}%)`,
+    });
 
     // 表头
-    const nameColWidth = 26; // 菜名列字符宽度（调整为26字符）
-    const qtyColWidth = 2; // 数量列字符宽度（调整为2字符）
-    const spacingWidth = 2; // 间距字符宽度（2mm对应约2字符）
-    const priceColWidth = 8; // 价格列字符宽度（调整为8字符）
+    content += this.padText('Item', layout.table.nameWidth, 'left');
+    content += this.padText('Qty', layout.table.qtyWidth, 'center');
+    content += this.padText('Price', layout.table.priceWidth, 'right');
+    content += '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    content +=
-      'Item'.padEnd(nameColWidth) +
-      'Qty'.padStart(qtyColWidth) +
-      ' '.repeat(spacingWidth) +
-      'Price'.padStart(priceColWidth) +
-      '\n';
-    content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
-
-    // ============= 菜品明细：固定宽度显示 =============
+    // ============= 菜单明细：百分比列宽，自动换行 =============
     const dishes = order.dishes_array || [];
     dishes.forEach((dish) => {
       const price = parseFloat(dish.price || '0');
@@ -674,75 +793,96 @@ class LodopPrinterManager {
       const priceStr = `$${price.toFixed(2)}`;
       const qtyStr = qty.toString();
 
-      // 菜名处理：支持双语和单词换行
+      // 🔧 菜名处理：支持双语模式的多行显示
       const dishNameResult = this.getFormattedDishName(dish);
-      let dishNameLines = [];
+      const isMultiLine = dishNameResult && dishNameResult.isMultiLine;
+      const dishNames = isMultiLine ? dishNameResult.lines : [dishNameResult];
 
-      if (dishNameResult && dishNameResult.isMultiLine) {
-        // 双语模式：分别处理英文和中文
-        dishNameResult.lines.forEach((name) => {
-          if (name && name.trim()) {
-            const wrappedLines = this.wrapTextByWords(
-              name.trim(),
-              nameColWidth
-            );
-            dishNameLines.push(...wrappedLines);
-          }
-        });
-      } else {
-        // 单语模式：按单词换行
-        const dishName = dishNameResult || '';
-        if (dishName.trim()) {
-          const wrappedLines = this.wrapTextByWords(
-            dishName.trim(),
-            nameColWidth
-          );
-          dishNameLines.push(...wrappedLines);
-        }
-      }
-
-      // 确保至少有一行（防止空菜名）
-      if (dishNameLines.length === 0) {
-        dishNameLines.push('Unknown Item'.padEnd(nameColWidth));
-      }
-
-      // 规格处理
+      // 🔧 规格处理：获取格式化的规格信息（不分语言）
       const formattedSpecs = this.getFormattedSpecs(dish);
 
-      // 显示菜名行（固定列宽）
-      dishNameLines.forEach((dishNameLine, index) => {
+      // 处理菜名显示（可能多行）
+      dishNames.forEach((dishName, index) => {
+        if (!dishName) return;
+
         const isFirstLine = index === 0;
 
-        // 菜名列：固定宽度，已经在wrapTextByWords中padEnd了
-        content += dishNameLine;
-
-        // 只在第一行显示数量和价格
-        if (isFirstLine) {
-          content += qtyStr.padStart(qtyColWidth);
-          content += ' '.repeat(spacingWidth);
-          content += priceStr.padStart(priceColWidth);
+        if (this.displayWidth(dishName) <= layout.table.nameWidth) {
+          // 菜名不超宽，单行显示
+          content += this.padText(dishName, layout.table.nameWidth, 'left');
+          // 只在第一行显示数量和价格
+          if (isFirstLine) {
+            content += this.padText(qtyStr, layout.table.qtyWidth, 'center');
+            content += this.padText(priceStr, layout.table.priceWidth, 'right');
+          } else {
+            content += ' '.repeat(
+              layout.table.qtyWidth + layout.table.priceWidth
+            );
+          }
+          content += '\n';
         } else {
-          // 非第一行：用空格填充数量和价格列
-          content += ' '.repeat(qtyColWidth + spacingWidth + priceColWidth);
+          // 菜名超宽，多行显示
+          const wrappedName = this.wrapText(dishName, layout.table.nameWidth);
+          const nameLines = wrappedName.split('\n');
+
+          nameLines.forEach((nameLine, nameLineIndex) => {
+            if (nameLine.trim()) {
+              content += this.padText(nameLine, layout.table.nameWidth, 'left');
+              // 只在第一个菜名的第一行显示数量和价格
+              if (isFirstLine && nameLineIndex === 0) {
+                content += this.padText(
+                  qtyStr,
+                  layout.table.qtyWidth,
+                  'center'
+                );
+                content += this.padText(
+                  priceStr,
+                  layout.table.priceWidth,
+                  'right'
+                );
+              } else {
+                content += ' '.repeat(
+                  layout.table.qtyWidth + layout.table.priceWidth
+                );
+              }
+              content += '\n';
+            }
+          });
         }
-        content += '\n';
       });
 
-      // 规格信息：每个规格独占行，固定缩进
+      // 🔧 规格信息：每个规格独占行，不分语言
       if (formattedSpecs && formattedSpecs.length > 0) {
+        const specIndent = 2; // 2个空格缩进
+        const specWidth = layout.table.nameWidth - specIndent;
+
         formattedSpecs.forEach((spec) => {
           if (spec && spec.trim()) {
-            // 规格行：缩进2个字符，然后固定宽度
-            const specLines = this.wrapTextByWords(
-              spec.trim(),
-              nameColWidth - 2
-            );
-            specLines.forEach((specLine) => {
-              content += `  ${specLine}`;
-              // 补齐到完整行宽度
-              content += ' '.repeat(qtyColWidth + spacingWidth + priceColWidth);
+            // 如果规格长度超过可用宽度，进行换行处理
+            if (this.displayWidth(spec) <= specWidth) {
+              // 规格不超宽，单行显示
+              content += ' '.repeat(specIndent); // 缩进
+              content += this.padText(spec, specWidth, 'left');
+              content += ' '.repeat(
+                layout.table.qtyWidth + layout.table.priceWidth
+              ); // 数量和价格列留空
               content += '\n';
-            });
+            } else {
+              // 规格超宽，多行显示
+              const wrappedSpec = this.wrapText(spec, specWidth);
+              const specLines = wrappedSpec.split('\n');
+
+              specLines.forEach((line) => {
+                if (line.trim()) {
+                  content += ' '.repeat(specIndent); // 缩进
+                  content += this.padText(line, specWidth, 'left');
+                  content += ' '.repeat(
+                    layout.table.qtyWidth + layout.table.priceWidth
+                  ); // 数量和价格列留空
+                  content += '\n';
+                }
+              });
+            }
           }
         });
       }
@@ -750,9 +890,9 @@ class LodopPrinterManager {
       content += '\n'; // 每个菜品后空一行
     });
 
-    content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    // ============= 费用明细：固定宽度布局 =============
+    // ============= 费用明细：使用百分比布局 =============
     const subtotal = parseFloat(order.sub_total || '0');
     const discount = parseFloat(order.discount_total || '0');
     const taxFee = parseFloat(order.tax_fee || '0');
@@ -763,59 +903,117 @@ class LodopPrinterManager {
     const tip = parseFloat(order.tip_fee || '0');
     const total = parseFloat(order.total || '0');
 
-    // 费用行：固定宽度
-    content +=
-      'Subtotal'.padEnd(25) + `$${subtotal.toFixed(2)}`.padStart(10) + '\n';
+    console.log('[LODOP] 🎯 使用百分比费用布局:', {
+      标签列: `${layout.fee.labelWidth}字符 (${Math.round(
+        (layout.fee.labelWidth / layout.totalCharWidth) * 100
+      )}%)`,
+      金额列: `${layout.fee.amountWidth}字符 (${Math.round(
+        (layout.fee.amountWidth / layout.totalCharWidth) * 100
+      )}%)`,
+    });
 
+    // 🔧 费用行：使用百分比列宽
+    // 小计
+    content += this.padText('Subtotal', layout.fee.labelWidth, 'left');
+    content += this.padText(
+      `$${subtotal.toFixed(2)}`,
+      layout.fee.amountWidth,
+      'right'
+    );
+    content += '\n';
+
+    // 折扣
     if (discount > 0) {
-      content +=
-        'Discount'.padEnd(25) + `-$${discount.toFixed(2)}`.padStart(10) + '\n';
+      content += this.padText('Discount', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `-$${discount.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 税费
     if (taxFee > 0) {
       const taxLabel = taxRate > 0 ? `Tax (${taxRate.toFixed(1)}%)` : 'Tax';
-      content +=
-        taxLabel.padEnd(25) + `$${taxFee.toFixed(2)}`.padStart(10) + '\n';
+      content += this.padText(taxLabel, layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${taxFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 配送费
     if (deliveryFee > 0) {
-      content +=
-        'Delivery Fee'.padEnd(25) +
-        `$${deliveryFee.toFixed(2)}`.padStart(10) +
-        '\n';
+      content += this.padText('Delivery Fee', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${deliveryFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 服务费
     if (serviceFee > 0) {
       const serviceLabel =
         serviceRate > 0
-          ? `Service (${serviceRate.toFixed(1)}%)`
+          ? `Service Rate (${serviceRate.toFixed(4)}%)`
           : 'Service Fee';
-      content +=
-        serviceLabel.padEnd(25) +
-        `$${serviceFee.toFixed(2)}`.padStart(10) +
-        '\n';
+      content += this.padText(serviceLabel, layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${serviceFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 小费
     if (tip > 0) {
-      content += 'Tip'.padEnd(25) + `$${tip.toFixed(2)}`.padStart(10) + '\n';
+      content += this.padText('Tip', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${tip.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
-    // 总计
-    content += 'TOTAL'.padEnd(25) + `$${total.toFixed(2)}`.padStart(10) + '\n';
+    // 总计（加粗显示）
+    content += this.padText('TOTAL', layout.fee.labelWidth, 'left');
+    content += this.padText(
+      `$${total.toFixed(2)}`,
+      layout.fee.amountWidth,
+      'right'
+    );
+    content += '\n';
 
-    // ============= 备注 =============
+    // ============= 备注：靠左显示，自动换行 =============
     if (order.order_notes && order.order_notes.trim()) {
       content += '\n';
-      content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
+      content += '-'.repeat(layout.totalCharWidth) + '\n';
       content += 'Notes:\n';
-      content += `${order.order_notes}\n`;
+      const wrappedNotes = this.wrapText(
+        order.order_notes,
+        layout.totalCharWidth - 2
+      );
+      const noteLines = wrappedNotes.split('\n');
+      noteLines.forEach((line) => {
+        if (line.trim()) {
+          content += `  ${line}\n`;
+        }
+      });
     }
 
     // 结尾
     content += '\n';
-    content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    console.log('[LODOP] 🎯 固定宽度布局小票内容生成完成');
+    console.log('[LODOP] 🎯 百分比布局小票内容生成完成');
+    console.log('[LODOP] 内容预览:\n', content);
     return content;
   }
 
@@ -889,70 +1087,6 @@ class LodopPrinterManager {
     }
 
     return result;
-  }
-
-  // 🔧 新增：按单词换行，避免截断单词
-  wrapTextByWords(text, width) {
-    if (!text || width <= 0) return [];
-
-    const words = text.split(/\s+/); // 按空格分割单词
-    const lines = [];
-    let currentLine = '';
-    let currentWidth = 0;
-
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i];
-      const wordWidth = this.displayWidth(word);
-      const spaceWidth = currentLine ? 1 : 0; // 如果不是行首，需要加空格
-
-      // 检查当前单词是否能放入当前行
-      if (currentLine && currentWidth + spaceWidth + wordWidth > width) {
-        // 当前行放不下，开始新行
-        lines.push(currentLine.padEnd(width));
-        currentLine = word;
-        currentWidth = wordWidth;
-      } else if (!currentLine && wordWidth > width) {
-        // 单个单词太长，强制截断（这种情况很少见）
-        let remainingWord = word;
-        while (remainingWord.length > 0) {
-          let truncated = '';
-          let truncatedWidth = 0;
-
-          for (const char of remainingWord) {
-            const charWidth = char.charCodeAt(0) > 127 ? 2 : 1;
-            if (truncatedWidth + charWidth > width) break;
-            truncated += char;
-            truncatedWidth += charWidth;
-          }
-
-          if (truncated) {
-            lines.push(truncated.padEnd(width));
-            remainingWord = remainingWord.substring(truncated.length);
-          } else {
-            // 防止无限循环
-            break;
-          }
-        }
-        currentLine = '';
-        currentWidth = 0;
-      } else {
-        // 单词可以放入当前行
-        if (currentLine) {
-          currentLine += ' ' + word;
-          currentWidth += spaceWidth + wordWidth;
-        } else {
-          currentLine = word;
-          currentWidth = wordWidth;
-        }
-      }
-    }
-
-    // 添加最后一行
-    if (currentLine) {
-      lines.push(currentLine.padEnd(width));
-    }
-
-    return lines;
   }
 
   // 辅助函数：格式化日期时间
@@ -1118,10 +1252,10 @@ class LodopPrinterManager {
       );
       const paperWidth = printer ? printer.width : 80;
 
-      // 🔧 使用新的固定宽度布局系统
+      // 🔧 使用新的百分比布局系统
       const layout = this.calculateLayoutParams(paperWidth);
 
-      console.log(`[LODOP] 🎯 预览使用固定宽度布局参数:`, {
+      console.log(`[LODOP] 🎯 预览使用百分比布局参数:`, {
         纸张宽度: `${layout.paperWidth}mm`,
         布局类型: layout.debug.layoutType,
         边距: `左${layout.margins.left}mm, 右${layout.margins.right}mm`,
@@ -1418,9 +1552,10 @@ class LodopPrinterManager {
 
     // 获取打印机宽度设置
     const printer = this.printers.find((p) => p.name === group.printerName);
-    const paperWidth = printer ? printer.width : 80;
+    // const paperWidth = printer ? printer.width : 80;
+    const paperWidth = 100;
 
-    // 🔧 使用新的固定宽度布局系统
+    // 🔧 使用新的百分比布局系统
     const layout = this.calculateLayoutParams(paperWidth);
 
     let content = '';
@@ -1430,7 +1565,9 @@ class LodopPrinterManager {
     content += restaurantHeader;
 
     // ============= 订单号区域：靠左对齐 =============
-    content += `#${order.order_id}\n`;
+    content += `#${order.order_id}`;
+
+    content += '\n';
     content += '\n';
 
     // ============= 订单信息：基本信息 =============
@@ -1447,26 +1584,19 @@ class LodopPrinterManager {
     content += `Type: ${deliveryType}\n`;
 
     content += '\n';
-    content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    // ============= 菜单明细：固定宽度布局 =============
-    console.log('[LODOP] 🍽️ 使用固定宽度表格布局 (部分菜品)');
+    // ============= 菜单表格：仅显示指定 printer_type 的菜品 =============
+    console.log('[LODOP] 🍽️ 使用百分比表格布局 (部分菜品)');
 
     // 表头
-    const nameColWidth = 26; // 菜名列字符宽度（调整为26字符）
-    const qtyColWidth = 2; // 数量列字符宽度（调整为2字符）
-    const spacingWidth = 2; // 间距字符宽度（2mm对应约2字符）
-    const priceColWidth = 8; // 价格列字符宽度（调整为8字符）
+    content += this.padText('Item', layout.table.nameWidth, 'left');
+    content += this.padText('Qty', layout.table.qtyWidth, 'center');
+    content += this.padText('Price', layout.table.priceWidth, 'right');
+    content += '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    content +=
-      'Item'.padEnd(nameColWidth) +
-      'Qty'.padStart(qtyColWidth) +
-      ' '.repeat(spacingWidth) +
-      'Price'.padStart(priceColWidth) +
-      '\n';
-    content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
-
-    // ============= 菜品明细：只显示指定 printer_type 的菜品 =============
+    // ============= 菜单明细：只显示指定 printer_type 的菜品 =============
     let totalAmount = 0;
     group.dishes.forEach((dish) => {
       const price = parseFloat(dish.price || '0');
@@ -1476,75 +1606,96 @@ class LodopPrinterManager {
 
       totalAmount += price;
 
-      // 菜名处理：支持双语和单词换行
+      // 🔧 菜名处理：支持双语模式的多行显示
       const dishNameResult = this.getFormattedDishName(dish);
-      let dishNameLines = [];
+      const isMultiLine = dishNameResult && dishNameResult.isMultiLine;
+      const dishNames = isMultiLine ? dishNameResult.lines : [dishNameResult];
 
-      if (dishNameResult && dishNameResult.isMultiLine) {
-        // 双语模式：分别处理英文和中文
-        dishNameResult.lines.forEach((name) => {
-          if (name && name.trim()) {
-            const wrappedLines = this.wrapTextByWords(
-              name.trim(),
-              nameColWidth
-            );
-            dishNameLines.push(...wrappedLines);
-          }
-        });
-      } else {
-        // 单语模式：按单词换行
-        const dishName = dishNameResult || '';
-        if (dishName.trim()) {
-          const wrappedLines = this.wrapTextByWords(
-            dishName.trim(),
-            nameColWidth
-          );
-          dishNameLines.push(...wrappedLines);
-        }
-      }
-
-      // 确保至少有一行（防止空菜名）
-      if (dishNameLines.length === 0) {
-        dishNameLines.push('Unknown Item'.padEnd(nameColWidth));
-      }
-
-      // 规格处理
+      // 🔧 规格处理：获取格式化的规格信息（不分语言）
       const formattedSpecs = this.getFormattedSpecs(dish);
 
-      // 显示菜名行（固定列宽）
-      dishNameLines.forEach((dishNameLine, index) => {
+      // 处理菜名显示（可能多行）
+      dishNames.forEach((dishName, index) => {
+        if (!dishName) return;
+
         const isFirstLine = index === 0;
 
-        // 菜名列：固定宽度，已经在wrapTextByWords中padEnd了
-        content += dishNameLine;
-
-        // 只在第一行显示数量和价格
-        if (isFirstLine) {
-          content += qtyStr.padStart(qtyColWidth);
-          content += ' '.repeat(spacingWidth);
-          content += priceStr.padStart(priceColWidth);
+        if (this.displayWidth(dishName) <= layout.table.nameWidth) {
+          // 菜名不超宽，单行显示
+          content += this.padText(dishName, layout.table.nameWidth, 'left');
+          // 只在第一行显示数量和价格
+          if (isFirstLine) {
+            content += this.padText(qtyStr, layout.table.qtyWidth, 'center');
+            content += this.padText(priceStr, layout.table.priceWidth, 'right');
+          } else {
+            content += ' '.repeat(
+              layout.table.qtyWidth + layout.table.priceWidth
+            );
+          }
+          content += '\n';
         } else {
-          // 非第一行：用空格填充数量和价格列
-          content += ' '.repeat(qtyColWidth + spacingWidth + priceColWidth);
+          // 菜名超宽，多行显示
+          const wrappedName = this.wrapText(dishName, layout.table.nameWidth);
+          const nameLines = wrappedName.split('\n');
+
+          nameLines.forEach((nameLine, nameLineIndex) => {
+            if (nameLine.trim()) {
+              content += this.padText(nameLine, layout.table.nameWidth, 'left');
+              // 只在第一个菜名的第一行显示数量和价格
+              if (isFirstLine && nameLineIndex === 0) {
+                content += this.padText(
+                  qtyStr,
+                  layout.table.qtyWidth,
+                  'center'
+                );
+                content += this.padText(
+                  priceStr,
+                  layout.table.priceWidth,
+                  'right'
+                );
+              } else {
+                content += ' '.repeat(
+                  layout.table.qtyWidth + layout.table.priceWidth
+                );
+              }
+              content += '\n';
+            }
+          });
         }
-        content += '\n';
       });
 
-      // 规格信息：每个规格独占行，固定缩进
+      // 🔧 规格信息：每个规格独占行，不分语言
       if (formattedSpecs && formattedSpecs.length > 0) {
+        const specIndent = 2; // 2个空格缩进
+        const specWidth = layout.table.nameWidth - specIndent;
+
         formattedSpecs.forEach((spec) => {
           if (spec && spec.trim()) {
-            // 规格行：缩进2个字符，然后固定宽度
-            const specLines = this.wrapTextByWords(
-              spec.trim(),
-              nameColWidth - 2
-            );
-            specLines.forEach((specLine) => {
-              content += `  ${specLine}`;
-              // 补齐到完整行宽度
-              content += ' '.repeat(qtyColWidth + spacingWidth + priceColWidth);
+            // 如果规格长度超过可用宽度，进行换行处理
+            if (this.displayWidth(spec) <= specWidth) {
+              // 规格不超宽，单行显示
+              content += ' '.repeat(specIndent); // 缩进
+              content += this.padText(spec, specWidth, 'left');
+              content += ' '.repeat(
+                layout.table.qtyWidth + layout.table.priceWidth
+              ); // 数量和价格列留空
               content += '\n';
-            });
+            } else {
+              // 规格超宽，多行显示
+              const wrappedSpec = this.wrapText(spec, specWidth);
+              const specLines = wrappedSpec.split('\n');
+
+              specLines.forEach((line) => {
+                if (line.trim()) {
+                  content += ' '.repeat(specIndent); // 缩进
+                  content += this.padText(line, specWidth, 'left');
+                  content += ' '.repeat(
+                    layout.table.qtyWidth + layout.table.priceWidth
+                  ); // 数量和价格列留空
+                  content += '\n';
+                }
+              });
+            }
           }
         });
       }
@@ -1552,9 +1703,9 @@ class LodopPrinterManager {
       content += '\n'; // 每个菜品后空一行
     });
 
-    content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    // ============= 费用明细：固定宽度布局 =============
+    // ============= 费用明细：使用百分比布局 =============
     const subtotal = parseFloat(order.sub_total || '0');
     const discount = parseFloat(order.discount_total || '0');
     const taxFee = parseFloat(order.tax_fee || '0');
@@ -1565,59 +1716,116 @@ class LodopPrinterManager {
     const tip = parseFloat(order.tip_fee || '0');
     const total = parseFloat(order.total || '0');
 
-    // 费用行：固定宽度
-    content +=
-      'Subtotal'.padEnd(25) + `$${subtotal.toFixed(2)}`.padStart(10) + '\n';
+    console.log('[LODOP] 🍽️ 部分订单使用百分比费用布局:', {
+      标签列: `${layout.fee.labelWidth}字符 (${Math.round(
+        (layout.fee.labelWidth / layout.totalCharWidth) * 100
+      )}%)`,
+      金额列: `${layout.fee.amountWidth}字符 (${Math.round(
+        (layout.fee.amountWidth / layout.totalCharWidth) * 100
+      )}%)`,
+    });
 
+    // 🔧 费用行：使用百分比列宽
+    // 小计
+    content += this.padText('Subtotal', layout.fee.labelWidth, 'left');
+    content += this.padText(
+      `$${subtotal.toFixed(2)}`,
+      layout.fee.amountWidth,
+      'right'
+    );
+    content += '\n';
+
+    // 折扣
     if (discount > 0) {
-      content +=
-        'Discount'.padEnd(25) + `-$${discount.toFixed(2)}`.padStart(10) + '\n';
+      content += this.padText('Discount', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `-$${discount.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 税费
     if (taxFee > 0) {
       const taxLabel = taxRate > 0 ? `Tax (${taxRate.toFixed(1)}%)` : 'Tax';
-      content +=
-        taxLabel.padEnd(25) + `$${taxFee.toFixed(2)}`.padStart(10) + '\n';
+      content += this.padText(taxLabel, layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${taxFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 配送费
     if (deliveryFee > 0) {
-      content +=
-        'Delivery Fee'.padEnd(25) +
-        `$${deliveryFee.toFixed(2)}`.padStart(10) +
-        '\n';
+      content += this.padText('Delivery Fee', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${deliveryFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 服务费
     if (serviceFee > 0) {
       const serviceLabel =
         serviceRate > 0
-          ? `Service (${serviceRate.toFixed(1)}%)`
+          ? `Service Rate (${serviceRate.toFixed(4)}%)`
           : 'Service Fee';
-      content +=
-        serviceLabel.padEnd(25) +
-        `$${serviceFee.toFixed(2)}`.padStart(10) +
-        '\n';
+      content += this.padText(serviceLabel, layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${serviceFee.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
+    // 小费
     if (tip > 0) {
-      content += 'Tip'.padEnd(25) + `$${tip.toFixed(2)}`.padStart(10) + '\n';
+      content += this.padText('Tip', layout.fee.labelWidth, 'left');
+      content += this.padText(
+        `$${tip.toFixed(2)}`,
+        layout.fee.amountWidth,
+        'right'
+      );
+      content += '\n';
     }
 
-    // 总计
-    content += 'TOTAL'.padEnd(25) + `$${total.toFixed(2)}`.padStart(10) + '\n';
+    // 总计（加粗显示）
+    content += this.padText('TOTAL', layout.fee.labelWidth, 'left');
+    content += this.padText(
+      `$${total.toFixed(2)}`,
+      layout.fee.amountWidth,
+      'right'
+    );
+    content += '\n';
 
-    // ============= 备注 =============
+    // ============= 备注：靠左显示，自动换行 =============
     if (order.order_notes && order.order_notes.trim()) {
       content += '\n';
-      content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
+      content += '-'.repeat(layout.totalCharWidth) + '\n';
       content += 'Notes:\n';
-      content += `${order.order_notes}\n`;
+      const wrappedNotes = this.wrapText(
+        order.order_notes,
+        layout.totalCharWidth - 2
+      );
+      const noteLines = wrappedNotes.split('\n');
+      noteLines.forEach((line) => {
+        if (line.trim()) {
+          content += `  ${line}\n`;
+        }
+      });
     }
 
     // 结尾
     content += '\n';
-    content += '='.repeat(Math.min(layout.totalCharWidth, 38)) + '\n';
+    content += '-'.repeat(layout.totalCharWidth) + '\n';
 
-    console.log('[LODOP] ��️ 部分订单内容生成完成');
+    console.log('[LODOP] 🍽️ 部分订单内容生成完成');
     return content;
   }
 

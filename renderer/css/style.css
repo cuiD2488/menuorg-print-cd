@@ -575,6 +575,68 @@ button:hover {
     font-style: italic;
 }
 
+/* 菜品规格样式 */
+.dish-name {
+    position: relative;
+}
+
+.dish-name-main {
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.has-specs-indicator {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.dish-specs-row {
+    background: #f8f9fa;
+    display: none;
+    /* 默认隐藏，通过JavaScript控制显示 */
+}
+
+.dish-specs-row.show {
+    display: table-row;
+}
+
+.dish-specs {
+    padding: 8px 12px;
+    border-left: 3px solid #17a2b8;
+    font-size: 13px;
+    color: #495057;
+    background: linear-gradient(90deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.specs-label {
+    font-weight: 600;
+    color: #17a2b8;
+    margin-right: 8px;
+}
+
+.specs-toggle {
+    color: #17a2b8;
+    cursor: pointer;
+    font-size: 12px;
+    text-decoration: underline;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+}
+
+.specs-toggle:hover {
+    background: #e3f2fd;
+    color: #0277bd;
+}
+
+.dish-actions {
+    text-align: center;
+    width: 60px;
+}
+
 /* 费用明细 */
 .payment-grid {
     display: grid;
@@ -1543,4 +1605,44 @@ button:hover {
 .notification-info {
     background: #2196F3;
     border-left: 4px solid #1565C0;
+}
+
+/* 🌍 双语菜名显示样式 */
+.dish-name-line {
+    margin-bottom: 2px;
+}
+
+.dish-name-line.first-line {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.dish-name-line.additional-line {
+    font-weight: 400;
+    color: #6c757d;
+    font-size: 0.9em;
+    margin-left: 4px;
+}
+
+/* 双语模式下的菜名容器样式 */
+.dish-name {
+    line-height: 1.4;
+}
+
+.dish-name-main {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+/* 🔧 规格项样式 - 每个规格独占行 */
+.spec-item {
+    margin-bottom: 4px;
+    padding: 2px 0;
+    color: #6c757d;
+    font-size: 0.9em;
+    line-height: 1.3;
+}
+
+.spec-item:last-child {
+    margin-bottom: 0;
 }
