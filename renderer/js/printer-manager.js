@@ -277,14 +277,14 @@ class PrinterManager {
     }
   }
 
-  async testPrint(printerName) {
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
-      return await this.lodopManager.testPrint(printerName);
-    } else {
-      // 使用原生引擎测试打印
-      return await window.electronAPI.testPrint(printerName);
-    }
-  }
+  // 移除测试打印方法
+  // async testPrint(printerName) {
+  //   if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+  //     return await this.lodopManager.testPrint(printerName);
+  //   } else {
+  //     return await window.electronAPI.testPrint(printerName);
+  //   }
+  // }
 
   async printOrder(order) {
     if (this.currentEngine === 'C-Lodop' && this.lodopManager) {

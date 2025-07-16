@@ -313,9 +313,10 @@ class OrderPrintApp {
         this.handleClearAllPrinters();
       });
 
-    document.getElementById('testPrint').addEventListener('click', () => {
-      this.handleTestPrint();
-    });
+    // 移除测试打印事件监听器
+    // document.getElementById('testPrint').addEventListener('click', () => {
+    //   this.handleTestPrint();
+    // });
 
     // 旧的 printerSelect 已被新的复选框列表替代
 
@@ -348,9 +349,10 @@ class OrderPrintApp {
         this.resetDishPrintConfig();
       });
 
-    document.getElementById('testDishPrint').addEventListener('click', () => {
-      this.testDishPrint();
-    });
+    // 移除测试分菜打印事件监听器
+    // document.getElementById('testDishPrint').addEventListener('click', () => {
+    //   this.testDishPrint();
+    // });
 
     // 🌍 新增：语言配置事件监听器
     document.getElementById('enableEnglish').addEventListener('change', () => {
@@ -704,78 +706,6 @@ class OrderPrintApp {
     this.updatePrinterSelect();
 
     this.showTrayNotification('已清空所有打印机选择');
-  }
-
-  async handleTestPrint() {
-    const selectedPrinters = this.printerManager.getSelectedPrinters();
-
-    if (selectedPrinters.length === 0) {
-      alert('请先选择至少一台打印机');
-      return;
-    }
-
-    console.log('[APP] 开始测试打印，选中的打印机:', selectedPrinters);
-
-    let successCount = 0;
-    let errorCount = 0;
-    const errors = [];
-
-    // 显示加载状态
-    const testButton = document.getElementById('testPrint');
-    const originalText = testButton.textContent;
-    testButton.textContent = '测试中...';
-    testButton.disabled = true;
-
-    try {
-      // 并行向所有选中的打印机发送测试打印
-      const printPromises = selectedPrinters.map(async (printerName) => {
-        try {
-          console.log(`[APP] 向打印机 ${printerName} 发送测试打印`);
-          await this.printerManager.testPrint(printerName);
-          successCount++;
-          console.log(`[APP] 打印机 ${printerName} 测试成功`);
-          return { printer: printerName, success: true };
-        } catch (error) {
-          errorCount++;
-          const errorMsg = `${printerName}: ${error.message}`;
-          errors.push(errorMsg);
-          console.error(`[APP] 打印机 ${printerName} 测试失败:`, error);
-          return { printer: printerName, success: false, error: error.message };
-        }
-      });
-
-      const results = await Promise.all(printPromises);
-
-      // 显示结果
-      if (successCount > 0 && errorCount === 0) {
-        this.showTrayNotification(`✅ 所有 ${successCount} 台打印机测试成功！`);
-      } else if (successCount > 0 && errorCount > 0) {
-        this.showTrayNotification(
-          `⚠️ ${successCount} 台成功，${errorCount} 台失败`
-        );
-      } else {
-        this.showTrayNotification(`❌ 所有打印机测试失败`);
-      }
-
-      // 在控制台显示详细结果
-      console.log('[APP] 测试打印结果:', {
-        总数: selectedPrinters.length,
-        成功: successCount,
-        失败: errorCount,
-        详细结果: results,
-      });
-
-      if (errors.length > 0) {
-        console.error('[APP] 测试打印错误详情:', errors);
-      }
-    } catch (error) {
-      console.error('[APP] 测试打印过程出错:', error);
-      this.showTrayNotification(`❌ 测试打印失败: ${error.message}`);
-    } finally {
-      // 恢复按钮状态
-      testButton.textContent = originalText;
-      testButton.disabled = false;
-    }
   }
 
   updatePrinterStatus() {
@@ -2180,92 +2110,7 @@ class OrderPrintApp {
   }
 
   // 测试分菜打印
-  async testDishPrint() {
-    console.log('[APP] 🍽️ 开始测试分菜打印');
-
-    try {
-      // 检查是否有选中的打印机
-      const selectedPrinters = this.printerManager.getSelectedPrinters();
-      if (selectedPrinters.length === 0) {
-        this.showNotification('请先选择至少一台打印机', 'error');
-        return;
-      }
-
-      // 检查是否启用了分菜模式
-      const isEnabled = document.getElementById(
-        'enableSeparatePrinting'
-      ).checked;
-      if (!isEnabled) {
-        this.showNotification('请先启用分菜打印模式', 'error');
-        return;
-      }
-
-      // 创建测试订单
-      const testOrder = {
-        order_id: `TEST-${Date.now()}`,
-        create_time: new Date().toISOString(),
-        delivery_time: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-        paystyle: 1,
-        recipient_name: '测试客户',
-        recipient_phone: '13800138000',
-        delivery_type: 2,
-        sub_total: 45.5,
-        tax_fee: 3.64,
-        tip_fee: 5.0,
-        total: 54.14,
-        order_notes: '这是分菜打印测试订单',
-        dishes_array: [
-          {
-            dishes_name: '宫保鸡丁',
-            price: '18.50',
-            amount: '1',
-            remark: '微辣，不要花生',
-            printer_type: '1',
-          },
-          {
-            dishes_name: '麻婆豆腐',
-            price: '16.00',
-            amount: '1',
-            remark: '中辣',
-            printer_type: '1',
-          },
-          {
-            dishes_name: '凉拌黄瓜',
-            price: '8.00',
-            amount: '1',
-            remark: '多放蒜',
-            printer_type: '2',
-          },
-          {
-            dishes_name: '米饭',
-            price: '3.00',
-            amount: '2',
-            remark: '',
-            printer_type: '0',
-          },
-        ],
-      };
-
-      // 执行测试打印
-      this.showNotification('正在执行分菜打印测试...', 'info');
-
-      const result = await this.printerManager.printOrder(testOrder);
-
-      if (result && result.成功数量 > 0) {
-        this.showNotification(
-          `分菜打印测试完成！成功: ${result.成功数量}台, 失败: ${result.失败数量}台`,
-          'success'
-        );
-        console.log('[APP] 🍽️ 分菜打印测试结果:', result);
-      } else {
-        this.showNotification('分菜打印测试失败', 'error');
-        console.error('[APP] 🍽️ 分菜打印测试失败:', result);
-      }
-    } catch (error) {
-      console.error('[APP] 🍽️ 分菜打印测试异常:', error);
-      this.showNotification('分菜打印测试异常: ' + error.message, 'error');
-    }
-  }
+  // async testDishPrint() { ... }
 
   // 加载分菜打印配置
   loadDishPrintConfig() {
