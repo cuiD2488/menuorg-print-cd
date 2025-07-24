@@ -235,11 +235,30 @@ function checkCLodopStatus() {
   }
 }
 
+// 增强的获取C-Lodop函数，优先使用连接管理器
+function getReliableCLodop() {
+  // 如果有连接管理器，优先使用
+  if (typeof window !== 'undefined' && window.ensureCLodopConnection) {
+    console.log('[C-Lodop] 使用连接管理器获取C-Lodop...');
+    return window.ensureCLodopConnection();
+  }
+
+  // 否则使用传统方法
+  const lodop = getLodop();
+  return Promise.resolve(
+    lodop
+      ? { success: true, lodop: lodop }
+      : { success: false, error: 'C-Lodop不可用' }
+  );
+}
+
 // 导出到全局
 if (typeof window !== 'undefined') {
   window.getLodop = getLodop;
   window.getCLodop = getCLodop;
   window.checkCLodopStatus = checkCLodopStatus;
+  window.getReliableCLodop = getReliableCLodop;
+  window.installCLodop = installCLodop;
 
   console.log('[C-Lodop] 函数已加载到全局作用域');
 }

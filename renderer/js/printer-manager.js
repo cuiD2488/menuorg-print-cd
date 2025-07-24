@@ -194,8 +194,10 @@ class PrinterManager {
           if (typeof window.installCLodop === 'function') {
             window.installCLodop();
           } else {
-            alert(
-              '需要安装C-Lodop打印控件才能使用高级打印功能。\n\n请访问 http://www.lodop.net/download.html 下载安装。'
+            console.warn('[PrinterManager] C-Lodop连接失败，静默处理');
+            // 不显示弹窗，只记录日志
+            console.warn(
+              '[PrinterManager] 建议检查C-Lodop服务状态和防火墙设置'
             );
           }
         }, 1000);
