@@ -8,6 +8,7 @@ dist_electron
 package-lock.json
 yarn.lock
 playwright-report
+.history
 
 # local env files
 .env.local

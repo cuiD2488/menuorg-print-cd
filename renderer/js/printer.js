@@ -682,130 +682,12 @@ class LegacyPrinterManager {
   }
 
   // 增强版测试打印（支持编码测试）
-  async testPrint(printerName = null, testEncodings = false) {
-    const printersToTest = printerName
-      ? [printerName]
-      : this.getEnabledPrinters().map((p) => p.name);
-
-    if (printersToTest.length === 0) {
-      throw new Error('没有启用的打印机可供测试');
-    }
-
-    const results = [];
-
-    for (const printerNameToTest of printersToTest) {
-      try {
-        const printer = this.printers.find((p) => p.name === printerNameToTest);
-        const width = printer ? printer.width : 80;
-        const fontSize = printer ? printer.fontSize : this.globalFontSize;
-
-        console.log(
-          `开始测试打印机: ${printerNameToTest} (宽度: ${width}mm, 字体: ${this.getFontSizeText(
-            fontSize
-          )})`
-        );
-
-        // 如果需要测试编码
-        if (testEncodings && printer) {
-          const encodingTestResult = await this.testPrinterEncodings(printer);
-          results.push({
-            printer: printerNameToTest,
-            success: true,
-            encodingTest: encodingTestResult,
-          });
-          console.log(
-            `打印机编码测试完成: ${printerNameToTest}`,
-            encodingTestResult
-          );
-        } else {
-          // 标准测试打印
-          if (window.electronAPI && window.electronAPI.testPrint) {
-            // Electron环境：使用真实的测试打印
-            await window.electronAPI.testPrint(
-              printerNameToTest,
-              width,
-              fontSize
-            );
-          } else {
-            // 浏览器环境：使用模拟测试打印
-            await this.mockTestPrint(printerNameToTest, width, fontSize);
-          }
-          results.push({ printer: printerNameToTest, success: true });
-          console.log(`打印机测试成功: ${printerNameToTest}`);
-        }
-      } catch (error) {
-        console.error(`打印机测试失败: ${printerNameToTest}`, error);
-        results.push({
-          printer: printerNameToTest,
-          success: false,
-          error: error.message,
-        });
-      }
-    }
-
-    return results;
-  }
+  // async testPrint(printerName = null, testEncodings = false) {
+  //   // 测试打印方法已移除以优化性能
+  // }
 
   // 新增：测试打印机编码兼容性
-  async testPrinterEncodings(printer) {
-    console.log(`🧪 [编码测试] 开始测试打印机编码兼容性: ${printer.name}`);
-
-    // 测试用的中文文本（参考main.rs的测试内容）
-    const testTexts = {
-      simplified: '简体中文测试：你好世界！订单#123，总计￥99.50',
-      traditional: '繁體中文測試：您好世界！訂單#123，總計￥99.50',
-      mixed: '混合文本测試：Hello 世界！Order#123，總計$99.50',
-      symbols: '符号测试：【订单】※￥＄€∞±≠≤≥',
-      menu: '菜品：宫保鸡丁、麻婆豆腐、白米饭',
-      address: '地址：北京市朝阳区望京街道123号2B室',
-    };
-
-    const results = {};
-
-    for (const [textType, testText] of Object.entries(testTexts)) {
-      console.log(`🔍 [编码测试] 测试文本类型: ${textType}`);
-
-      const charType = this.encodingDetector.detectChineseType(testText);
-      const encodingTests = this.encodingDetector.testAllEncodings(testText);
-
-      // 智能选择推荐编码
-      const recommendedEncoding = this.encodingDetector.autoSelectEncoding(
-        testText,
-        {
-          recommendedEncoding: printer.recommendedEncoding,
-          fallbackEncodings: printer.fallbackEncodings,
-        }
-      );
-
-      results[textType] = {
-        text: testText,
-        characterType: charType,
-        recommendedEncoding: recommendedEncoding,
-        allEncodingTests: encodingTests,
-        bestEncoding: encodingTests[0],
-      };
-
-      console.log(
-        `✅ [编码测试] ${textType} - 字符类型: ${charType}, 推荐编码: ${recommendedEncoding}`
-      );
-    }
-
-    // 生成编码兼容性报告
-    const compatibilityReport = this.generateEncodingCompatibilityReport(
-      printer,
-      results
-    );
-
-    return {
-      printer: printer.name,
-      chineseSupport: printer.supportsChinese,
-      recommendedEncoding: printer.recommendedEncoding,
-      fallbackEncodings: printer.fallbackEncodings,
-      testResults: results,
-      compatibilityReport: compatibilityReport,
-      timestamp: new Date().toISOString(),
-    };
-  }
+  // async testPrinterEncodings(printer) { ... }
 
   // 新增：生成编码兼容性报告
   generateEncodingCompatibilityReport(printer, testResults) {
@@ -905,62 +787,7 @@ class LegacyPrinterManager {
   }
 
   // 新增：测试单一编码
-  async testSingleEncoding(text, encoding, printerName) {
-    const printer = this.printers.find((p) => p.name === printerName);
-    if (!printer) {
-      throw new Error(`打印机 ${printerName} 不存在`);
-    }
-
-    console.log(`🧪 [单编码测试] 打印机: ${printerName}, 编码: ${encoding}`);
-    console.log(`📝 [单编码测试] 测试文本: ${text}`);
-
-    try {
-      // 检查是否在Electron环境中
-      if (
-        window.electronAPI &&
-        window.electronAPI.testPrinterEncodingCompatibility
-      ) {
-        // Electron环境：使用真实的编码兼容性测试
-        console.log(`🔌 [真实测试] 调用Electron API进行编码测试`);
-        const result =
-          await window.electronAPI.testPrinterEncodingCompatibility(
-            printerName,
-            text,
-            encoding
-          );
-
-        console.log(`✅ [真实测试] 编码测试结果:`, result);
-        return {
-          printer: printerName,
-          encoding: encoding,
-          text: text,
-          result: result,
-          timestamp: new Date().toISOString(),
-          source: 'electron-api',
-        };
-      } else {
-        // 浏览器环境：使用本地编码检测
-        console.log(`🌐 [模拟测试] 使用本地编码检测`);
-        const encodingTest = this.encodingDetector.testEncodingCompatibility(
-          text,
-          encoding
-        );
-        console.log(`📊 [模拟测试] 兼容性测试结果:`, encodingTest);
-
-        return {
-          printer: printerName,
-          encoding: encoding,
-          text: text,
-          result: encodingTest,
-          timestamp: new Date().toISOString(),
-          source: 'local-detector',
-        };
-      }
-    } catch (error) {
-      console.error(`❌ [编码测试] 测试失败:`, error);
-      throw error;
-    }
-  }
+  // async testSingleEncoding(text, encoding, printerName) { ... }
 
   async printOrder(orderData, printerName = null) {
     const startTime = Date.now();
@@ -1956,41 +1783,7 @@ class LegacyPrinterManager {
   }
 
   // 新增：批量测试所有打印机编码
-  async testAllPrintersEncoding() {
-    console.log('🧪 [批量测试] 开始测试所有打印机编码兼容性');
-
-    const enabledPrinters = this.getEnabledPrinters();
-    if (enabledPrinters.length === 0) {
-      throw new Error('没有启用的打印机可供测试');
-    }
-
-    const results = {};
-
-    for (const printer of enabledPrinters) {
-      try {
-        console.log(`🔍 [批量测试] 测试打印机: ${printer.name}`);
-        const encodingTestResult = await this.testPrinterEncodings(printer);
-        results[printer.name] = encodingTestResult;
-        console.log(`✅ [批量测试] ${printer.name} 测试完成`);
-      } catch (error) {
-        console.error(`❌ [批量测试] ${printer.name} 测试失败:`, error);
-        results[printer.name] = {
-          error: error.message,
-          timestamp: new Date().toISOString(),
-        };
-      }
-    }
-
-    // 生成总体报告
-    const summaryReport = this.generateBatchTestSummary(results);
-
-    console.log('📊 [批量测试] 所有打印机编码测试完成', summaryReport);
-
-    return {
-      individual: results,
-      summary: summaryReport,
-    };
-  }
+  // async testAllPrintersEncoding() { ... }
 
   // 新增：生成批量测试总结报告
   generateBatchTestSummary(results) {
@@ -2227,85 +2020,6 @@ class LegacyPrinterManager {
     }
 
     return text;
-  }
-
-  // 新增：模拟测试打印
-  async mockTestPrint(printerName, width, fontSize) {
-    console.log(
-      `🧪 [模拟测试] 打印机: ${printerName}, 宽度: ${width}mm, 字体: ${fontSize}`
-    );
-
-    // 模拟网络延迟
-    await new Promise((resolve) =>
-      setTimeout(resolve, 800 + Math.random() * 400)
-    );
-
-    // 模拟测试页面生成
-    const testContent = this.generateTestPageContent(
-      printerName,
-      width,
-      fontSize
-    );
-    console.log(`📝 [模拟测试] 生成测试页面: ${testContent.length} 字符`);
-
-    // 模拟成功率（95%）
-    if (Math.random() < 0.95) {
-      console.log(`✅ [模拟测试] ${printerName} 测试打印成功`);
-      return true;
-    } else {
-      throw new Error(`模拟测试失败: ${printerName} 纸张不足`);
-    }
-  }
-
-  // 新增：生成测试页面内容
-  generateTestPageContent(printerName, width, fontSize) {
-    const charWidth = width === 80 ? 48 : 32;
-    let content = '';
-
-    // 基础ESC/POS命令
-    content += '\x1B@'; // 初始化
-
-    // 字体大小设置
-    switch (fontSize) {
-      case 0:
-        content += '\x1D\x21\x00';
-        break; // 小号
-      case 1:
-        content += '\x1D\x21\x10';
-        break; // 中号
-      case 2:
-        content += '\x1D\x21\x11';
-        break; // 大号
-    }
-
-    // 测试内容
-    content += '='.repeat(charWidth) + '\n';
-    content += this.centerText('中文编码测试页面', charWidth) + '\n';
-    content += '='.repeat(charWidth) + '\n\n';
-
-    content += `打印机: ${printerName}\n`;
-    content += `纸张宽度: ${width}mm\n`;
-    content += `字体大小: ${this.getFontSizeText(fontSize)}\n`;
-    content += `测试时间: ${new Date().toLocaleString()}\n\n`;
-
-    content += '-'.repeat(charWidth) + '\n';
-    content += '中文字符测试:\n';
-    content += '简体: 你好世界！订单打印测试\n';
-    content += '繁體: 您好世界！訂單列印測試\n';
-    content += '符号: ￥＄€【】※±≠≤≥\n';
-    content += '数字: 0123456789\n';
-    content += '英文: ABCDEFGHIJKLMNOPQRSTUVWXYZ\n';
-    content += '-'.repeat(charWidth) + '\n\n';
-
-    content += '如果以上内容显示正常，\n';
-    content += '说明打印机中文支持良好。\n\n';
-
-    content += '测试完成 ' + new Date().toLocaleTimeString() + '\n\n\n';
-
-    // 切纸命令
-    content += '\x1D\x56\x00';
-
-    return content;
   }
 
   // 新增格式化辅助函数 - 用于优化打印布局

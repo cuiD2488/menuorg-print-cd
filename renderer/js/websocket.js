@@ -8,6 +8,18 @@ class WebSocketClient {
     this.maxReconnectAttempts = 10;
     this.reconnectAttempts = 0;
     this.isManualClose = false;
+
+    // 🔧 新增：心跳包相关
+    this.heartbeatInterval = 30000; // 30秒心跳
+    this.heartbeatTimer = null;
+    this.lastHeartbeat = Date.now();
+
+    // 🔧 新增：连接状态监控
+    this.connectionMonitorTimer = null;
+    this.lastConnectionCheck = Date.now();
+
+    // 🔧 新增：网络状态监听
+    this.setupNetworkListeners();
   }
 
   on(event, callback) {
@@ -55,6 +67,12 @@ class WebSocketClient {
         this.reconnectAttempts = 0;
         this.emit('connected');
         this.clearReconnectTimer();
+
+        // 🔧 新增：连接成功后启动心跳
+        this.startHeartbeat();
+
+        // 🔧 新增：启动连接状态监控
+        this.startConnectionMonitor();
       };
 
       this.ws.onmessage = (event) => {
@@ -66,6 +84,13 @@ class WebSocketClient {
           try {
             data = JSON.parse(event.data);
             console.log('[WebSocket] JSON message parsed:', data);
+
+            // 🔧 新增：处理心跳响应
+            if (data.type === 'pong') {
+              console.log('[WebSocket] Heartbeat response received');
+              this.lastHeartbeat = Date.now();
+              return;
+            }
 
             // 根据消息类型分发事件
             if (data.type === 'order' || data.type === 'new_order') {
@@ -100,6 +125,10 @@ class WebSocketClient {
         }
         this.emit('disconnected', { code: event.code, reason: event.reason });
 
+        // 🔧 新增：停止心跳和监控
+        this.stopHeartbeat();
+        this.stopConnectionMonitor();
+
         if (
           !this.isManualClose &&
           this.reconnectAttempts < this.maxReconnectAttempts
@@ -123,6 +152,8 @@ class WebSocketClient {
     console.log('[WebSocket] Manual disconnection initiated');
     this.isManualClose = true;
     this.clearReconnectTimer();
+    this.stopHeartbeat(); // 🔧 新增：停止心跳
+    this.stopConnectionMonitor(); // 🔧 新增：停止监控
 
     if (this.ws) {
       this.ws.close();
@@ -146,6 +177,38 @@ class WebSocketClient {
     }
   }
 
+  // 🔧 新增：启动心跳包
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.lastHeartbeat = Date.now();
+
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try {
+          // 发送心跳包
+          this.ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          this.lastHeartbeat = Date.now();
+          console.log('[WebSocket] Heartbeat sent');
+        } catch (error) {
+          console.error('[WebSocket] Heartbeat failed:', error);
+          this.ws.close();
+        }
+      } else {
+        console.log('[WebSocket] Connection not open, stopping heartbeat');
+        this.stopHeartbeat();
+      }
+    }, this.heartbeatInterval);
+  }
+
+  // 🔧 新增：停止心跳包
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  // 🔧 新增：指数退避重连策略
   scheduleReconnect() {
     if (this.isManualClose) {
       return;
@@ -162,13 +225,19 @@ class WebSocketClient {
       return;
     }
 
+    // 🔧 新增：指数退避策略
+    const backoffDelay = Math.min(
+      this.reconnectInterval * Math.pow(2, this.reconnectAttempts - 1),
+      30000 // 最大30秒
+    );
+
     console.log(
-      `[WebSocket] Will reconnect in ${this.reconnectInterval}ms (attempt ${this.reconnectAttempts})`
+      `[WebSocket] Will reconnect in ${backoffDelay}ms (attempt ${this.reconnectAttempts})`
     );
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();
-    }, this.reconnectInterval);
+    }, backoffDelay);
   }
 
   clearReconnectTimer() {
@@ -178,11 +247,110 @@ class WebSocketClient {
     }
   }
 
+  // 🔧 新增：启动连接状态监控
+  startConnectionMonitor() {
+    this.stopConnectionMonitor();
+    this.lastConnectionCheck = Date.now();
+
+    this.connectionMonitorTimer = setInterval(() => {
+      const connectionInfo = this.getConnectionInfo();
+      console.log('[WebSocket] Connection status:', connectionInfo);
+
+      // 如果长时间未连接且重连次数已满，重置重连计数
+      if (
+        !connectionInfo.isConnected &&
+        connectionInfo.reconnectAttempts >= connectionInfo.maxReconnectAttempts
+      ) {
+        console.log(
+          '[WebSocket] Resetting reconnect attempts for long-running app'
+        );
+        this.resetReconnectAttempts();
+      }
+
+      // 检查心跳超时（如果超过60秒没有心跳响应，认为连接异常）
+      const timeSinceLastHeartbeat = Date.now() - this.lastHeartbeat;
+      if (connectionInfo.isConnected && timeSinceLastHeartbeat > 60000) {
+        console.warn(
+          '[WebSocket] Heartbeat timeout detected, closing connection'
+        );
+        this.ws.close();
+      }
+    }, 60000); // 每分钟检查一次
+  }
+
+  // 🔧 新增：停止连接状态监控
+  stopConnectionMonitor() {
+    if (this.connectionMonitorTimer) {
+      clearInterval(this.connectionMonitorTimer);
+      this.connectionMonitorTimer = null;
+    }
+  }
+
+  // 🔧 新增：设置网络状态监听
+  setupNetworkListeners() {
+    // 监听网络状态变化
+    window.addEventListener('online', () => {
+      console.log('[WebSocket] Network came online, attempting reconnection');
+      if (!this.isConnected()) {
+        this.resetReconnectAttempts();
+        this.connect();
+      }
+    });
+
+    window.addEventListener('offline', () => {
+      console.log('[WebSocket] Network went offline');
+      this.emit('networkOffline');
+    });
+
+    // 监听页面可见性变化（防止页面隐藏时连接被断开）
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[WebSocket] Page became visible, checking connection');
+        if (!this.isConnected()) {
+          this.resetReconnectAttempts();
+          this.connect();
+        }
+      }
+    });
+  }
+
+  // 🔧 新增：重置重连计数（用于长时间运行后重置）
+  resetReconnectAttempts() {
+    this.reconnectAttempts = 0;
+    console.log('[WebSocket] Reconnect attempts reset');
+  }
+
   getReadyState() {
     return this.ws ? this.ws.readyState : WebSocket.CLOSED;
   }
 
   isConnected() {
     return this.ws && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  // 🔧 新增：获取连接状态信息
+  getConnectionInfo() {
+    return {
+      isConnected: this.isConnected(),
+      readyState: this.getReadyState(),
+      reconnectAttempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts,
+      lastHeartbeat: this.lastHeartbeat,
+      timeSinceLastHeartbeat: Date.now() - this.lastHeartbeat,
+      isManualClose: this.isManualClose,
+      heartbeatActive: !!this.heartbeatTimer,
+      monitorActive: !!this.connectionMonitorTimer,
+    };
+  }
+
+  // 🔧 新增：手动发送心跳（用于测试）
+  sendHeartbeat() {
+    if (this.isConnected()) {
+      this.ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+      this.lastHeartbeat = Date.now();
+      console.log('[WebSocket] Manual heartbeat sent');
+      return true;
+    }
+    return false;
   }
 }

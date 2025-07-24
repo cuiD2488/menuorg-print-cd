@@ -503,19 +503,6 @@ ipcMain.handle('get-printers', async () => {
   return [];
 });
 
-ipcMain.handle(
-  'test-print',
-  async (event, printerName, width = 80, fontSize = 0) => {
-    // 返回成功状态，实际打印由前端CLodop处理
-    console.log('🧪 前端将使用CLodop进行测试打印:', {
-      printerName,
-      width,
-      fontSize,
-    });
-    return { success: true, message: '测试打印将由CLodop处理' };
-  }
-);
-
 // 获取引擎状态 - 现在只返回CLodop状态
 ipcMain.handle('get-print-engine-status', async () => {
   console.log('🔍 返回CLodop引擎状态');

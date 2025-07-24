@@ -14,8 +14,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => ipcRenderer.invoke('get-config'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
 
-  // 测试打印
-  testPrint: (printerName) => ipcRenderer.invoke('test-print', printerName),
+  // 移除测试打印API
+  // testPrint: (printerName) => ipcRenderer.invoke('test-print', printerName),
 
   // 通知
   showNotification: (options) =>

@@ -164,30 +164,6 @@ function getCLodopClient() {
   }
 }
 
-// 安装C-Lodop提示
-function installCLodop() {
-  console.log('[C-Lodop] 开始安装提示...');
-
-  var tip = '本应用需要安装C-Lodop打印控件才能正常打印。\n\n';
-  tip += '您可以从以下地址下载安装：\n';
-  tip += 'http://www.lodop.net/download.html\n\n';
-  tip += '安装完成后请重新启动应用程序。';
-
-  alert(tip);
-
-  // 尝试打开下载页面
-  try {
-    if (typeof require !== 'undefined') {
-      const { shell } = require('electron');
-      shell.openExternal('http://www.lodop.net/download.html');
-    } else {
-      window.open('http://www.lodop.net/download.html', '_blank');
-    }
-  } catch (err) {
-    console.warn('[C-Lodop] 无法自动打开下载页面:', err);
-  }
-}
-
 // 主要的getLodop函数
 function getLodop() {
   console.log('[C-Lodop] getLodop()被调用');
@@ -195,16 +171,6 @@ function getLodop() {
 
   if (!LODOP) {
     console.error('[C-Lodop] 获取C-Lodop对象失败');
-
-    // 显示安装提示
-    setTimeout(function () {
-      if (
-        confirm('检测到您的系统需要安装C-Lodop打印控件。\n是否现在下载安装？')
-      ) {
-        installCLodop();
-      }
-    }, 100);
-
     return null;
   }
 
@@ -274,7 +240,6 @@ if (typeof window !== 'undefined') {
   window.getLodop = getLodop;
   window.getCLodop = getCLodop;
   window.checkCLodopStatus = checkCLodopStatus;
-  window.installCLodop = installCLodop;
 
   console.log('[C-Lodop] 函数已加载到全局作用域');
 }
@@ -285,6 +250,5 @@ if (typeof module !== 'undefined' && module.exports) {
     getLodop: getLodop,
     getCLodop: getCLodop,
     checkCLodopStatus: checkCLodopStatus,
-    installCLodop: installCLodop,
   };
 }
