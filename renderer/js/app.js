@@ -2476,6 +2476,25 @@ let app;
 
 document.addEventListener('DOMContentLoaded', () => {
   app = new OrderPrintApp();
+
+  // 🔄 初始化自动更新UI
+  if (typeof initAutoUpdaterUI === 'function') {
+    try {
+      const updaterUI = initAutoUpdaterUI();
+      updaterUI
+        .initialize()
+        .then(() => {
+          console.log('[APP] 自动更新UI初始化完成');
+        })
+        .catch((error) => {
+          console.error('[APP] 自动更新UI初始化失败:', error);
+        });
+    } catch (error) {
+      console.error('[APP] 自动更新UI初始化异常:', error);
+    }
+  } else {
+    console.warn('[APP] 自动更新UI功能不可用');
+  }
 });
 
 window.app = app;

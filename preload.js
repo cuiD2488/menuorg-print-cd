@@ -29,6 +29,52 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
   getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
 
+  // 🔄 自动更新功能
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getUpdateStatus: () => ipcRenderer.invoke('get-update-status'),
+  getVersionInfo: () => ipcRenderer.invoke('get-version-info'),
+  updateConfig: (config) => ipcRenderer.invoke('update-config', config),
+  getUpdateConfig: () => ipcRenderer.invoke('get-update-config'),
+
+  // 🔄 自动更新事件监听
+  onUpdateChecking: (callback) =>
+    ipcRenderer.on('auto-updater-update-checking', callback),
+  onUpdateAvailable: (callback) =>
+    ipcRenderer.on('auto-updater-update-available', callback),
+  onUpdateNotAvailable: (callback) =>
+    ipcRenderer.on('auto-updater-update-not-available', callback),
+  onUpdateError: (callback) =>
+    ipcRenderer.on('auto-updater-update-error', callback),
+  onUpdateDownloadProgress: (callback) =>
+    ipcRenderer.on('auto-updater-update-download-progress', callback),
+  onUpdateDownloaded: (callback) =>
+    ipcRenderer.on('auto-updater-update-downloaded', callback),
+  onUpdateInstalling: (callback) =>
+    ipcRenderer.on('auto-updater-update-installing', callback),
+  onShowUpdateDetails: (callback) =>
+    ipcRenderer.on('auto-updater-show-update-details', callback),
+
+  // 移除自动更新事件监听器
+  removeUpdateListener: (event, callback) =>
+    ipcRenderer.removeListener(`auto-updater-${event}`, callback),
+  removeAllUpdateListeners: () => {
+    const events = [
+      'update-checking',
+      'update-available',
+      'update-not-available',
+      'update-error',
+      'update-download-progress',
+      'update-downloaded',
+      'update-installing',
+      'show-update-details',
+    ];
+    events.forEach((event) =>
+      ipcRenderer.removeAllListeners(`auto-updater-${event}`)
+    );
+  },
+
   // 中文编码相关API已移除
 
   // 错误监听

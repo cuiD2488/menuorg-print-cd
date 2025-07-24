@@ -11,6 +11,9 @@ const {
 const path = require('path');
 const fs = require('fs');
 
+// 🔄 自动更新管理器
+const { getAutoUpdaterManager } = require('./src/auto-updater-manager');
+
 // 简单的配置存储
 const configPath = path.join(app.getPath('userData'), 'config.json');
 
@@ -252,6 +255,15 @@ function createWindow() {
     console.log('🚀 自动启动模式：应用已启动到托盘');
   }
 
+  // 🔄 设置自动更新管理器的主窗口引用
+  try {
+    const autoUpdaterManager = getAutoUpdaterManager();
+    autoUpdaterManager.setMainWindow(mainWindow);
+    console.log('[AUTO-UPDATER] 主窗口引用已设置');
+  } catch (error) {
+    console.error('[AUTO-UPDATER] 设置主窗口引用失败:', error);
+  }
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -282,6 +294,36 @@ function createTrayMenu() {
           mainWindow.focus();
         } else {
           createWindow();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: '检查更新',
+      click: async () => {
+        try {
+          const autoUpdaterManager = getAutoUpdaterManager();
+          const result = await autoUpdaterManager.checkForUpdates();
+
+          if (result.success) {
+            if (Notification.isSupported()) {
+              new Notification({
+                title: 'MenuorgPrint',
+                body: '正在检查更新...',
+                silent: true,
+              }).show();
+            }
+          } else {
+            if (Notification.isSupported()) {
+              new Notification({
+                title: 'MenuorgPrint',
+                body: `更新检查失败: ${result.message}`,
+                silent: false,
+              }).show();
+            }
+          }
+        } catch (error) {
+          console.error('[AUTO-UPDATER] 托盘检查更新失败:', error);
         }
       },
     },
@@ -464,6 +506,15 @@ app.whenReady().then(() => {
   // 🚀 初始化开机自动运行功能
   initAutoStart();
 
+  // 🔄 初始化自动更新功能
+  try {
+    const autoUpdaterManager = getAutoUpdaterManager();
+    autoUpdaterManager.initialize();
+    console.log('[AUTO-UPDATER] 自动更新功能已启动');
+  } catch (error) {
+    console.error('[AUTO-UPDATER] 自动更新初始化失败:', error);
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -480,6 +531,15 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuiting = true;
+
+  // 🔄 清理自动更新管理器
+  try {
+    const autoUpdaterManager = getAutoUpdaterManager();
+    autoUpdaterManager.destroy();
+    console.log('[AUTO-UPDATER] 自动更新管理器已清理');
+  } catch (error) {
+    console.error('[AUTO-UPDATER] 清理自动更新管理器失败:', error);
+  }
 });
 
 // 防止多实例运行

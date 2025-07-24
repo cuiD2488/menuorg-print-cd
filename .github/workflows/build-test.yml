@@ -1,0 +1,107 @@
+name: Build Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        node-version: [16, 18, 20]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linting (if configured)
+      run: |
+        if (Test-Path "package.json") {
+          $package = Get-Content "package.json" | ConvertFrom-Json
+          if ($package.scripts.lint) {
+            echo "Running linting..."
+            npm run lint
+          } else {
+            echo "No lint script found, skipping..."
+          }
+        }
+      shell: pwsh
+      continue-on-error: true
+
+    - name: Run tests (if configured)
+      run: |
+        if (Test-Path "package.json") {
+          $package = Get-Content "package.json" | ConvertFrom-Json
+          if ($package.scripts.test) {
+            echo "Running tests..."
+            npm test
+          } else {
+            echo "No test script found, skipping..."
+          }
+        }
+      shell: pwsh
+      continue-on-error: true
+
+    - name: Build application
+      run: |
+        echo "Testing build process..."
+        npm run build
+        echo "Build test completed"
+      env:
+        # Use a dummy token for build testing
+        GH_TOKEN: "dummy_token_for_build_test"
+
+    - name: Verify build output
+      run: |
+        if (Test-Path "dist") {
+          Write-Host "✅ Build output directory created successfully"
+          $files = Get-ChildItem -Path "dist" -Recurse
+          Write-Host "Build artifacts:"
+          $files | Format-Table Name, Length
+        } else {
+          Write-Error "❌ Build output directory not found"
+          exit 1
+        }
+      shell: pwsh
+
+    - name: Check for required files
+      run: |
+        $requiredFiles = @("*.exe", "*.yml")
+        $missingFiles = @()
+        
+        foreach ($pattern in $requiredFiles) {
+          $files = Get-ChildItem -Path "dist" -Filter $pattern -Recurse
+          if ($files.Count -eq 0) {
+            $missingFiles += $pattern
+          }
+        }
+        
+        if ($missingFiles.Count -gt 0) {
+          Write-Warning "⚠️ Some expected files are missing: $($missingFiles -join ', ')"
+        } else {
+          Write-Host "✅ All required build artifacts found"
+        }
+      shell: pwsh
+
+    - name: Upload build artifacts (for debugging)
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-test-artifacts-node${{ matrix.node-version }}
+        path: |
+          dist/
+          !dist/**/*.unpacked
+        retention-days: 7 
