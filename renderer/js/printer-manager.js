@@ -1,5 +1,6 @@
 // 智能打印机管理器
 // 根据构建配置自动选择打印引擎：原生引擎或C-Lodop
+// 集成增强的CLodop状态管理，解决时序和缓存问题
 
 class PrinterManager {
   constructor() {
@@ -10,11 +11,38 @@ class PrinterManager {
     this.buildConfig = null;
     this.isInitialized = false;
     this.systemPrinters = [];
+    this.enhancedCLodopManager = null;
+    this.initializationPromise = null;
+    this.isInitializing = false;
 
     console.log('[PrinterManager] 智能打印机管理器初始化');
   }
 
   async init() {
+    // 防止重复初始化
+    if (this.isInitializing) {
+      console.log('[PrinterManager] 初始化正在进行中，等待完成...');
+      return this.initializationPromise;
+    }
+
+    if (this.isInitialized) {
+      console.log('[PrinterManager] 已经初始化完成，返回状态');
+      return this.getInitResult();
+    }
+
+    this.isInitializing = true;
+    this.initializationPromise = this.performInit();
+
+    try {
+      const result = await this.initializationPromise;
+      this.isInitialized = true;
+      return result;
+    } finally {
+      this.isInitializing = false;
+    }
+  }
+
+  async performInit() {
     try {
       console.log('[PrinterManager] 开始初始化打印机管理器...');
 
@@ -24,20 +52,15 @@ class PrinterManager {
       // 根据构建配置选择打印引擎
       if (this.buildConfig && this.buildConfig.useLodop) {
         console.log('[PrinterManager] 使用 C-Lodop 打印引擎');
-        await this.initLodopEngine();
+        await this.initLodopEngineEnhanced();
       } else {
         console.log('[PrinterManager] 使用原生打印引擎');
         await this.initNativeEngine();
       }
 
-      this.isInitialized = true;
       console.log('[PrinterManager] 打印机管理器初始化完成');
 
-      return {
-        success: true,
-        engine: this.currentEngine,
-        buildMode: this.buildConfig ? this.buildConfig.buildMode : 'normal',
-      };
+      return this.getInitResult();
     } catch (error) {
       console.error('[PrinterManager] 初始化失败:', error);
       return {
@@ -46,6 +69,15 @@ class PrinterManager {
         engine: 'none',
       };
     }
+  }
+
+  getInitResult() {
+    return {
+      success: this.isInitialized,
+      engine: this.currentEngine,
+      buildMode: this.buildConfig ? this.buildConfig.buildMode : 'normal',
+      useLodop: this.buildConfig ? this.buildConfig.useLodop : false,
+    };
   }
 
   async loadBuildConfig() {
@@ -87,124 +119,200 @@ class PrinterManager {
     }
   }
 
-  async initLodopEngine() {
+  // 增强的CLodop引擎初始化
+  async initLodopEngineEnhanced() {
     try {
-      console.log('[PrinterManager] 开始检查C-Lodop可用性...');
+      console.log('[PrinterManager] 开始增强CLodop引擎初始化...');
 
-      // 检查多种C-Lodop检测方式
-      let lodopAvailable = false;
-      let lodopObject = null;
-
-      // 方式1: 检查window.getLodop函数
-      if (typeof window.getLodop === 'function') {
-        console.log('[PrinterManager] 找到window.getLodop函数');
-        try {
-          lodopObject = window.getLodop();
-          if (lodopObject && lodopObject.VERSION) {
-            console.log(
-              '[PrinterManager] C-Lodop对象获取成功，版本:',
-              lodopObject.VERSION
-            );
-            lodopAvailable = true;
-          } else {
-            console.log('[PrinterManager] C-Lodop对象无效或无版本信息');
-          }
-        } catch (err) {
-          console.error('[PrinterManager] 调用getLodop()失败:', err);
-        }
-      } else {
-        console.log('[PrinterManager] window.getLodop函数不存在');
+      // 确保增强管理器已加载
+      if (typeof window.getEnhancedCLodopManager === 'undefined') {
+        console.log('[PrinterManager] 加载增强的CLodop管理器...');
+        // 动态加载增强管理器（如果需要）
+        await this.loadEnhancedManager();
       }
 
-      // 方式2: 检查window.checkCLodopStatus函数
-      if (!lodopAvailable && typeof window.checkCLodopStatus === 'function') {
-        console.log('[PrinterManager] 尝试使用checkCLodopStatus检查状态');
-        try {
-          const status = window.checkCLodopStatus();
-          console.log('[PrinterManager] C-Lodop状态:', status);
-          if (status && status.available) {
-            lodopObject = window.getLodop();
-            lodopAvailable = true;
-          }
-        } catch (err) {
-          console.error('[PrinterManager] checkCLodopStatus调用失败:', err);
-        }
-      }
+      // 获取增强的CLodop管理器
+      this.enhancedCLodopManager = window.getEnhancedCLodopManager();
 
-      if (lodopAvailable && lodopObject) {
-        // 初始化C-Lodop管理器（使用window对象）
-        console.log('[PrinterManager] 开始初始化C-Lodop管理器...');
+      // 监听连接事件
+      this.setupCLodopEventListeners();
 
-        console.log('[PrinterManager] 检查window对象:', typeof window);
+      // 执行增强的状态检查
+      console.log('[PrinterManager] 执行增强的CLodop状态检查...');
+      const status = await this.enhancedCLodopManager.checkStatus();
+
+      if (status.available && status.lodop) {
+        // CLodop可用，初始化Lodop管理器
+        await this.initLodopManagerWithEnhanced(status.lodop);
+        this.currentEngine = 'C-Lodop-Enhanced';
+
+        console.log('[PrinterManager] ✅ 增强CLodop引擎初始化成功');
         console.log(
-          '[PrinterManager] 检查window.LodopPrinterManager:',
-          typeof window.LodopPrinterManager
-        );
-        console.log(
-          '[PrinterManager] window对象的所有Lodop相关属性:',
-          Object.keys(window).filter((key) =>
-            key.toLowerCase().includes('lodop')
-          )
+          `[PrinterManager] CLodop版本: ${status.version}, 打印机数量: ${status.printerCount}`
         );
 
-        if (typeof window.LodopPrinterManager === 'undefined') {
-          throw new Error(
-            'LodopPrinterManager 类未找到，请确保 printer-lodop.js 已正确加载'
-          );
-        }
-
-        this.lodopManager = new window.LodopPrinterManager();
-        const result = await this.lodopManager.init();
-
-        if (result.success) {
-          this.currentEngine = 'C-Lodop';
-          console.log('[PrinterManager] C-Lodop 引擎初始化成功');
-
-          // 立即尝试获取打印机列表进行测试
-          try {
-            const printers = await this.lodopManager.refreshPrinters();
-            console.log('[PrinterManager] C-Lodop 打印机列表:', printers);
-            if (printers && printers.length > 0) {
-              console.log(
-                `[PrinterManager] 成功获取到 ${printers.length} 台打印机`
-              );
-            } else {
-              console.warn('[PrinterManager] C-Lodop 初始化成功但未找到打印机');
-            }
-          } catch (printerError) {
-            console.error('[PrinterManager] 获取打印机列表失败:', printerError);
-          }
-        } else {
-          throw new Error(`C-Lodop 初始化失败: ${result.error}`);
-        }
+        // 立即测试打印机列表
+        await this.testLodopConnection();
       } else {
-        throw new Error('C-Lodop 未安装或不可用，将回退到系统打印机');
+        throw new Error(`CLodop不可用: ${status.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error('[PrinterManager] C-Lodop 引擎初始化失败:', error);
-      console.log('[PrinterManager] 回退到系统打印机引擎...');
+      console.error('[PrinterManager] 增强CLodop引擎初始化失败:', error);
+      await this.handleLodopInitFailure(error);
+    }
+  }
 
-      // 显示CLodop安装提示
-      if (
-        error.message.includes('未安装') ||
-        error.message.includes('不可用')
-      ) {
-        console.log('[PrinterManager] 显示CLodop安装提示');
-        setTimeout(() => {
-          if (typeof window.installCLodop === 'function') {
-            window.installCLodop();
-          } else {
-            console.warn('[PrinterManager] C-Lodop连接失败，静默处理');
-            // 不显示弹窗，只记录日志
-            console.warn(
-              '[PrinterManager] 建议检查C-Lodop服务状态和防火墙设置'
-            );
-          }
-        }, 1000);
+  // 设置CLodop事件监听
+  setupCLodopEventListeners() {
+    if (!this.enhancedCLodopManager) return;
+
+    this.enhancedCLodopManager.on('checking', (data) => {
+      console.log(`[PrinterManager] CLodop检查中... (尝试 ${data.attempt})`);
+    });
+
+    this.enhancedCLodopManager.on('retry', (data) => {
+      console.log(
+        `[PrinterManager] CLodop重试中... (${data.attempt}) 延迟: ${data.delay}ms`
+      );
+    });
+
+    this.enhancedCLodopManager.on('connected', (data) => {
+      console.log(`[PrinterManager] ✅ CLodop连接成功: ${data.version}`);
+    });
+
+    this.enhancedCLodopManager.on('disconnected', (data) => {
+      console.warn(`[PrinterManager] ⚠️ CLodop连接断开: ${data.reason}`);
+      this.handleCLodopDisconnection();
+    });
+
+    this.enhancedCLodopManager.on('failed', (data) => {
+      console.error(`[PrinterManager] ❌ CLodop连接失败: ${data.error}`);
+    });
+  }
+
+  // 处理CLodop断开连接
+  async handleCLodopDisconnection() {
+    console.log('[PrinterManager] 处理CLodop断开连接...');
+
+    // 尝试重新连接
+    try {
+      const status = await this.enhancedCLodopManager.reconnect();
+      if (status.available) {
+        console.log('[PrinterManager] ✅ CLodop重新连接成功');
+        // 重新初始化Lodop管理器
+        await this.initLodopManagerWithEnhanced(status.lodop);
+      }
+    } catch (error) {
+      console.error('[PrinterManager] CLodop重新连接失败:', error);
+      // 可以考虑回退到系统打印机
+    }
+  }
+
+  // 使用增强管理器初始化Lodop管理器
+  async initLodopManagerWithEnhanced(lodopObject) {
+    try {
+      if (typeof window.LodopPrinterManager === 'undefined') {
+        throw new Error(
+          'LodopPrinterManager 类未找到，请确保 printer-lodop.js 已正确加载'
+        );
       }
 
-      // 回退到系统打印机
-      await this.initSystemPrinterFallback();
+      // 创建Lodop打印机管理器，传入已连接的LODOP对象
+      this.lodopManager = new window.LodopPrinterManager();
+
+      // 如果管理器支持直接设置LODOP对象，则使用它
+      if (typeof this.lodopManager.setLodopObject === 'function') {
+        this.lodopManager.setLodopObject(lodopObject);
+      }
+
+      const result = await this.lodopManager.init();
+
+      if (!result.success) {
+        throw new Error(`Lodop管理器初始化失败: ${result.error}`);
+      }
+
+      console.log('[PrinterManager] Lodop管理器初始化成功');
+    } catch (error) {
+      console.error('[PrinterManager] Lodop管理器初始化失败:', error);
+      throw error;
+    }
+  }
+
+  // 测试Lodop连接
+  async testLodopConnection() {
+    try {
+      if (!this.lodopManager) return;
+
+      const printers = await this.lodopManager.refreshPrinters();
+      console.log('[PrinterManager] Lodop连接测试成功，打印机列表:', printers);
+
+      if (!printers || printers.length === 0) {
+        console.warn('[PrinterManager] ⚠️ Lodop连接成功但未找到打印机');
+      } else {
+        console.log(
+          `[PrinterManager] ✅ 成功获取到 ${printers.length} 台打印机`
+        );
+      }
+    } catch (error) {
+      console.error('[PrinterManager] Lodop连接测试失败:', error);
+      throw error;
+    }
+  }
+
+  // 处理Lodop初始化失败
+  async handleLodopInitFailure(error) {
+    console.error('[PrinterManager] CLodop初始化失败，准备回退:', error);
+
+    // 显示用户友好的错误信息
+    this.showCLodopInstallationGuidance(error);
+
+    // 回退到系统打印机
+    console.log('[PrinterManager] 回退到系统打印机引擎...');
+    await this.initSystemPrinterFallback();
+  }
+
+  // 显示CLodop安装指导
+  showCLodopInstallationGuidance(error) {
+    // 延迟显示，避免干扰启动流程
+    setTimeout(() => {
+      const errorMsg = error.message || error.toString();
+
+      if (
+        errorMsg.includes('未安装') ||
+        errorMsg.includes('不可用') ||
+        errorMsg.includes('连接失败')
+      ) {
+        console.log('[PrinterManager] 显示CLodop安装指导');
+
+        // 检查是否有安装函数可用
+        if (typeof window.installCLodop === 'function') {
+          window.installCLodop();
+        } else {
+          // 静默处理，记录建议
+          console.warn('═══ CLodop连接失败 ═══');
+          console.warn('建议检查以下项目:');
+          console.warn('1. CLodop服务是否已启动');
+          console.warn('2. 防火墙是否阻止了端口8000或18000');
+          console.warn('3. 是否需要重新安装CLodop');
+          console.warn('4. 系统是否刚启动，CLodop服务可能还在启动中');
+          console.warn('═══════════════════');
+        }
+      }
+    }, 2000); // 延迟2秒显示
+  }
+
+  // 加载增强管理器（如果需要动态加载）
+  async loadEnhancedManager() {
+    if (typeof window.getEnhancedCLodopManager !== 'undefined') {
+      return; // 已经加载
+    }
+
+    try {
+      // 这里可以动态加载增强管理器脚本
+      console.log('[PrinterManager] 增强管理器已内置，无需动态加载');
+    } catch (error) {
+      console.error('[PrinterManager] 加载增强管理器失败:', error);
+      throw new Error('无法加载增强的CLodop管理器');
     }
   }
 
@@ -230,9 +338,17 @@ class PrinterManager {
     return this.buildConfig;
   }
 
-  // 统一的打印机操作接口
+  // 统一的打印机操作接口 - 增强版
   async refreshPrinters() {
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+    if (!this.isInitialized) {
+      await this.init();
+    }
+
+    if (this.currentEngine === 'C-Lodop-Enhanced' && this.lodopManager) {
+      // 使用增强版CLodop
+      return await this.lodopManager.refreshPrinters();
+    } else if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+      // 传统CLodop
       return await this.lodopManager.refreshPrinters();
     } else if (
       this.currentEngine === 'System-Fallback' ||
@@ -248,7 +364,11 @@ class PrinterManager {
   }
 
   getAllPrinters() {
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+    if (
+      (this.currentEngine === 'C-Lodop-Enhanced' ||
+        this.currentEngine === 'C-Lodop') &&
+      this.lodopManager
+    ) {
       return this.lodopManager.getAllPrinters();
     } else if (
       this.currentEngine === 'System-Fallback' ||
@@ -262,7 +382,11 @@ class PrinterManager {
   }
 
   getSelectedPrinters() {
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+    if (
+      (this.currentEngine === 'C-Lodop-Enhanced' ||
+        this.currentEngine === 'C-Lodop') &&
+      this.lodopManager
+    ) {
       return this.lodopManager.getSelectedPrinters();
     } else {
       return this.selectedPrinters;
@@ -270,7 +394,11 @@ class PrinterManager {
   }
 
   setSelectedPrinters(printerNames) {
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+    if (
+      (this.currentEngine === 'C-Lodop-Enhanced' ||
+        this.currentEngine === 'C-Lodop') &&
+      this.lodopManager
+    ) {
       this.lodopManager.setSelectedPrinters(printerNames);
     } else {
       this.selectedPrinters = printerNames;
@@ -279,17 +407,12 @@ class PrinterManager {
     }
   }
 
-  // 移除测试打印方法
-  // async testPrint(printerName) {
-  //   if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
-  //     return await this.lodopManager.testPrint(printerName);
-  //   } else {
-  //     return await window.electronAPI.testPrint(printerName);
-  //   }
-  // }
-
   async printOrder(order) {
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+    if (
+      (this.currentEngine === 'C-Lodop-Enhanced' ||
+        this.currentEngine === 'C-Lodop') &&
+      this.lodopManager
+    ) {
       return await this.lodopManager.printOrder(order);
     } else {
       // 使用原生引擎打印订单
@@ -330,7 +453,11 @@ class PrinterManager {
   }
 
   async generatePrintPreview(order) {
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+    if (
+      (this.currentEngine === 'C-Lodop-Enhanced' ||
+        this.currentEngine === 'C-Lodop') &&
+      this.lodopManager
+    ) {
       return await this.lodopManager.generatePrintPreview(order);
     } else {
       // 使用原生引擎生成预览
@@ -338,7 +465,7 @@ class PrinterManager {
     }
   }
 
-  // 获取引擎状态
+  // 获取引擎状态 - 增强版
   getEngineStatus() {
     const baseStatus = {
       currentEngine: this.currentEngine,
@@ -347,18 +474,68 @@ class PrinterManager {
       useLodop: this.buildConfig ? this.buildConfig.useLodop : false,
     };
 
-    if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+    if (
+      this.currentEngine === 'C-Lodop-Enhanced' &&
+      this.enhancedCLodopManager
+    ) {
+      // 增强版状态
+      const lodopStatus = this.enhancedCLodopManager.checkCache || {};
       return {
         ...baseStatus,
+        enhanced: true,
+        clodopConnected: this.enhancedCLodopManager.isConnected,
+        clodopVersion: lodopStatus.version,
+        printerCount: lodopStatus.printerCount || 0,
+        selectedCount: this.getSelectedPrinters().length,
+        lastCheckTime: this.enhancedCLodopManager.lastCheckTime,
+        cacheValid: this.enhancedCLodopManager.checkCache
+          ? Date.now() - this.enhancedCLodopManager.lastCheckTime <
+            this.enhancedCLodopManager.cacheValidDuration
+          : false,
+      };
+    } else if (this.currentEngine === 'C-Lodop' && this.lodopManager) {
+      return {
+        ...baseStatus,
+        enhanced: false,
         ...this.lodopManager.getEngineStatus(),
       };
     } else {
       return {
         ...baseStatus,
+        enhanced: false,
         nativeAvailable: true,
         printerCount: this.getAllPrinters().length,
         selectedCount: this.getSelectedPrinters().length,
       };
+    }
+  }
+
+  // 强制重新检查CLodop状态
+  async forceRefreshCLodop() {
+    if (this.enhancedCLodopManager) {
+      console.log('[PrinterManager] 强制刷新CLodop状态...');
+      return await this.enhancedCLodopManager.checkStatus(true);
+    } else {
+      console.warn('[PrinterManager] 增强管理器不可用，无法强制刷新');
+      return null;
+    }
+  }
+
+  // 重新连接CLodop
+  async reconnectCLodop() {
+    if (this.enhancedCLodopManager) {
+      console.log('[PrinterManager] 重新连接CLodop...');
+      const result = await this.enhancedCLodopManager.reconnect();
+
+      if (result.available && this.lodopManager) {
+        // 重新初始化Lodop管理器
+        await this.initLodopManagerWithEnhanced(result.lodop);
+      }
+
+      return result;
+    } else {
+      console.warn('[PrinterManager] 增强管理器不可用，无法重新连接');
+      return null;
     }
   }
 
@@ -391,24 +568,38 @@ class PrinterManager {
     }
   }
 
-  // 显示引擎信息
+  // 显示引擎信息 - 增强版
   displayEngineInfo() {
     const status = this.getEngineStatus();
-    console.log('=== 打印引擎状态 ===');
+    console.log('=== 增强打印引擎状态 ===');
     console.log(`当前引擎: ${status.currentEngine}`);
     console.log(`构建模式: ${status.buildMode}`);
     console.log(`使用C-Lodop: ${status.useLodop ? '是' : '否'}`);
+    console.log(`增强模式: ${status.enhanced ? '启用' : '禁用'}`);
     console.log(
       `初始化状态: ${status.isInitialized ? '已初始化' : '未初始化'}`
     );
     console.log(`打印机数量: ${status.printerCount || 0}`);
     console.log(`已选择数量: ${status.selectedCount || 0}`);
 
+    if (status.enhanced) {
+      console.log(
+        `CLodop连接: ${status.clodopConnected ? '已连接' : '未连接'}`
+      );
+      console.log(`CLodop版本: ${status.clodopVersion || '未知'}`);
+      console.log(`缓存有效: ${status.cacheValid ? '是' : '否'}`);
+      if (status.lastCheckTime) {
+        console.log(
+          `最后检查: ${new Date(status.lastCheckTime).toLocaleString()}`
+        );
+      }
+    }
+
     if (status.version) {
       console.log(`引擎版本: ${status.version}`);
     }
 
-    console.log('==================');
+    console.log('========================');
   }
 
   // 新增：系统打印机回退方案
@@ -482,6 +673,19 @@ class PrinterManager {
       this.currentEngine = 'None';
     }
   }
+
+  // 销毁管理器
+  destroy() {
+    if (this.enhancedCLodopManager) {
+      this.enhancedCLodopManager.destroy();
+    }
+
+    this.isInitialized = false;
+    this.isInitializing = false;
+    this.initializationPromise = null;
+
+    console.log('[PrinterManager] 管理器已销毁');
+  }
 }
 
-// 注意：LodopFuncs.js 已经在 HTML 中直接加载，无需动态加载
+// 注意：LodopFuncs.js 和 enhanced-clodop-manager.js 需要在 HTML 中预先加载

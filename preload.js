@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoStart: (enabled) => ipcRenderer.invoke('set-auto-start', enabled),
   getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
 
+  // 系统启动状态检测 - 用于CLodop延迟初始化
+  getSystemStartupInfo: () => ipcRenderer.invoke('get-system-startup-info'),
+  isSystemRecentlyStarted: () =>
+    ipcRenderer.invoke('is-system-recently-started'),
+
   // 中文编码相关API已移除
 
   // 错误监听
