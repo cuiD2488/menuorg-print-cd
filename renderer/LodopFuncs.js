@@ -252,6 +252,32 @@ function getReliableCLodop() {
   );
 }
 
+// C-Lodop 安装提示函数
+function installCLodop() {
+  console.log('[C-Lodop] 显示安装提示');
+
+  // 创建简单的提示信息
+  const message = `
+检测到C-Lodop打印控件未安装或无法连接。
+
+解决方案：
+1. 确认已安装C-Lodop软件
+2. 检查C-Lodop服务是否正在运行
+3. 确认防火墙允许C-Lodop通信
+4. 尝试重启C-Lodop服务
+5. 如果问题持续，请重新安装C-Lodop
+
+请访问 http://www.lodop.net 下载最新版本。
+  `.trim();
+
+  // 显示提示
+  if (typeof alert !== 'undefined') {
+    alert(message);
+  } else {
+    console.error('[C-Lodop] ' + message);
+  }
+}
+
 // 导出到全局
 if (typeof window !== 'undefined') {
   window.getLodop = getLodop;
