@@ -200,7 +200,7 @@ class LodopPrinterManager {
 
     return {
       // 边距信息
-      margins: template.margins,
+      margins: config.margins,
 
       // 宽度信息
       paperWidth: paperWidth,
@@ -799,6 +799,7 @@ class LodopPrinterManager {
     dishes.forEach((dish) => {
       const price = parseFloat(dish.price || '0');
       const qty = parseInt(dish.amount || '1');
+      const qtyStr = qty.toString();
       const priceStr = `$${price.toFixed(2)}`;
 
       // 菜名处理：支持双语和单词换行
@@ -1671,6 +1672,7 @@ class LodopPrinterManager {
     group.dishes.forEach((dish) => {
       const price = parseFloat(dish.price || '0');
       const qty = parseInt(dish.amount || '1');
+      const qtyStr = qty.toString();
       const priceStr = `$${price.toFixed(2)}`;
 
       totalAmount += price;
